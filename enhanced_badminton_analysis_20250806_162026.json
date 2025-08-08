@@ -1,0 +1,65 @@
+{
+  "analysis_info": {
+    "interrupted": true,
+    "completion_status": "Partial (interrupted)",
+    "frames_processed": 409,
+    "total_frames": 47784,
+    "analysis_coverage": "0.9%"
+  },
+  "session_summary": {
+    "total_shots": 8,
+    "video_duration_analyzed": 13.333333333333334,
+    "avg_confidence": 0.65,
+    "shots_per_minute": 36.0,
+    "unique_shot_types": 1
+  },
+  "shot_distribution": {
+    "drive": 8
+  },
+  "shot_timeline": [
+    [
+      13.1,
+      "drive"
+    ],
+    [
+      13.133333333333333,
+      "drive"
+    ],
+    [
+      13.166666666666666,
+      "drive"
+    ],
+    [
+      13.2,
+      "drive"
+    ],
+    [
+      13.233333333333333,
+      "drive"
+    ],
+    [
+      13.266666666666667,
+      "drive"
+    ],
+    [
+      13.3,
+      "drive"
+    ],
+    [
+      13.333333333333334,
+      "drive"
+    ]
+  ],
+  "performance_insights": [
+    {
+      "category": "Shot Variety",
+      "level": "improvement_needed",
+      "message": "Only 1 shot types detected. Expand your repertoire."
+    }
+  ],
+  "shuttlecock_stats": {
+    "total_detections": 20,
+    "avg_speed": 31.0752573303046,
+    "tracking_enabled": true
+  }
+}
