@@ -1,0 +1,15 @@
+ehanced*
+samplevideo/*
+
+# Analysis outputs
+analysis_output/
+*.log
+*_court_coords.json
+analyzed_*.mp4
+badminton_analysis_*.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
