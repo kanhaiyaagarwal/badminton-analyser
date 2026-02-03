@@ -1,6 +1,12 @@
 ehanced*
 samplevideo/*
 
+# Node modules and build outputs
+node_modules/
+frontend/node_modules/
+frontend/dist/
+dist/
+
 # Analysis outputs
 analysis_output/
 *.log
@@ -13,3 +19,27 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+
+# Environment variables (contains secrets)
+.env
+.env.local
+.env.production
+
+# Database
+*.db
+*.sqlite3
+
+# Uploads
+uploads/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# AWS
+*.pem
+badminton-analyzer-key.pem
+
+# macOS
+.DS_Store

@@ -1,0 +1,4 @@
+todo: 
+
+1. left to right max velocity (score)[median score]
+2. front to back max velocity (score)[median score]

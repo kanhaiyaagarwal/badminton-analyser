@@ -1,0 +1,54 @@
+# Production Dockerfile for Badminton Analyzer
+# Optimized for video processing with OpenCV and MediaPipe
+
+FROM python:3.11-slim
+
+# Install system dependencies for OpenCV, MediaPipe, and video processing
+RUN apt-get update && apt-get install -y \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user for security
+RUN useradd -m -u 1000 appuser
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements first (for better caching)
+COPY requirements-web.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements-web.txt
+
+# Install additional production dependencies
+# Note: mediapipe 0.10.9 is stable and has mp.solutions API
+RUN pip install --no-cache-dir gunicorn numpy ddtrace && \
+    pip install --no-cache-dir mediapipe==0.10.9 opencv-python-headless==4.8.1.78
+
+# Copy application code
+COPY api/ ./api/
+COPY v2_court_bounded_analyzer.py .
+COPY heatmap_visualizer.py .
+
+# Create necessary directories
+RUN mkdir -p /app/uploads /app/analysis_output /app/logs && \
+    chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
+
+# Expose port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
+
+# Run the application with conditional Datadog tracing
+CMD ["/bin/sh", "-c", "if [ \"$DD_TRACE_ENABLED\" = \"true\" ]; then ddtrace-run uvicorn api.main:app --host 0.0.0.0 --port 8000 --workers 2; else uvicorn api.main:app --host 0.0.0.0 --port 8000 --workers 2; fi"]

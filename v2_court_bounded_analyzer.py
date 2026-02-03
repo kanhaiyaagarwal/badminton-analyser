@@ -260,6 +260,8 @@ class CourtBoundedAnalyzer:
         # Movement tracking
         self.pose_history = []
         self.movement_history = []
+        self.foot_position_history: List[Tuple[int, int]] = []  # Full video tracking for heatmap
+        self.foot_position_data: List[dict] = []  # Detailed tracking with timestamps and rally info
 
         # Rally tracking
         self.current_rally_shots = []
@@ -279,6 +281,51 @@ class CourtBoundedAnalyzer:
             tip_index = len(self.shot_history) % len(tips)
             return tips[tip_index]
         return ""
+
+    def _accumulate_foot_position(self, pose_landmarks, frame_number: int = 0, timestamp: float = 0.0) -> None:
+        """Accumulate foot position for heatmap generation"""
+        if pose_landmarks is None or not hasattr(self, '_last_transform'):
+            return
+
+        landmarks = pose_landmarks.landmark
+        left_ankle = landmarks[self.mp_pose.PoseLandmark.LEFT_ANKLE]
+        right_ankle = landmarks[self.mp_pose.PoseLandmark.RIGHT_ANKLE]
+
+        # Check visibility
+        if left_ankle.visibility < 0.5 and right_ankle.visibility < 0.5:
+            return
+
+        # Calculate foot midpoint in normalized coordinates
+        if left_ankle.visibility >= 0.5 and right_ankle.visibility >= 0.5:
+            mid_x = (left_ankle.x + right_ankle.x) / 2
+            mid_y = (left_ankle.y + right_ankle.y) / 2
+        elif left_ankle.visibility >= 0.5:
+            mid_x, mid_y = left_ankle.x, left_ankle.y
+        else:
+            mid_x, mid_y = right_ankle.x, right_ankle.y
+
+        # Convert to pixel coordinates using stored transform
+        transform = self._last_transform
+        pixel_x = int(mid_x * transform['court_w'] + transform['x1'])
+        pixel_y = int(mid_y * transform['court_h'] + transform['y1'])
+
+        # Only add if inside court boundary
+        if self.court.is_point_inside((pixel_x, pixel_y)):
+            self.foot_position_history.append((pixel_x, pixel_y))
+
+            # Store detailed data for advanced visualizations
+            # Rally ID: use current rally counter, or -1 if between rallies
+            current_rally_id = self.rally_id_counter if self.current_rally_shots else -1
+
+            self.foot_position_data.append({
+                'x': pixel_x,
+                'y': pixel_y,
+                'frame': frame_number,
+                'timestamp': timestamp,
+                'rally_id': current_rally_id,
+                'normalized_x': mid_x,
+                'normalized_y': mid_y
+            })
 
     def extract_court_region(self, frame: np.ndarray) -> np.ndarray:
         """Extract only the court region from frame"""
@@ -590,6 +637,9 @@ class CourtBoundedAnalyzer:
             return None, None
 
         self.player_detected_frames += 1
+
+        # Accumulate foot position for heatmap
+        self._accumulate_foot_position(pose_landmarks, frame_number, timestamp)
 
         # Analyze movement
         movement_data = self.analyze_movement(pose_landmarks)
@@ -1050,6 +1100,20 @@ class CourtBoundedAnalyzer:
                     skip_info = f" | Static skipped: {frames_skipped_motion}" if self.skip_static_frames else ""
                     logger.info(f"Progress: {progress:.1f}% | Shots: {len(self.shot_history)}{skip_info}")
 
+                    # Write progress to file for external monitoring
+                    if hasattr(self, 'progress_file') and self.progress_file:
+                        try:
+                            with open(self.progress_file, 'w') as f:
+                                json.dump({
+                                    'progress': progress,
+                                    'shots': len(self.shot_history),
+                                    'frame': frame_number,
+                                    'total_frames': total_frames,
+                                    'message': f"Processing: {progress:.1f}% ({len(self.shot_history)} shots detected)"
+                                }, f)
+                        except Exception:
+                            pass
+
         except KeyboardInterrupt:
             logger.info("Analysis interrupted")
 
@@ -1064,7 +1128,16 @@ class CourtBoundedAnalyzer:
             if show_live:
                 cv2.destroyAllWindows()
 
-        return self.generate_report()
+        # Generate movement heatmap
+        video_name = Path(video_path).stem if video_path else None
+        heatmap_result = self.generate_movement_heatmap(video_name)
+
+        report = self.generate_report()
+        if heatmap_result:
+            report['heatmap_image_path'] = heatmap_result['image_path']
+            report['heatmap_data_path'] = heatmap_result['data_path']
+
+        return report
 
     def generate_report(self) -> dict:
         """Generate analysis report"""
@@ -1102,7 +1175,8 @@ class CourtBoundedAnalyzer:
                 'total_rallies': len(self.rally_history),
                 'frames_processed': self.total_frames_processed,
                 'player_detection_rate': self.player_detected_frames / self.total_frames_processed if self.total_frames_processed > 0 else 0,
-                'avg_confidence': np.mean([s.confidence for s in self.shot_history])
+                'avg_confidence': np.mean([s.confidence for s in self.shot_history]),
+                'foot_positions_recorded': len(self.foot_position_history)
             },
             'shot_distribution': shot_counts,
             'rallies': rally_stats,
@@ -1126,6 +1200,248 @@ class CourtBoundedAnalyzer:
 
         logger.info(f"Report saved: {filename}")
         return str(filename)
+
+    def generate_movement_heatmap(self, video_name: str = None) -> Optional[dict]:
+        """Generate movement heatmap from accumulated foot positions
+
+        Returns dict with 'image_path' and 'data_path' keys
+        """
+        if len(self.foot_position_history) < 10:
+            logger.warning("Not enough foot positions recorded for heatmap generation")
+            return None
+
+        generator = MovementHeatmapGenerator(self.court)
+        heatmap_image = generator.generate_heatmap(self.foot_position_history)
+
+        if heatmap_image is None:
+            return None
+
+        # Save heatmap image and data
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        base_name = f"heatmap_{video_name}_{timestamp}" if video_name else f"heatmap_{timestamp}"
+
+        image_path = OUTPUT_DIR / f"{base_name}.png"
+        data_path = OUTPUT_DIR / f"{base_name}_data.json"
+
+        # Save image
+        cv2.imwrite(str(image_path), heatmap_image)
+        logger.info(f"Movement heatmap saved: {image_path}")
+
+        # Save raw data for custom visualizations
+        heatmap_data = {
+            'metadata': {
+                'video_name': video_name,
+                'timestamp': timestamp,
+                'total_positions': len(self.foot_position_data),
+                'total_rallies': len(self.rally_history),
+                'court_boundary': self.court.to_dict()
+            },
+            'positions': self.foot_position_data,
+            'rallies': [
+                {
+                    'rally_id': r.rally_id,
+                    'start_frame': r.start_frame,
+                    'end_frame': r.end_frame,
+                    'start_time': r.start_time,
+                    'end_time': r.end_time,
+                    'shot_count': r.shot_count
+                }
+                for r in self.rally_history
+            ]
+        }
+
+        with open(data_path, 'w') as f:
+            json.dump(heatmap_data, f, indent=2)
+        logger.info(f"Movement data saved: {data_path}")
+
+        return {
+            'image_path': str(image_path),
+            'data_path': str(data_path)
+        }
+
+
+@dataclass
+class HeatmapConfig:
+    """Configuration for heatmap generation"""
+    output_width: int = 800
+    output_height: int = 600
+    grid_resolution: int = 50  # Number of bins in each dimension
+    blur_sigma: float = 2.0  # Gaussian blur sigma for smoothing
+    colormap: int = cv2.COLORMAP_HOT  # OpenCV colormap
+
+
+class MovementHeatmapGenerator:
+    """Generates movement heatmap from foot position data"""
+
+    def __init__(self, court: CourtBoundary, config: HeatmapConfig = None):
+        self.court = court
+        self.config = config or HeatmapConfig()
+
+    def _get_perspective_transform(self) -> np.ndarray:
+        """Get perspective transform matrix to normalize court to rectangle"""
+        # Source points: court corners (trapezoid shape from camera angle)
+        src_points = np.array([
+            self.court.top_left,
+            self.court.top_right,
+            self.court.bottom_right,
+            self.court.bottom_left
+        ], dtype=np.float32)
+
+        # Destination: normalized rectangle
+        dst_points = np.array([
+            [0, 0],
+            [self.config.grid_resolution - 1, 0],
+            [self.config.grid_resolution - 1, self.config.grid_resolution - 1],
+            [0, self.config.grid_resolution - 1]
+        ], dtype=np.float32)
+
+        return cv2.getPerspectiveTransform(src_points, dst_points)
+
+    def _transform_points(self, points: List[Tuple[int, int]], transform: np.ndarray) -> np.ndarray:
+        """Transform points using perspective matrix"""
+        if not points:
+            return np.array([])
+
+        pts = np.array(points, dtype=np.float32).reshape(-1, 1, 2)
+        transformed = cv2.perspectiveTransform(pts, transform)
+        return transformed.reshape(-1, 2)
+
+    def generate_heatmap(self, foot_positions: List[Tuple[int, int]]) -> Optional[np.ndarray]:
+        """Generate heatmap image from foot positions"""
+        if len(foot_positions) < 10:
+            return None
+
+        # Get perspective transform
+        transform = self._get_perspective_transform()
+
+        # Transform points to normalized court coordinates
+        transformed_points = self._transform_points(foot_positions, transform)
+
+        if len(transformed_points) == 0:
+            return None
+
+        # Create 2D histogram
+        grid_res = self.config.grid_resolution
+        heatmap, _, _ = np.histogram2d(
+            transformed_points[:, 1],  # Y coordinates
+            transformed_points[:, 0],  # X coordinates
+            bins=[grid_res, grid_res],
+            range=[[0, grid_res], [0, grid_res]]
+        )
+
+        # Apply Gaussian blur for smoothing
+        if self.config.blur_sigma > 0:
+            heatmap = cv2.GaussianBlur(
+                heatmap.astype(np.float32),
+                (0, 0),
+                self.config.blur_sigma
+            )
+
+        # Normalize to 0-255
+        if heatmap.max() > 0:
+            heatmap_normalized = (heatmap / heatmap.max() * 255).astype(np.uint8)
+        else:
+            heatmap_normalized = heatmap.astype(np.uint8)
+
+        # Apply colormap (COLORMAP_HOT: black -> red -> yellow -> white)
+        heatmap_colored = cv2.applyColorMap(heatmap_normalized, self.config.colormap)
+
+        # Resize to output dimensions
+        heatmap_resized = cv2.resize(
+            heatmap_colored,
+            (self.config.output_width, self.config.output_height),
+            interpolation=cv2.INTER_CUBIC
+        )
+
+        # Add court lines overlay
+        heatmap_with_court = self._draw_court_lines(heatmap_resized)
+
+        # Add legend and statistics
+        final_image = self._add_legend_and_stats(heatmap_with_court, foot_positions, heatmap)
+
+        return final_image
+
+    def _draw_court_lines(self, image: np.ndarray) -> np.ndarray:
+        """Draw court boundary lines on the heatmap"""
+        h, w = image.shape[:2]
+
+        # Court outline (rectangle since we've normalized the perspective)
+        margin = 10
+        court_rect = [
+            (margin, margin),
+            (w - margin, margin),
+            (w - margin, h - margin),
+            (margin, h - margin)
+        ]
+
+        # Draw court outline
+        pts = np.array(court_rect, dtype=np.int32)
+        cv2.polylines(image, [pts], True, (255, 255, 255), 2)
+
+        # Draw center line (horizontal)
+        cv2.line(image, (margin, h // 2), (w - margin, h // 2), (255, 255, 255), 1)
+
+        # Draw service line (approximately 1/3 from front)
+        service_y = h // 3
+        cv2.line(image, (margin, service_y), (w - margin, service_y), (200, 200, 200), 1)
+
+        # Draw center vertical line
+        cv2.line(image, (w // 2, margin), (w // 2, h - margin), (200, 200, 200), 1)
+
+        return image
+
+    def _add_legend_and_stats(self, image: np.ndarray, positions: List[Tuple[int, int]],
+                              histogram: np.ndarray) -> np.ndarray:
+        """Add color legend and statistics to the heatmap"""
+        h, w = image.shape[:2]
+
+        # Create a larger canvas to accommodate legend
+        canvas_height = h + 80
+        canvas = np.zeros((canvas_height, w, 3), dtype=np.uint8)
+        canvas[0:h, 0:w] = image
+
+        # Draw title
+        title = "Player Movement Heatmap"
+        cv2.putText(canvas, title, (10, h + 25),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+
+        # Draw color legend bar
+        legend_x = 10
+        legend_y = h + 40
+        legend_width = 200
+        legend_height = 15
+
+        # Create gradient for legend
+        for i in range(legend_width):
+            val = int(i / legend_width * 255)
+            color = cv2.applyColorMap(np.array([[val]], dtype=np.uint8), self.config.colormap)[0, 0]
+            cv2.line(canvas,
+                    (legend_x + i, legend_y),
+                    (legend_x + i, legend_y + legend_height),
+                    color.tolist(), 1)
+
+        # Legend labels
+        cv2.putText(canvas, "Low", (legend_x, legend_y + legend_height + 15),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200), 1)
+        cv2.putText(canvas, "High", (legend_x + legend_width - 25, legend_y + legend_height + 15),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200), 1)
+
+        # Statistics
+        stats_x = 250
+        stats_text = f"Positions recorded: {len(positions)}"
+        cv2.putText(canvas, stats_text, (stats_x, h + 55),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
+
+        # Peak zone info
+        if histogram.max() > 0:
+            peak_y, peak_x = np.unravel_index(histogram.argmax(), histogram.shape)
+            zone_names = ["Front", "Mid", "Back"]
+            zone_idx = min(2, peak_y * 3 // self.config.grid_resolution)
+            zone_text = f"Most active zone: {zone_names[zone_idx]} court"
+            cv2.putText(canvas, zone_text, (stats_x, h + 75),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
+
+        return canvas
 
 
 class CourtSelector:

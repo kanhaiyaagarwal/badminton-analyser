@@ -1,0 +1,321 @@
+{
+  "family": "badminton-analyzer-task",
+  "networkMode": "bridge",
+  "requiresCompatibilities": [
+    "EC2"
+  ],
+  "executionRoleArn": "arn:aws:iam::453533986084:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::453533986084:role/ecsTaskExecutionRole",
+  "containerDefinitions": [
+    {
+      "name": "badminton-analyzer",
+      "image": "453533986084.dkr.ecr.ap-south-1.amazonaws.com/badminton-analyzer:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8000,
+          "hostPort": 8002,
+          "protocol": "tcp"
+        }
+      ],
+      "memory": 6144,
+      "cpu": 1792,
+      "environment": [
+        {
+          "name": "ENVIRONMENT",
+          "value": "production"
+        },
+        {
+          "name": "PYTHONUNBUFFERED",
+          "value": "1"
+        },
+        {
+          "name": "DEBUG",
+          "value": "false"
+        },
+        {
+          "name": "APP_NAME",
+          "value": "Badminton Analyzer API"
+        },
+        {
+          "name": "HOST",
+          "value": "0.0.0.0"
+        },
+        {
+          "name": "PORT",
+          "value": "8000"
+        },
+        {
+          "name": "UPLOAD_DIR",
+          "value": "/app/uploads"
+        },
+        {
+          "name": "OUTPUT_DIR",
+          "value": "/app/analysis_output"
+        },
+        {
+          "name": "MAX_UPLOAD_SIZE_MB",
+          "value": "500"
+        },
+        {
+          "name": "MAX_CONCURRENT_JOBS",
+          "value": "2"
+        },
+        {
+          "name": "USE_S3",
+          "value": "false"
+        },
+        {
+          "name": "CORS_ORIGINS",
+          "value": "http://localhost:5173,http://localhost:3000,https://badminton.neymo.ai"
+        },
+        {
+          "name": "JWT_ALGORITHM",
+          "value": "HS256"
+        },
+        {
+          "name": "ACCESS_TOKEN_EXPIRE_MINUTES",
+          "value": "30"
+        },
+        {
+          "name": "REFRESH_TOKEN_EXPIRE_DAYS",
+          "value": "7"
+        },
+        {
+          "name": "DD_TRACE_ENABLED",
+          "value": "true"
+        },
+        {
+          "name": "DD_TRACE_DEBUG",
+          "value": "false"
+        },
+        {
+          "name": "DD_AGENT_HOST",
+          "value": "datadog-agent"
+        },
+        {
+          "name": "DD_TRACE_AGENT_PORT",
+          "value": "8126"
+        },
+        {
+          "name": "DD_DOGSTATSD_PORT",
+          "value": "8125"
+        },
+        {
+          "name": "DD_SERVICE",
+          "value": "badminton-analyzer"
+        },
+        {
+          "name": "DD_ENV",
+          "value": "prod"
+        },
+        {
+          "name": "DD_VERSION",
+          "value": "1.0.0"
+        },
+        {
+          "name": "DD_LOGS_INJECTION",
+          "value": "true"
+        },
+        {
+          "name": "DD_TRACE_SAMPLE_RATE",
+          "value": "0.1"
+        },
+        {
+          "name": "DD_PROFILING_ENABLED",
+          "value": "false"
+        },
+        {
+          "name": "DD_RUNTIME_METRICS_ENABLED",
+          "value": "true"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "DATABASE_URL",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:453533986084:secret:badminton-analyzer/database-url-NzDte9"
+        },
+        {
+          "name": "JWT_SECRET_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:453533986084:secret:badminton-analyzer/jwt-secret-key-4KgTgp"
+        }
+      ],
+      "links": [
+        "datadog-agent:datadog-agent"
+      ],
+      "dependsOn": [
+        {
+          "containerName": "datadog-agent",
+          "condition": "START"
+        }
+      ],
+      "mountPoints": [
+        {
+          "sourceVolume": "uploads",
+          "containerPath": "/app/uploads",
+          "readOnly": false
+        },
+        {
+          "sourceVolume": "analysis_output",
+          "containerPath": "/app/analysis_output",
+          "readOnly": false
+        }
+      ],
+      "dockerLabels": {
+        "com.datadoghq.ad.logs": "[{\"source\":\"python\",\"service\":\"badminton-analyzer\"}]",
+        "com.datadoghq.tags.env": "prod",
+        "com.datadoghq.tags.service": "badminton-analyzer",
+        "com.datadoghq.tags.version": "1.0.0"
+      },
+      "healthCheck": {
+        "command": [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" || exit 1"
+        ],
+        "interval": 30,
+        "timeout": 10,
+        "retries": 3,
+        "startPeriod": 60
+      }
+    },
+    {
+      "name": "datadog-agent",
+      "image": "gcr.io/datadoghq/agent:latest",
+      "essential": false,
+      "memory": 384,
+      "cpu": 256,
+      "portMappings": [
+        {
+          "containerPort": 8126,
+          "hostPort": 8126,
+          "protocol": "tcp"
+        },
+        {
+          "containerPort": 8125,
+          "hostPort": 8125,
+          "protocol": "udp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "DD_SITE",
+          "value": "us5.datadoghq.com"
+        },
+        {
+          "name": "DD_APM_ENABLED",
+          "value": "true"
+        },
+        {
+          "name": "DD_APM_NON_LOCAL_TRAFFIC",
+          "value": "true"
+        },
+        {
+          "name": "DD_DOGSTATSD_NON_LOCAL_TRAFFIC",
+          "value": "true"
+        },
+        {
+          "name": "DD_LOGS_ENABLED",
+          "value": "true"
+        },
+        {
+          "name": "DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL",
+          "value": "true"
+        },
+        {
+          "name": "DD_CONTAINER_EXCLUDE_LOGS",
+          "value": "name:datadog-agent"
+        },
+        {
+          "name": "DD_DOCKER_LABELS_AS_TAGS",
+          "value": "{\"com.datadoghq.ad.logs\":\"logs\"}"
+        },
+        {
+          "name": "DD_TAGS",
+          "value": "env:prod service:badminton-analyzer cluster:badminton-analyzer-cluster"
+        },
+        {
+          "name": "DD_PROCESS_AGENT_ENABLED",
+          "value": "true"
+        },
+        {
+          "name": "ECS_FARGATE",
+          "value": "false"
+        },
+        {
+          "name": "DD_ECS_COLLECT_RESOURCE_TAGS_EC2",
+          "value": "true"
+        },
+        {
+          "name": "DD_ORCHESTRATOR_EXPLORER_ENABLED",
+          "value": "false"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "DD_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:453533986084:secret:badminton-analyzer/datadog-api-key-w0fUM0"
+        }
+      ],
+      "mountPoints": [
+        {
+          "sourceVolume": "docker_sock",
+          "containerPath": "/var/run/docker.sock",
+          "readOnly": true
+        },
+        {
+          "sourceVolume": "docker_containers",
+          "containerPath": "/var/lib/docker/containers",
+          "readOnly": true
+        },
+        {
+          "sourceVolume": "proc",
+          "containerPath": "/host/proc",
+          "readOnly": true
+        },
+        {
+          "sourceVolume": "cgroup",
+          "containerPath": "/host/sys/fs/cgroup",
+          "readOnly": true
+        }
+      ]
+    }
+  ],
+  "volumes": [
+    {
+      "name": "uploads",
+      "host": {
+        "sourcePath": "/data/badminton-analyzer/uploads"
+      }
+    },
+    {
+      "name": "analysis_output",
+      "host": {
+        "sourcePath": "/data/badminton-analyzer/analysis_output"
+      }
+    },
+    {
+      "name": "docker_sock",
+      "host": {
+        "sourcePath": "/var/run/docker.sock"
+      }
+    },
+    {
+      "name": "docker_containers",
+      "host": {
+        "sourcePath": "/var/lib/docker/containers"
+      }
+    },
+    {
+      "name": "proc",
+      "host": {
+        "sourcePath": "/proc"
+      }
+    },
+    {
+      "name": "cgroup",
+      "host": {
+        "sourcePath": "/sys/fs/cgroup"
+      }
+    }
+  ]
+}
