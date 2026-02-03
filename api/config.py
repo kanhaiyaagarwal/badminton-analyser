@@ -55,6 +55,12 @@ class Settings(BaseSettings):
     # Redis (for WebSocket scaling)
     redis_url: Optional[str] = None
 
+    # Invite codes for signup (comma-separated)
+    invite_codes: str = "BADMINTON2024,NEYMO2024,EARLYBIRD"
+
+    # Whitelisted emails that can signup without invite code (comma-separated)
+    whitelist_emails: str = ""
+
     @property
     def is_sqlite(self) -> bool:
         """Check if using SQLite database."""
@@ -84,6 +90,16 @@ class Settings(BaseSettings):
     def allowed_video_extensions(self) -> set:
         """Allowed video file extensions."""
         return {".mp4", ".avi", ".mov", ".mkv", ".webm"}
+
+    @property
+    def invite_codes_list(self) -> List[str]:
+        """Get invite codes as list (case-insensitive)."""
+        return [code.strip().upper() for code in self.invite_codes.split(",") if code.strip()]
+
+    @property
+    def whitelist_emails_list(self) -> List[str]:
+        """Get whitelisted emails as list (case-insensitive)."""
+        return [email.strip().lower() for email in self.whitelist_emails.split(",") if email.strip()]
 
 
 @lru_cache()

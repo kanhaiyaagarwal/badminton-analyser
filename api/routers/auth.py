@@ -41,6 +41,49 @@ async def get_current_user(
 @router.post("/signup", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
     """Create a new user account."""
+    from ..config import get_settings
+    from ..db_models.invite import InviteCode, WhitelistEmail, Waitlist
+    settings = get_settings()
+
+    # Check if email is whitelisted (bypass invite code)
+    # Check both env-based and database whitelist
+    is_whitelisted = user_data.email.lower() in settings.whitelist_emails_list
+    if not is_whitelisted:
+        db_whitelist = db.query(WhitelistEmail).filter(
+            WhitelistEmail.email == user_data.email.lower()
+        ).first()
+        is_whitelisted = db_whitelist is not None
+
+    invite_code_record = None
+
+    if not is_whitelisted:
+        if not user_data.invite_code:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invite code required"
+            )
+
+        # First check DB for invite code
+        invite_code_record = db.query(InviteCode).filter(
+            InviteCode.code == user_data.invite_code.upper(),
+            InviteCode.is_active == True
+        ).first()
+
+        # If not in DB, check env config (fallback)
+        if not invite_code_record:
+            if user_data.invite_code.upper() not in settings.invite_codes_list:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid invite code"
+                )
+        else:
+            # Check if code has reached max uses
+            if invite_code_record.max_uses > 0 and invite_code_record.times_used >= invite_code_record.max_uses:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invite code has reached maximum uses"
+                )
+
     # Check if email already exists
     if UserService.get_user_by_email(db, user_data.email):
         raise HTTPException(
@@ -55,7 +98,23 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
             detail="Username already taken"
         )
 
+    # Create user
     user = UserService.create_user(db, user_data)
+
+    # Increment invite code usage if from DB
+    if invite_code_record:
+        invite_code_record.times_used += 1
+
+        # Update waitlist entry status if this code came from waitlist approval
+        waitlist_entry = db.query(Waitlist).filter(
+            Waitlist.invite_code_id == invite_code_record.id,
+            Waitlist.status == "approved"
+        ).first()
+        if waitlist_entry:
+            waitlist_entry.status = "registered"
+
+        db.commit()
+
     return user
 
 

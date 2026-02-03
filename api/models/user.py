@@ -10,6 +10,7 @@ class UserCreate(BaseModel):
     email: EmailStr
     username: str = Field(..., min_length=3, max_length=50)
     password: str = Field(..., min_length=8, max_length=100)
+    invite_code: str = Field(default="", max_length=50)
 
 
 class UserLogin(BaseModel):
@@ -24,6 +25,7 @@ class UserResponse(BaseModel):
     email: str
     username: str
     is_active: bool
+    is_admin: bool = False
     created_at: datetime
 
     class Config:

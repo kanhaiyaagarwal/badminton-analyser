@@ -53,6 +53,12 @@ const routes = [
     name: 'StreamResults',
     component: () => import('../views/StreamResultsView.vue'),
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/admin',
+    name: 'Admin',
+    component: () => import('../views/AdminView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true }
   }
 ]
 
@@ -67,6 +73,8 @@ router.beforeEach((to, from, next) => {
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     next('/login')
   } else if (to.meta.guest && authStore.isAuthenticated) {
+    next('/dashboard')
+  } else if (to.meta.requiresAdmin && !authStore.user?.is_admin) {
     next('/dashboard')
   } else {
     next()

@@ -51,6 +51,17 @@
           />
         </div>
 
+        <div class="form-group">
+          <label for="inviteCode">Invite Code</label>
+          <input
+            id="inviteCode"
+            v-model="inviteCode"
+            type="text"
+            placeholder="Enter your invite code"
+            required
+          />
+        </div>
+
         <div v-if="error" class="error-message">{{ error }}</div>
         <div v-if="success" class="success-message">{{ success }}</div>
 
@@ -63,6 +74,55 @@
         Already have an account?
         <router-link to="/login">Login</router-link>
       </p>
+
+      <div class="waitlist-section">
+        <p class="waitlist-text">Don't have an invite code?</p>
+        <button type="button" @click="showWaitlist = true" class="btn-waitlist">
+          Join the Waitlist
+        </button>
+      </div>
+    </div>
+
+    <!-- Waitlist Modal -->
+    <div v-if="showWaitlist" class="modal-overlay" @click="showWaitlist = false">
+      <div class="modal-content" @click.stop>
+        <h2>Join the Waitlist</h2>
+        <p class="modal-desc">Enter your email and we'll notify you when access is available.</p>
+
+        <form @submit.prevent="handleWaitlist">
+          <div class="form-group">
+            <label for="waitlistEmail">Email</label>
+            <input
+              id="waitlistEmail"
+              v-model="waitlistEmail"
+              type="email"
+              placeholder="your@email.com"
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="waitlistName">Name (optional)</label>
+            <input
+              id="waitlistName"
+              v-model="waitlistName"
+              type="text"
+              placeholder="Your name"
+            />
+          </div>
+
+          <div v-if="waitlistError" class="error-message">{{ waitlistError }}</div>
+          <div v-if="waitlistSuccess" class="success-message">{{ waitlistSuccess }}</div>
+
+          <button type="submit" class="btn-primary" :disabled="waitlistLoading">
+            {{ waitlistLoading ? 'Joining...' : 'Join Waitlist' }}
+          </button>
+
+          <button type="button" @click="showWaitlist = false" class="btn-secondary">
+            Cancel
+          </button>
+        </form>
+      </div>
     </div>
   </div>
 </template>
@@ -71,6 +131,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import api from '../api/client'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -79,9 +140,18 @@ const email = ref('')
 const username = ref('')
 const password = ref('')
 const confirmPassword = ref('')
+const inviteCode = ref('')
 const loading = ref(false)
 const error = ref('')
 const success = ref('')
+
+// Waitlist
+const showWaitlist = ref(false)
+const waitlistEmail = ref('')
+const waitlistName = ref('')
+const waitlistLoading = ref(false)
+const waitlistError = ref('')
+const waitlistSuccess = ref('')
 
 async function handleSignup() {
   error.value = ''
@@ -95,13 +165,37 @@ async function handleSignup() {
   loading.value = true
 
   try {
-    await authStore.signup(email.value, username.value, password.value)
+    await authStore.signup(email.value, username.value, password.value, inviteCode.value)
     success.value = 'Account created! Redirecting to login...'
     setTimeout(() => router.push('/login'), 1500)
   } catch (err) {
     error.value = err.response?.data?.detail || 'Signup failed. Please try again.'
   } finally {
     loading.value = false
+  }
+}
+
+async function handleWaitlist() {
+  waitlistError.value = ''
+  waitlistSuccess.value = ''
+  waitlistLoading.value = true
+
+  try {
+    const response = await api.post('/api/v1/admin/join-waitlist', {
+      email: waitlistEmail.value,
+      name: waitlistName.value || null
+    })
+    waitlistSuccess.value = response.data.message
+    setTimeout(() => {
+      showWaitlist.value = false
+      waitlistEmail.value = ''
+      waitlistName.value = ''
+      waitlistSuccess.value = ''
+    }, 3000)
+  } catch (err) {
+    waitlistError.value = err.response?.data?.detail || 'Failed to join waitlist.'
+  } finally {
+    waitlistLoading.value = false
   }
 }
 </script>
@@ -214,5 +308,77 @@ input:focus {
 
 .auth-switch a:hover {
   text-decoration: underline;
+}
+
+.waitlist-section {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #2a2a4a;
+  text-align: center;
+}
+
+.waitlist-text {
+  color: #888;
+  margin-bottom: 0.75rem;
+}
+
+.btn-waitlist {
+  background: transparent;
+  border: 1px solid #4ecca3;
+  color: #4ecca3;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-waitlist:hover {
+  background: rgba(78, 204, 163, 0.1);
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.modal-content {
+  background: #16213e;
+  padding: 2rem;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 400px;
+}
+
+.modal-content h2 {
+  color: #4ecca3;
+  margin-bottom: 0.5rem;
+}
+
+.modal-desc {
+  color: #888;
+  margin-bottom: 1.5rem;
+}
+
+.btn-secondary {
+  width: 100%;
+  padding: 0.75rem;
+  background: transparent;
+  border: 1px solid #3a3a5a;
+  color: #888;
+  border-radius: 8px;
+  margin-top: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+  border-color: #888;
+  color: #eee;
 }
 </style>

@@ -42,11 +42,12 @@ export const useAuthStore = defineStore('auth', () => {
     return response.data
   }
 
-  async function signup(email, username, password) {
+  async function signup(email, username, password, inviteCode) {
     const response = await api.post('/api/v1/auth/signup', {
       email,
       username,
-      password
+      password,
+      invite_code: inviteCode
     })
     return response.data
   }

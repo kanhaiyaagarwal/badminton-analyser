@@ -3,6 +3,9 @@
     <div class="dashboard-header">
       <h1>My Analysis</h1>
       <div class="header-actions">
+        <router-link v-if="isAdmin" to="/admin" class="btn-admin">
+          Admin
+        </router-link>
         <router-link to="/live" class="btn-live">
           <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
             <circle cx="12" cy="12" r="10" stroke-width="2"/>
@@ -149,9 +152,13 @@
 <script setup>
 import { onMounted, computed } from 'vue'
 import { useJobsStore } from '../stores/jobs'
+import { useAuthStore } from '../stores/auth'
 import ProgressTracker from '../components/ProgressTracker.vue'
 
 const jobsStore = useJobsStore()
+const authStore = useAuthStore()
+
+const isAdmin = computed(() => authStore.user?.is_admin)
 
 const allAnalysis = computed(() => jobsStore.allAnalysis)
 const loading = computed(() => jobsStore.loading)
@@ -223,6 +230,22 @@ h1 {
 
 .btn-upload:hover {
   background: #3db892;
+}
+
+.btn-admin {
+  background: transparent;
+  color: #9b59b6;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  border: 2px solid #9b59b6;
+  text-decoration: none;
+  font-weight: bold;
+  transition: all 0.2s;
+}
+
+.btn-admin:hover {
+  background: #9b59b6;
+  color: white;
 }
 
 .btn-live {
