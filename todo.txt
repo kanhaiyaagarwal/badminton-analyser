@@ -1,4 +1,22 @@
 todo: 
+p0
+3. multiple player how to detect
+7. allow recording on local device, if mobile then mobile, if laptop then laptop locally
+8. pinch and zoom of camera when selecting court.
+6. move badminton to 1 section, 
+
+p1: 
 
 1. left to right max velocity (score)[median score]
 2. front to back max velocity (score)[median score]
+
+
+p2
+5. payment integrations (p2)
+5. enable google login for mail verification
+Done:
+
+
+3. Deploy on aws 
+4. referral and whitelist
+7. otp flow for email
