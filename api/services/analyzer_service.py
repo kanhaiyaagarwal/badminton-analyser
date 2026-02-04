@@ -197,6 +197,7 @@ class AnalyzerService:
             # Build ffmpeg command
             cmd = [
                 'ffmpeg', '-y',
+                '-loglevel', 'warning',  # Reduce stderr output to prevent buffer deadlock
                 '-i', input_path,
                 '-c:v', 'libx264',
                 '-preset', preset,
@@ -220,15 +221,20 @@ class AnalyzerService:
             logger.info("Audio track will be removed (not needed for analysis)")
 
             # Run with progress monitoring
+            # IMPORTANT: Use DEVNULL for stderr to prevent deadlock
+            # If we pipe stderr but don't read it, the buffer fills up and ffmpeg blocks
             process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,  # Discard stderr to prevent deadlock
                 universal_newlines=True
             )
 
             last_progress_time = time.time()
+            last_progress_value = 0
+            stall_warning_shown = False
             cancelled = False
+
             while process.poll() is None:
                 # Check for cancellation every iteration
                 if output_dir and AnalyzerService._check_cancelled(output_dir):
@@ -249,6 +255,8 @@ class AnalyzerService:
                             time_ms = int(line.split('=')[1])
                             time_s = time_ms / 1000000
                             progress = min(95, (time_s / duration) * 100)
+                            last_progress_value = progress
+                            stall_warning_shown = False
 
                             # Update progress every 2 seconds
                             if time.time() - last_progress_time > 2:
@@ -263,21 +271,31 @@ class AnalyzerService:
                         except (ValueError, IndexError):
                             pass
 
+                # Stall detection: warn if no progress for 60 seconds
+                if time.time() - last_progress_time > 60 and not stall_warning_shown:
+                    logger.warning(f"Transcoding may be stalled at {last_progress_value:.1f}% - no progress for 60s")
+                    stall_warning_shown = True
+
             if cancelled:
                 # Clean up partial output file
                 if Path(output_path).exists():
                     Path(output_path).unlink()
                 return False
 
-            # Wait for completion
-            stdout, stderr = process.communicate(timeout=1800)
+            # Wait for completion (stderr already discarded)
+            try:
+                process.wait(timeout=1800)
+            except subprocess.TimeoutExpired:
+                logger.error("Transcoding timed out after 30 minutes")
+                process.kill()
+                return False
 
             if process.returncode == 0:
                 logger.info(f"Transcoding complete: {output_path}")
                 AnalyzerService._write_progress(progress_file, 100, "Transcoding complete", "transcode")
                 return True
             else:
-                logger.error(f"Transcoding failed: {stderr}")
+                logger.error(f"Transcoding failed with return code: {process.returncode}")
                 return False
         except Exception as e:
             logger.error(f"Transcoding error: {e}")
