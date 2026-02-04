@@ -1,15 +1,44 @@
 """Court boundary router."""
 
+import logging
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
+from ..config import get_settings
 from ..database import get_db
 from ..db_models.job import Job
 from ..models.court import CourtBoundary, CourtBoundaryCreate
 from ..services.analyzer_service import AnalyzerService
+from ..services.storage_service import get_storage_service
 from .auth import get_current_user
 
 router = APIRouter(prefix="/api/v1/court", tags=["court"])
+logger = logging.getLogger(__name__)
+settings = get_settings()
+
+
+def get_video_path_for_job(job: Job) -> str:
+    """Get local video path for a job, downloading from S3 if needed."""
+    if job.storage_type == "s3" and job.s3_video_key:
+        # For S3, we need to download to a temp location
+        storage = get_storage_service()
+        temp_dir = settings.output_path / str(job.user_id) / str(job.id)
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        local_path = temp_dir / f"temp_{job.video_filename}"
+
+        # Download if not already cached
+        if not local_path.exists():
+            logger.info(f"Downloading video from S3 for court setup: {job.s3_video_key}")
+            video_data = storage.uploads.load(job.s3_video_key)
+            with open(local_path, 'wb') as f:
+                f.write(video_data)
+            logger.info(f"Downloaded video to: {local_path}")
+
+        return str(local_path)
+    else:
+        return job.video_path
 
 
 @router.post("/extract-frame/{job_id}")
@@ -28,8 +57,15 @@ async def extract_frame(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
+    # Get video path (download from S3 if needed)
+    try:
+        video_path = get_video_path_for_job(job)
+    except Exception as e:
+        logger.error(f"Failed to get video for job {job_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to access video: {str(e)}")
+
     # Get video info
-    video_info = AnalyzerService.get_video_info(job.video_path)
+    video_info = AnalyzerService.get_video_info(video_path)
     if not video_info:
         raise HTTPException(status_code=400, detail="Could not read video")
 
@@ -38,7 +74,7 @@ async def extract_frame(
         raise HTTPException(status_code=400, detail="Invalid timestamp")
 
     # Extract frame
-    frame_bytes = AnalyzerService.extract_frame(job.video_path, timestamp)
+    frame_bytes = AnalyzerService.extract_frame(video_path, timestamp)
     if frame_bytes is None:
         raise HTTPException(status_code=400, detail="Failed to extract frame")
 
@@ -69,7 +105,14 @@ async def get_video_info(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    video_info = AnalyzerService.get_video_info(job.video_path)
+    # Get video path (download from S3 if needed)
+    try:
+        video_path = get_video_path_for_job(job)
+    except Exception as e:
+        logger.error(f"Failed to get video for job {job_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to access video: {str(e)}")
+
+    video_info = AnalyzerService.get_video_info(video_path)
     if not video_info:
         raise HTTPException(status_code=400, detail="Could not read video")
 

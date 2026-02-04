@@ -71,7 +71,7 @@ async function loadHeatmaps() {
     const response = await api.get(`/api/v1/results/${props.jobId}/heatmaps`)
     const heatmapList = response.data.heatmaps || []
 
-    // Load each heatmap image with auth
+    // Load each heatmap image via API (backend proxies S3)
     for (const heatmap of heatmapList) {
       heatmap.blobUrl = null
       loadHeatmapImage(heatmap)

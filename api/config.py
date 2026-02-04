@@ -42,9 +42,9 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173"
 
     # S3 Storage (for AWS deployment)
-    use_s3: bool = False
-    s3_bucket: str = ""
-    aws_region: str = "us-east-1"
+    use_s3: bool = True
+    s3_bucket: str = "badminton-analyzer-storage"
+    aws_region: str = "ap-south-1"
     aws_access_key_id: str = ""
     aws_secret_access_key: str = ""
     cloudfront_domain: str = ""

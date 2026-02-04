@@ -1,5 +1,6 @@
 """Analysis router for video upload and job management."""
 
+import logging
 import shutil
 from pathlib import Path
 from typing import Optional
@@ -13,11 +14,13 @@ from ..db_models.job import Job, JobStatus
 from ..models.job import JobResponse, JobListResponse
 from ..models.analysis import AnalysisStart, AnalysisStatus
 from ..services.job_manager import JobManager
+from ..services.storage_service import get_storage_service
 from ..websocket.progress_handler import get_ws_manager
 from .auth import get_current_user
 
 router = APIRouter(prefix="/api/v1/analysis", tags=["analysis"])
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 def get_job_manager() -> JobManager:
@@ -40,32 +43,67 @@ async def upload_video(
             detail=f"Invalid file type. Allowed: {', '.join(settings.allowed_video_extensions)}"
         )
 
-    # Create user upload directory
-    user_upload_dir = settings.upload_path / str(current_user.id)
-    user_upload_dir.mkdir(parents=True, exist_ok=True)
-
-    # Generate unique filename
     import uuid
     unique_filename = f"{uuid.uuid4()}{file_ext}"
-    file_path = user_upload_dir / unique_filename
 
-    # Save file
-    try:
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to save file: {str(e)}"
+    storage = get_storage_service()
+    logger.info(f"Storage type: {storage.storage_type}, is_s3: {storage.is_s3()}")
+
+    if storage.is_s3():
+        # Upload to S3
+        s3_key = storage.get_upload_path(current_user.id, unique_filename)
+        logger.info(f"Uploading to S3: bucket={settings.s3_bucket}, key={s3_key}")
+        try:
+            # Read file content and upload to S3
+            file_content = await file.read()
+            content_type = file.content_type or "video/mp4"
+            logger.info(f"File size: {len(file_content)} bytes, content_type: {content_type}")
+            storage.uploads.save(s3_key, file_content, content_type=content_type)
+            logger.info(f"Successfully uploaded to S3: {s3_key}")
+        except Exception as e:
+            logger.error(f"Failed to upload to S3: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to upload file to S3: {str(e)}"
+            )
+
+        # Create job record with S3 storage
+        job = Job(
+            user_id=current_user.id,
+            video_filename=file.filename,
+            video_path="",  # Not used for S3
+            storage_type="s3",
+            s3_video_key=s3_key,
+            status=JobStatus.PENDING
+        )
+        logger.info(f"Created job with S3 storage: job_id will be assigned, s3_key={s3_key}")
+    else:
+        # Save to local filesystem
+        logger.info("Using local storage")
+        user_upload_dir = settings.upload_path / str(current_user.id)
+        user_upload_dir.mkdir(parents=True, exist_ok=True)
+        file_path = user_upload_dir / unique_filename
+
+        try:
+            with open(file_path, "wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
+            logger.info(f"Saved file locally: {file_path}")
+        except Exception as e:
+            logger.error(f"Failed to save file locally: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to save file: {str(e)}"
+            )
+
+        # Create job record with local storage
+        job = Job(
+            user_id=current_user.id,
+            video_filename=file.filename,
+            video_path=str(file_path),
+            storage_type="local",
+            status=JobStatus.PENDING
         )
 
-    # Create job record
-    job = Job(
-        user_id=current_user.id,
-        video_filename=file.filename,
-        video_path=str(file_path),
-        status=JobStatus.PENDING
-    )
     db.add(job)
     db.commit()
     db.refresh(job)
@@ -142,9 +180,33 @@ async def start_analysis(
     output_dir.mkdir(parents=True, exist_ok=True)
     background_frame_path = str(output_dir / "background_frame.png")
 
+    # Determine video path for frame extraction
+    storage = get_storage_service()
+    temp_video_path = None
+
+    if job.storage_type == "s3" and job.s3_video_key:
+        # Download video temporarily for frame extraction
+        temp_video_path = str(output_dir / f"temp_{job.video_filename}")
+        try:
+            video_data = storage.uploads.load(job.s3_video_key)
+            with open(temp_video_path, 'wb') as f:
+                f.write(video_data)
+            video_path_for_frame = temp_video_path
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to download video from S3: {str(e)}"
+            )
+    else:
+        video_path_for_frame = job.video_path
+
     # Extract and save frame at the timestamp user was viewing
-    if AnalyzerService.save_frame_to_file(job.video_path, background_frame_path, timestamp=analysis_config.frame_timestamp):
+    if AnalyzerService.save_frame_to_file(video_path_for_frame, background_frame_path, timestamp=analysis_config.frame_timestamp):
         job.background_frame_path = background_frame_path
+
+    # Clean up temp video file (will be downloaded again during analysis)
+    if temp_video_path and Path(temp_video_path).exists():
+        Path(temp_video_path).unlink()
 
     db.commit()
 
@@ -243,15 +305,38 @@ async def delete_job(
     if job.status == JobStatus.PROCESSING:
         await job_manager.cancel_job(db, job)
 
-    # Delete associated files
-    if job.video_path and Path(job.video_path).exists():
-        Path(job.video_path).unlink()
+    storage = get_storage_service()
 
-    if job.report_path and Path(job.report_path).exists():
-        Path(job.report_path).unlink()
+    if job.storage_type == "s3":
+        # Delete S3 files
+        if job.s3_video_key:
+            storage.uploads.delete(job.s3_video_key)
 
-    if job.annotated_video_path and Path(job.annotated_video_path).exists():
-        Path(job.annotated_video_path).unlink()
+        if job.report_path:
+            storage.outputs.delete(job.report_path)
+
+        if job.annotated_video_path:
+            storage.outputs.delete(job.annotated_video_path)
+
+        if job.heatmap_paths:
+            for heatmap_path in job.heatmap_paths.values():
+                if heatmap_path:
+                    storage.outputs.delete(heatmap_path)
+    else:
+        # Delete local files
+        if job.video_path and Path(job.video_path).exists():
+            Path(job.video_path).unlink()
+
+        if job.report_path and Path(job.report_path).exists():
+            Path(job.report_path).unlink()
+
+        if job.annotated_video_path and Path(job.annotated_video_path).exists():
+            Path(job.annotated_video_path).unlink()
+
+        if job.heatmap_paths:
+            for heatmap_path in job.heatmap_paths.values():
+                if heatmap_path and Path(heatmap_path).exists():
+                    Path(heatmap_path).unlink()
 
     # Delete job record
     db.delete(job)
