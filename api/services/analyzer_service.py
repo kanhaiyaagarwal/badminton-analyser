@@ -190,43 +190,144 @@ class AnalyzerService:
         """
         import cv2
 
+        # First try OpenCV
         cap = cv2.VideoCapture(video_path)
-        if not cap.isOpened():
-            return None
+        if cap.isOpened():
+            try:
+                # Seek to timestamp
+                cap.set(cv2.CAP_PROP_POS_MSEC, timestamp * 1000)
+                ret, frame = cap.read()
+
+                if ret and frame is not None:
+                    # Encode as JPEG
+                    _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+                    return buffer.tobytes()
+            finally:
+                cap.release()
+
+        # Fallback to ffmpeg for unsupported codecs (AV1, etc.)
+        return AnalyzerService._extract_frame_ffmpeg(video_path, timestamp)
+
+    @staticmethod
+    def _extract_frame_ffmpeg(video_path: str, timestamp: float = 0.0) -> Optional[bytes]:
+        """
+        Extract a frame using ffmpeg subprocess (fallback for unsupported codecs).
+        """
+        import subprocess
+        import tempfile
+        import os
 
         try:
-            # Seek to timestamp
-            cap.set(cv2.CAP_PROP_POS_MSEC, timestamp * 1000)
-            ret, frame = cap.read()
+            # Create temp file for the frame
+            with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
+                tmp_path = tmp.name
 
-            if not ret:
-                return None
+            # Use ffmpeg to extract frame
+            cmd = [
+                'ffmpeg', '-y',
+                '-ss', str(timestamp),
+                '-i', video_path,
+                '-vframes', '1',
+                '-q:v', '2',
+                tmp_path
+            ]
 
-            # Encode as JPEG
-            _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
-            return buffer.tobytes()
-        finally:
-            cap.release()
+            result = subprocess.run(cmd, capture_output=True, timeout=30)
+
+            if result.returncode == 0 and os.path.exists(tmp_path):
+                with open(tmp_path, 'rb') as f:
+                    frame_bytes = f.read()
+                os.unlink(tmp_path)
+                return frame_bytes if len(frame_bytes) > 0 else None
+
+            # Clean up on failure
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+            return None
+
+        except Exception as e:
+            print(f"ffmpeg frame extraction failed: {e}")
+            return None
 
     @staticmethod
     def get_video_info(video_path: str) -> Optional[Dict[str, Any]]:
         """Get video metadata."""
         import cv2
 
+        # Try OpenCV first
         cap = cv2.VideoCapture(video_path)
-        if not cap.isOpened():
-            return None
+        if cap.isOpened():
+            try:
+                width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                fps = cap.get(cv2.CAP_PROP_FPS)
+                frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+                if width > 0 and height > 0 and fps > 0:
+                    return {
+                        "width": width,
+                        "height": height,
+                        "fps": fps,
+                        "frame_count": frame_count,
+                        "duration": frame_count / fps if fps > 0 else 0
+                    }
+            finally:
+                cap.release()
+
+        # Fallback to ffprobe for unsupported codecs
+        return AnalyzerService._get_video_info_ffprobe(video_path)
+
+    @staticmethod
+    def _get_video_info_ffprobe(video_path: str) -> Optional[Dict[str, Any]]:
+        """Get video info using ffprobe (fallback for unsupported codecs)."""
+        import subprocess
+        import json as json_module
 
         try:
-            return {
-                "width": int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
-                "height": int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
-                "fps": cap.get(cv2.CAP_PROP_FPS),
-                "frame_count": int(cap.get(cv2.CAP_PROP_FRAME_COUNT)),
-                "duration": cap.get(cv2.CAP_PROP_FRAME_COUNT) / cap.get(cv2.CAP_PROP_FPS)
-            }
-        finally:
-            cap.release()
+            cmd = [
+                'ffprobe', '-v', 'quiet',
+                '-print_format', 'json',
+                '-show_streams',
+                '-select_streams', 'v:0',
+                video_path
+            ]
+
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+
+            if result.returncode == 0:
+                data = json_module.loads(result.stdout)
+                if data.get('streams'):
+                    stream = data['streams'][0]
+                    # Parse frame rate (can be "30/1" or "29.97")
+                    fps_str = stream.get('r_frame_rate', '30/1')
+                    if '/' in fps_str:
+                        num, den = fps_str.split('/')
+                        fps = float(num) / float(den) if float(den) > 0 else 30.0
+                    else:
+                        fps = float(fps_str)
+
+                    width = int(stream.get('width', 0))
+                    height = int(stream.get('height', 0))
+                    frame_count = int(stream.get('nb_frames', 0))
+
+                    # If frame count not available, calculate from duration
+                    if frame_count == 0:
+                        duration = float(stream.get('duration', 0))
+                        frame_count = int(duration * fps) if duration > 0 else 0
+                    else:
+                        duration = frame_count / fps if fps > 0 else 0
+
+                    return {
+                        "width": width,
+                        "height": height,
+                        "fps": fps,
+                        "frame_count": frame_count,
+                        "duration": duration
+                    }
+            return None
+        except Exception as e:
+            print(f"ffprobe failed: {e}")
+            return None
 
     @staticmethod
     def save_frame_to_file(video_path: str, output_path: str, timestamp: float = 0.0) -> bool:
@@ -243,23 +344,45 @@ class AnalyzerService:
         """
         import cv2
 
+        # Try OpenCV first
         cap = cv2.VideoCapture(video_path)
-        if not cap.isOpened():
-            return False
+        if cap.isOpened():
+            try:
+                # Seek to timestamp
+                cap.set(cv2.CAP_PROP_POS_MSEC, timestamp * 1000)
+                ret, frame = cap.read()
+
+                if ret and frame is not None:
+                    # Save as PNG for better quality (used for heatmap background)
+                    cv2.imwrite(output_path, frame)
+                    return True
+            finally:
+                cap.release()
+
+        # Fallback to ffmpeg for unsupported codecs
+        return AnalyzerService._save_frame_ffmpeg(video_path, output_path, timestamp)
+
+    @staticmethod
+    def _save_frame_ffmpeg(video_path: str, output_path: str, timestamp: float = 0.0) -> bool:
+        """Save a frame using ffmpeg subprocess (fallback for unsupported codecs)."""
+        import subprocess
 
         try:
-            # Seek to timestamp
-            cap.set(cv2.CAP_PROP_POS_MSEC, timestamp * 1000)
-            ret, frame = cap.read()
+            cmd = [
+                'ffmpeg', '-y',
+                '-ss', str(timestamp),
+                '-i', video_path,
+                '-vframes', '1',
+                '-q:v', '1',
+                output_path
+            ]
 
-            if not ret:
-                return False
+            result = subprocess.run(cmd, capture_output=True, timeout=30)
+            return result.returncode == 0
 
-            # Save as PNG for better quality (used for heatmap background)
-            cv2.imwrite(output_path, frame)
-            return True
-        finally:
-            cap.release()
+        except Exception as e:
+            print(f"ffmpeg frame save failed: {e}")
+            return False
 
     @staticmethod
     def read_progress_file(progress_file_path: str) -> Optional[Dict[str, Any]]:

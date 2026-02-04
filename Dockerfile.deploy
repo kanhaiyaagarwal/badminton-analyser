@@ -4,6 +4,7 @@
 FROM python:3.11-slim
 
 # Install system dependencies for OpenCV, MediaPipe, and video processing
+# ffmpeg includes AV1 codec support via libdav1d and libaom
 RUN apt-get update && apt-get install -y \
     libgl1 \
     libglib2.0-0 \
