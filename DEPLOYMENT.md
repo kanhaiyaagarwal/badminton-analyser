@@ -1,11 +1,55 @@
 # Badminton Analyzer - Deployment Guide
 
 ## Table of Contents
+- [Quick Deployment](#quick-deployment)
 - [Local Development](#local-development)
-- [Production Deployment](#production-deployment)
-- [Docker Deployment](#docker-deployment)
-- [AWS Deployment](#aws-deployment)
+- [Production Deployment (AWS ECS)](#production-deployment-aws-ecs)
+- [Database Migrations](#database-migrations)
 - [Environment Variables](#environment-variables)
+- [Troubleshooting](#troubleshooting)
+
+---
+
+## Quick Deployment
+
+### Prerequisites
+- AWS CLI configured with appropriate credentials
+- Docker installed locally
+- SSH key for EC2 access (`badminton-analyzer-key.pem`)
+
+### Deploy Backend (ECS)
+
+```bash
+# From project root
+./deploy.sh
+```
+
+This will:
+1. Build Docker image
+2. Push to ECR
+3. Register new ECS task definition
+4. Update ECS service with zero-downtime deployment
+
+### Deploy Frontend (EC2/Nginx)
+
+```bash
+# From project root
+./frontend/deploy.sh
+```
+
+This will:
+1. Build Vue.js frontend
+2. Copy dist files to EC2 via SCP
+3. Update nginx served files
+
+### Endpoints
+
+| Service | URL |
+|---------|-----|
+| Frontend | https://badminton.neymo.ai |
+| API | http://13.126.25.28:8002 |
+| API Docs | http://13.126.25.28:8002/docs |
+| Health Check | http://13.126.25.28:8002/health |
 
 ---
 
@@ -15,6 +59,7 @@
 - Python 3.9+
 - Node.js 18+
 - npm or yarn
+- MySQL (or SQLite for quick testing)
 
 ### Backend Setup
 
@@ -58,532 +103,476 @@ Frontend will be available at: `http://localhost:5173`
 
 ---
 
-## Production Deployment
+## Production Deployment (AWS ECS)
 
-### Backend (FastAPI)
+### Architecture
 
-#### Option 1: Systemd Service (Linux)
+```
+                         ┌─────────────────┐
+                         │   Route 53      │
+                         │ badminton.neymo.ai
+                         └────────┬────────┘
+                                  │
+                         ┌────────▼────────┐
+                         │     Nginx       │
+                         │   (EC2 Host)    │
+                         └────────┬────────┘
+                                  │
+              ┌───────────────────┼───────────────────┐
+              │                   │                   │
+     ┌────────▼────────┐ ┌───────▼────────┐ ┌───────▼───────┐
+     │  Static Files   │ │   API Proxy    │ │  WS Proxy     │
+     │ /var/www/...    │ │   :8002        │ │   :8002       │
+     └─────────────────┘ └───────┬────────┘ └───────┬───────┘
+                                 │                   │
+                         ┌───────▼───────────────────▼───────┐
+                         │          ECS Container            │
+                         │     badminton-analyzer:latest     │
+                         │            :8000                  │
+                         └───────────────┬───────────────────┘
+                                         │
+                         ┌───────────────▼───────────────────┐
+                         │           RDS MySQL               │
+                         │     badminton_analyzer DB         │
+                         └───────────────────────────────────┘
+```
+
+### Backend Deployment Process
+
+The `deploy.sh` script handles the full deployment:
 
 ```bash
-# 1. Install dependencies system-wide or in venv
-pip install -r requirements-web.txt gunicorn
-
-# 2. Create systemd service file
-sudo nano /etc/systemd/system/badminton-api.service
+./deploy.sh [image-tag]
 ```
 
-```ini
-[Unit]
-Description=Badminton Analyzer API
-After=network.target
+**What it does:**
 
-[Service]
-User=www-data
-Group=www-data
-WorkingDirectory=/path/to/badminton-analyser
-Environment="PATH=/path/to/badminton-analyser/venv/bin"
-EnvironmentFile=/path/to/badminton-analyser/.env
-ExecStart=/path/to/badminton-analyser/venv/bin/gunicorn api.main:app \
-    --workers 4 \
-    --worker-class uvicorn.workers.UvicornWorker \
-    --bind 0.0.0.0:8000 \
-    --access-logfile /var/log/badminton-api/access.log \
-    --error-logfile /var/log/badminton-api/error.log
+1. **Login to ECR**
+   ```bash
+   aws ecr get-login-password | docker login --username AWS ...
+   ```
 
-[Install]
-WantedBy=multi-user.target
-```
+2. **Build Docker image** (linux/amd64 for EC2)
+   ```bash
+   docker build --platform linux/amd64 -f Dockerfile.deploy -t badminton-analyzer:tag .
+   ```
+
+3. **Push to ECR**
+   ```bash
+   docker push 453533986084.dkr.ecr.ap-south-1.amazonaws.com/badminton-analyzer:tag
+   ```
+
+4. **Register new task definition**
+   - Updates image tag in task-definition.json
+   - Registers with ECS
+
+5. **Zero-downtime deployment**
+   - Scale service to 0
+   - Wait for old task to stop
+   - Scale back to 1 with new task definition
+   - Wait for health check
+
+### Frontend Deployment Process
+
+The `frontend/deploy.sh` script handles frontend deployment:
 
 ```bash
-# 3. Start and enable service
-sudo systemctl daemon-reload
-sudo systemctl start badminton-api
-sudo systemctl enable badminton-api
-
-# 4. Check status
-sudo systemctl status badminton-api
+./frontend/deploy.sh
 ```
 
-#### Option 2: PM2 (Node.js process manager)
+**What it does:**
 
+1. **Install dependencies** (if needed)
+   ```bash
+   npm install
+   ```
+
+2. **Build production bundle**
+   ```bash
+   npm run build
+   ```
+
+3. **Copy to EC2**
+   ```bash
+   scp -r dist/* ec2-user@13.126.25.28:/var/www/badminton-analyzer/
+   ```
+
+### Manual Deployment (if needed)
+
+**Backend:**
 ```bash
-# Install PM2
-npm install -g pm2
+# SSH into EC2
+ssh -i badminton-analyzer-key.pem ec2-user@13.126.25.28
 
-# Create ecosystem file
-cat > ecosystem.config.js << 'EOF'
-module.exports = {
-  apps: [{
-    name: 'badminton-api',
-    script: 'venv/bin/uvicorn',
-    args: 'api.main:app --host 0.0.0.0 --port 8000',
-    cwd: '/path/to/badminton-analyser',
-    env: {
-      NODE_ENV: 'production'
-    }
-  }]
-}
-EOF
-
-# Start with PM2
-pm2 start ecosystem.config.js
-pm2 save
-pm2 startup
-```
-
-### Frontend (Vue.js)
-
-#### Build for Production
-
-```bash
-cd frontend
-
-# Build static files
-npm run build
-
-# Output will be in frontend/dist/
-```
-
-#### Serve with Nginx
-
-```bash
-# 1. Install Nginx
-sudo apt install nginx
-
-# 2. Create Nginx config
-sudo nano /etc/nginx/sites-available/badminton-analyzer
-```
-
-```nginx
-server {
-    listen 80;
-    server_name your-domain.com;
-
-    # Frontend (Vue.js static files)
-    root /path/to/badminton-analyser/frontend/dist;
-    index index.html;
-
-    # Handle Vue Router (SPA)
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    # API proxy
-    location /api/ {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 86400;
-    }
-
-    # WebSocket proxy
-    location /ws/ {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_read_timeout 86400;
-    }
-
-    # Static uploads (if not using S3)
-    location /uploads/ {
-        alias /path/to/badminton-analyser/uploads/;
-    }
-}
-```
-
-```bash
-# 3. Enable site and restart Nginx
-sudo ln -s /etc/nginx/sites-available/badminton-analyzer /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl restart nginx
-```
-
-#### Add SSL with Certbot
-
-```bash
-sudo apt install certbot python3-certbot-nginx
-sudo certbot --nginx -d your-domain.com
-```
-
----
-
-## Docker Deployment
-
-### Dockerfile (Backend)
-
-Create `Dockerfile` in project root:
-
-```dockerfile
-FROM python:3.11-slim
-
-WORKDIR /app
-
-# Install system dependencies for OpenCV and MediaPipe
-RUN apt-get update && apt-get install -y \
-    libgl1-mesa-glx \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Python dependencies
-COPY requirements-web.txt .
-RUN pip install --no-cache-dir -r requirements-web.txt gunicorn
-
-# Copy application
-COPY api/ ./api/
-COPY v2_court_bounded_analyzer.py .
-
-# Create directories
-RUN mkdir -p uploads analysis_output
-
-# Expose port
-EXPOSE 8000
-
-# Run with Gunicorn
-CMD ["gunicorn", "api.main:app", \
-     "--workers", "2", \
-     "--worker-class", "uvicorn.workers.UvicornWorker", \
-     "--bind", "0.0.0.0:8000"]
-```
-
-### Dockerfile (Frontend)
-
-Create `frontend/Dockerfile`:
-
-```dockerfile
-# Build stage
-FROM node:18-alpine AS build
-
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY . .
-RUN npm run build
-
-# Production stage
-FROM nginx:alpine
-
-COPY --from=build /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
-```
-
-Create `frontend/nginx.conf`:
-
-```nginx
-server {
-    listen 80;
-    root /usr/share/nginx/html;
-    index index.html;
-
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    location /api/ {
-        proxy_pass http://backend:8000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-    }
-
-    location /ws/ {
-        proxy_pass http://backend:8000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
-}
-```
-
-### Docker Compose
-
-Create `docker-compose.yml`:
-
-```yaml
-version: '3.8'
-
-services:
-  backend:
-    build: .
-    container_name: badminton-api
-    env_file: .env
-    volumes:
-      - ./uploads:/app/uploads
-      - ./analysis_output:/app/analysis_output
-    ports:
-      - "8000:8000"
-    depends_on:
-      - db
-    restart: unless-stopped
-
-  frontend:
-    build: ./frontend
-    container_name: badminton-frontend
-    ports:
-      - "80:80"
-    depends_on:
-      - backend
-    restart: unless-stopped
-
-  db:
-    image: mysql:8.0
-    container_name: badminton-db
-    environment:
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpass}
-      MYSQL_DATABASE: badminton_analyzer
-      MYSQL_USER: ${DB_USER:-badminton}
-      MYSQL_PASSWORD: ${DB_PASSWORD:-badminton123}
-    volumes:
-      - mysql_data:/var/lib/mysql
-    ports:
-      - "3306:3306"
-    restart: unless-stopped
-
-volumes:
-  mysql_data:
-```
-
-### Run with Docker Compose
-
-```bash
-# Build and start all services
-docker-compose up -d --build
+# Check running containers
+docker ps
 
 # View logs
-docker-compose logs -f
+docker logs <container-id> -f
 
-# Stop services
-docker-compose down
+# Force new deployment
+aws ecs update-service --cluster badminton-analyzer-cluster \
+    --service badminton-analyzer-service --force-new-deployment
+```
+
+**Frontend:**
+```bash
+# Build locally
+cd frontend && npm run build
+
+# Copy to server
+scp -i badminton-analyzer-key.pem -r dist/* ec2-user@13.126.25.28:/var/www/badminton-analyzer/
 ```
 
 ---
 
-## AWS Deployment
+## Database Migrations
 
-### Architecture Overview
+### Initial Setup (New Database)
 
-```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│ CloudFront  │────▶│   S3        │     │   RDS       │
-│ (CDN)       │     │ (Frontend)  │     │ (MySQL)     │
-└─────────────┘     └─────────────┘     └─────────────┘
-       │                                       │
-       ▼                                       │
-┌─────────────┐     ┌─────────────┐            │
-│   ALB       │────▶│   ECS/EC2   │────────────┘
-│             │     │ (Backend)   │
-└─────────────┘     └─────────────┘
-                           │
-                           ▼
-                    ┌─────────────┐
-                    │   S3        │
-                    │ (Uploads)   │
-                    └─────────────┘
-```
+Tables are auto-created by SQLAlchemy on app startup. For production, run these migrations:
 
-### Step 1: Create RDS MySQL Database
+### Admin Panel Tables (invite codes, whitelist, waitlist)
 
-```bash
-# Using AWS CLI
-aws rds create-db-instance \
-    --db-instance-identifier badminton-db \
-    --db-instance-class db.t3.micro \
-    --engine mysql \
-    --master-username admin \
-    --master-user-password YOUR_PASSWORD \
-    --allocated-storage 20
-```
+```sql
+-- Invite codes table
+CREATE TABLE IF NOT EXISTS invite_codes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    code VARCHAR(50) NOT NULL UNIQUE,
+    max_uses INT DEFAULT 0,
+    times_used INT DEFAULT 0,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_by INT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP NULL,
+    note VARCHAR(255) NULL,
+    INDEX idx_invite_code (code),
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
 
-### Step 2: Create S3 Buckets
+-- Whitelist emails table
+CREATE TABLE IF NOT EXISTS whitelist_emails (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    note VARCHAR(255) NULL,
+    created_by INT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_whitelist_email (email),
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
 
-```bash
-# Create bucket for uploads/outputs
-aws s3 mb s3://badminton-analyzer-storage
+-- Waitlist table
+CREATE TABLE IF NOT EXISTS waitlist (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    name VARCHAR(100) NULL,
+    status VARCHAR(20) DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    approved_at TIMESTAMP NULL,
+    approved_by INT NULL,
+    invite_code_id INT NULL,
+    INDEX idx_waitlist_email (email),
+    FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (invite_code_id) REFERENCES invite_codes(id) ON DELETE SET NULL
+);
 
-# Create bucket for frontend (static hosting)
-aws s3 mb s3://badminton-analyzer-frontend
-
-# Enable static website hosting for frontend
-aws s3 website s3://badminton-analyzer-frontend \
-    --index-document index.html \
-    --error-document index.html
-```
-
-### Step 3: Deploy Backend to ECS
-
-Create `task-definition.json`:
-
-```json
-{
-  "family": "badminton-api",
-  "networkMode": "awsvpc",
-  "requiresCompatibilities": ["FARGATE"],
-  "cpu": "512",
-  "memory": "1024",
-  "executionRoleArn": "arn:aws:iam::YOUR_ACCOUNT:role/ecsTaskExecutionRole",
-  "containerDefinitions": [
-    {
-      "name": "badminton-api",
-      "image": "YOUR_ECR_REPO/badminton-api:latest",
-      "portMappings": [
-        {
-          "containerPort": 8000,
-          "protocol": "tcp"
-        }
-      ],
-      "environment": [
-        {"name": "USE_S3", "value": "true"},
-        {"name": "S3_BUCKET", "value": "badminton-analyzer-storage"},
-        {"name": "AWS_REGION", "value": "us-east-1"}
-      ],
-      "secrets": [
-        {
-          "name": "DATABASE_URL",
-          "valueFrom": "arn:aws:secretsmanager:region:account:secret:db-url"
-        },
-        {
-          "name": "JWT_SECRET_KEY",
-          "valueFrom": "arn:aws:secretsmanager:region:account:secret:jwt-key"
-        }
-      ],
-      "logConfiguration": {
-        "logDriver": "awslogs",
-        "options": {
-          "awslogs-group": "/ecs/badminton-api",
-          "awslogs-region": "us-east-1",
-          "awslogs-stream-prefix": "ecs"
-        }
-      }
-    }
-  ]
-}
+-- Add is_admin to users if not exists
+ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT FALSE;
 ```
 
-```bash
-# Register task definition
-aws ecs register-task-definition --cli-input-json file://task-definition.json
+### Email Verification Tables (OTP)
 
-# Create ECS service
-aws ecs create-service \
-    --cluster your-cluster \
-    --service-name badminton-api \
-    --task-definition badminton-api \
-    --desired-count 2 \
-    --launch-type FARGATE \
-    --network-configuration "awsvpcConfiguration={subnets=[subnet-xxx],securityGroups=[sg-xxx],assignPublicIp=ENABLED}"
+```sql
+-- Add email verification columns to users
+ALTER TABLE users ADD COLUMN email_verified BOOLEAN DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN email_verified_at TIMESTAMP NULL;
+
+-- Mark existing users as verified (grandfathering)
+UPDATE users SET email_verified = TRUE;
+
+-- Email OTPs table
+CREATE TABLE IF NOT EXISTS email_otps (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    code VARCHAR(6) NOT NULL,
+    attempts INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP NOT NULL,
+    verified_at TIMESTAMP NULL,
+    INDEX idx_otp_user (user_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
 ```
 
-### Step 4: Deploy Frontend to S3 + CloudFront
+### Seed Data
 
-```bash
-# Build frontend
-cd frontend
-npm run build
+```sql
+-- Create default invite code
+INSERT INTO invite_codes (code, note, is_active, max_uses, times_used)
+VALUES ('BADMINTON2024', 'Default invite code', TRUE, 0, 0);
 
-# Upload to S3
-aws s3 sync dist/ s3://badminton-analyzer-frontend --delete
-
-# Create CloudFront distribution (via console or CLI)
-# Point to S3 bucket with custom origin for /api/* to ALB
-```
-
-### Step 5: Configure Environment Variables
-
-In AWS, use **Secrets Manager** or **Parameter Store**:
-
-```bash
-# Store secrets
-aws secretsmanager create-secret \
-    --name badminton/prod/db-url \
-    --secret-string "mysql+pymysql://user:pass@rds-host:3306/badminton"
-
-aws secretsmanager create-secret \
-    --name badminton/prod/jwt-secret \
-    --secret-string "your-super-secret-jwt-key"
+-- Whitelist an email (optional)
+INSERT INTO whitelist_emails (email, note)
+VALUES ('admin@example.com', 'Admin user');
 ```
 
 ---
 
 ## Environment Variables
 
+### Task Definition (ECS)
+
+Environment variables are set in `task-definition.json`:
+
+```json
+{
+  "environment": [
+    {"name": "ENVIRONMENT", "value": "production"},
+    {"name": "DEBUG", "value": "false"},
+    ...
+  ],
+  "secrets": [
+    {"name": "DATABASE_URL", "valueFrom": "arn:aws:secretsmanager:..."},
+    {"name": "JWT_SECRET_KEY", "valueFrom": "arn:aws:secretsmanager:..."}
+  ]
+}
+```
+
 ### Required Variables
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `DATABASE_URL` | Database connection string | `mysql+pymysql://user:pass@host:3306/db` |
-| `JWT_SECRET_KEY` | Secret for JWT tokens | `your-secret-key-min-32-chars` |
+| Variable | Description | Source |
+|----------|-------------|--------|
+| `DATABASE_URL` | MySQL connection string | Secrets Manager |
+| `JWT_SECRET_KEY` | JWT signing secret | Secrets Manager |
 
-### Optional Variables (S3)
-
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `USE_S3` | Enable S3 storage | `true` |
-| `S3_BUCKET` | S3 bucket name | `my-bucket` |
-| `AWS_REGION` | AWS region | `us-east-1` |
-| `AWS_ACCESS_KEY_ID` | AWS access key | (use IAM roles on AWS) |
-| `AWS_SECRET_ACCESS_KEY` | AWS secret key | (use IAM roles on AWS) |
-| `CLOUDFRONT_DOMAIN` | CloudFront domain for CDN | `d123.cloudfront.net` |
-
-### Optional Variables (Other)
+### App Settings
 
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `DEBUG` | Enable debug mode | `false` |
-| `CORS_ORIGINS` | Allowed CORS origins | `http://localhost:5173` |
+| `APP_NAME` | Application name | `Badminton Analyzer API` |
+| `CORS_ORIGINS` | Allowed CORS origins | `http://localhost:5173,...` |
+
+### File Storage
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `UPLOAD_DIR` | Upload directory | `/app/uploads` |
+| `OUTPUT_DIR` | Analysis output directory | `/app/analysis_output` |
 | `MAX_UPLOAD_SIZE_MB` | Max upload size | `500` |
-| `MAX_CONCURRENT_JOBS` | Max concurrent analysis jobs | `2` |
+| `USE_S3` | Enable S3 storage | `false` |
+| `S3_BUCKET` | S3 bucket name | - |
 
----
+### Authentication
 
-## Health Checks
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `JWT_ALGORITHM` | JWT algorithm | `HS256` |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | Access token TTL | `30` |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | Refresh token TTL | `7` |
 
-### Backend Health Check
+### Email Settings (SES)
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `EMAIL_PROVIDER` | Email provider: `console`, `smtp`, `ses` | `console` |
+| `SMTP_FROM_EMAIL` | Sender email address | `noreply@example.com` |
+| `SMTP_FROM_NAME` | Sender display name | `Badminton Analyzer` |
+| `SES_REGION` | AWS SES region | (uses `AWS_REGION`) |
+
+### OTP Settings
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `REQUIRE_EMAIL_VERIFICATION` | Enable/disable OTP verification | `true` |
+| `OTP_EXPIRE_MINUTES` | OTP expiration time | `10` |
+| `OTP_MAX_ATTEMPTS` | Max verification attempts | `5` |
+| `OTP_RESEND_COOLDOWN_SECONDS` | Cooldown between resends | `60` |
+
+### Adding New Environment Variables
+
+1. **Update `task-definition.json`:**
+   ```json
+   {"name": "NEW_VAR", "value": "value"}
+   ```
+
+2. **Update `api/config.py`:**
+   ```python
+   new_var: str = "default"
+   ```
+
+3. **Update `.env.example`:**
+   ```env
+   NEW_VAR=default
+   ```
+
+4. **Redeploy:**
+   ```bash
+   ./deploy.sh
+   ```
+
+### AWS Secrets Manager
+
+Sensitive values are stored in Secrets Manager:
 
 ```bash
-curl http://localhost:8000/health
-# Response: {"status": "healthy"}
-```
+# View secrets
+aws secretsmanager list-secrets --region ap-south-1
 
-### Frontend Health Check
+# Get secret value
+aws secretsmanager get-secret-value \
+    --secret-id badminton-analyzer/database-url \
+    --region ap-south-1
 
-```bash
-curl http://localhost/
-# Should return index.html
+# Update secret
+aws secretsmanager update-secret \
+    --secret-id badminton-analyzer/database-url \
+    --secret-string "new-connection-string" \
+    --region ap-south-1
 ```
 
 ---
 
 ## Troubleshooting
 
-### Common Issues
-
-1. **CORS errors**: Check `CORS_ORIGINS` in `.env`
-2. **WebSocket not connecting**: Ensure Nginx/ALB supports WebSocket upgrade
-3. **S3 upload fails**: Check IAM permissions and bucket policy
-4. **Database connection fails**: Verify `DATABASE_URL` and network access
-
-### Logs
+### Check Service Status
 
 ```bash
-# Backend logs (systemd)
-sudo journalctl -u badminton-api -f
+# ECS service status
+aws ecs describe-services \
+    --cluster badminton-analyzer-cluster \
+    --services badminton-analyzer-service \
+    --region ap-south-1
 
-# Backend logs (Docker)
-docker logs badminton-api -f
+# Running tasks
+aws ecs list-tasks \
+    --cluster badminton-analyzer-cluster \
+    --service-name badminton-analyzer-service \
+    --region ap-south-1
+```
 
-# Nginx logs
-sudo tail -f /var/log/nginx/error.log
+### View Logs
+
+```bash
+# CloudWatch logs (via AWS CLI)
+aws logs tail /ecs/badminton-analyzer --since 30m --region ap-south-1
+
+# Datadog logs
+# https://us5.datadoghq.com/logs?query=service%3Abadminton-analyzer
+
+# SSH into EC2 and check Docker logs
+ssh -i badminton-analyzer-key.pem ec2-user@13.126.25.28
+docker logs $(docker ps -q --filter "name=badminton") -f
+```
+
+### Common Issues
+
+1. **Task fails to start**
+   - Check CloudWatch logs for errors
+   - Verify secrets are accessible
+   - Check memory/CPU limits
+
+2. **Health check failing**
+   - Container might still be starting (60s startup)
+   - Check if port 8000 is exposed
+   - Verify `/health` endpoint works
+
+3. **Database connection error**
+   - Verify DATABASE_URL secret
+   - Check security group allows MySQL (3306)
+   - Verify RDS is running
+
+4. **Email not sending**
+   - Check `EMAIL_PROVIDER` is set to `ses`
+   - Verify SES domain is verified
+   - Check SES is not in sandbox mode (or recipient is verified)
+   - Verify IAM role has `ses:SendEmail` permission
+
+5. **Frontend not updating**
+   - Clear browser cache
+   - Check nginx is serving correct files:
+     ```bash
+     ssh -i badminton-analyzer-key.pem ec2-user@13.126.25.28 \
+         "ls -la /var/www/badminton-analyzer/"
+     ```
+
+### Rollback
+
+```bash
+# List task definition revisions
+aws ecs list-task-definitions \
+    --family-prefix badminton-analyzer-task \
+    --region ap-south-1
+
+# Deploy specific revision
+aws ecs update-service \
+    --cluster badminton-analyzer-cluster \
+    --service badminton-analyzer-service \
+    --task-definition badminton-analyzer-task:5 \
+    --region ap-south-1
+```
+
+---
+
+## IAM Permissions
+
+### ECS Task Execution Role
+
+The `ecsTaskExecutionRole` needs these permissions:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ecr:GetAuthorizationToken",
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:BatchGetImage"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:GetSecretValue"
+      ],
+      "Resource": "arn:aws:secretsmanager:ap-south-1:453533986084:secret:badminton-analyzer/*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ses:SendEmail",
+        "ses:SendRawEmail"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogStream",
+        "logs:PutLogEvents"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+### Add SES Permission (if missing)
+
+```bash
+aws iam put-role-policy \
+    --role-name ecsTaskExecutionRole \
+    --policy-name SES-SendEmail \
+    --policy-document '{
+        "Version": "2012-10-17",
+        "Statement": [{
+            "Effect": "Allow",
+            "Action": ["ses:SendEmail", "ses:SendRawEmail"],
+            "Resource": "*"
+        }]
+    }'
 ```
