@@ -43,3 +43,36 @@ class TokenData(BaseModel):
     """Schema for decoded token data."""
     user_id: Optional[int] = None
     email: Optional[str] = None
+
+
+class SignupResponse(BaseModel):
+    """Schema for signup response (before email verification)."""
+    user_id: int
+    email: str
+    message: str
+    requires_verification: bool = True
+
+
+class VerifyEmailRequest(BaseModel):
+    """Schema for email verification request."""
+    user_id: int
+    code: str = Field(..., min_length=6, max_length=6)
+
+
+class VerifyEmailResponse(BaseModel):
+    """Schema for email verification response."""
+    success: bool
+    message: str
+    remaining_attempts: Optional[int] = None
+
+
+class ResendOTPRequest(BaseModel):
+    """Schema for resend OTP request."""
+    user_id: int
+
+
+class ResendOTPResponse(BaseModel):
+    """Schema for resend OTP response."""
+    success: bool
+    message: str
+    cooldown_seconds: int = 0

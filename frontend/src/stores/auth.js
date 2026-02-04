@@ -18,6 +18,9 @@ export const useAuthStore = defineStore('auth', () => {
   const accessToken = ref(localStorage.getItem('accessToken'))
   const refreshToken = ref(localStorage.getItem('refreshToken'))
 
+  // Pending verification state (for signup flow)
+  const pendingVerification = ref(null) // { userId, email }
+
   const isAuthenticated = computed(() => !!accessToken.value)
 
   // Check if token is expired or about to expire (within 2 minutes)
@@ -49,7 +52,35 @@ export const useAuthStore = defineStore('auth', () => {
       password,
       invite_code: inviteCode
     })
+    // Store pending verification info for OTP step
+    pendingVerification.value = {
+      userId: response.data.user_id,
+      email: response.data.email
+    }
     return response.data
+  }
+
+  async function verifyEmail(userId, code) {
+    const response = await api.post('/api/v1/auth/verify-email', {
+      user_id: userId,
+      code
+    })
+    if (response.data.success) {
+      // Clear pending verification on success
+      pendingVerification.value = null
+    }
+    return response.data
+  }
+
+  async function resendOTP(userId) {
+    const response = await api.post('/api/v1/auth/resend-otp', {
+      user_id: userId
+    })
+    return response.data
+  }
+
+  function clearPendingVerification() {
+    pendingVerification.value = null
   }
 
   async function fetchUser() {
@@ -131,8 +162,12 @@ export const useAuthStore = defineStore('auth', () => {
     refreshToken,
     isAuthenticated,
     isTokenExpiringSoon,
+    pendingVerification,
     login,
     signup,
+    verifyEmail,
+    resendOTP,
+    clearPendingVerification,
     fetchUser,
     refreshAccessToken,
     ensureValidToken,

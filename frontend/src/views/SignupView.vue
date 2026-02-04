@@ -1,6 +1,7 @@
 <template>
   <div class="auth-container">
-    <div class="auth-card">
+    <!-- Step 1: Signup Form -->
+    <div v-if="!showOtpStep" class="auth-card">
       <h1>Sign Up</h1>
       <p class="subtitle">Create your Badminton Analyzer account</p>
 
@@ -83,6 +84,56 @@
       </div>
     </div>
 
+    <!-- Step 2: OTP Verification -->
+    <div v-else class="auth-card">
+      <h1>Verify Email</h1>
+      <p class="subtitle">Enter the 6-digit code sent to {{ pendingEmail }}</p>
+
+      <form @submit.prevent="handleVerifyOtp">
+        <div class="form-group">
+          <label for="otpCode">Verification Code</label>
+          <input
+            id="otpCode"
+            v-model="otpCode"
+            type="text"
+            inputmode="numeric"
+            pattern="[0-9]{6}"
+            maxlength="6"
+            placeholder="000000"
+            class="otp-input"
+            required
+            autocomplete="one-time-code"
+          />
+        </div>
+
+        <div v-if="otpError" class="error-message">{{ otpError }}</div>
+        <div v-if="otpSuccess" class="success-message">{{ otpSuccess }}</div>
+
+        <button type="submit" class="btn-primary" :disabled="otpLoading || otpCode.length !== 6">
+          {{ otpLoading ? 'Verifying...' : 'Verify Email' }}
+        </button>
+      </form>
+
+      <div class="resend-section">
+        <p v-if="resendCooldown > 0" class="cooldown-text">
+          Resend code in {{ resendCooldown }}s
+        </p>
+        <button
+          v-else
+          type="button"
+          @click="handleResendOtp"
+          class="btn-link"
+          :disabled="resendLoading"
+        >
+          {{ resendLoading ? 'Sending...' : "Didn't receive a code? Resend" }}
+        </button>
+      </div>
+
+      <button type="button" @click="goBackToSignup" class="btn-secondary">
+        Back to Sign Up
+      </button>
+    </div>
+
     <!-- Waitlist Modal -->
     <div v-if="showWaitlist" class="modal-overlay" @click="showWaitlist = false">
       <div class="modal-content" @click.stop>
@@ -128,7 +179,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import api from '../api/client'
@@ -136,6 +187,7 @@ import api from '../api/client'
 const router = useRouter()
 const authStore = useAuthStore()
 
+// Step 1: Signup form
 const email = ref('')
 const username = ref('')
 const password = ref('')
@@ -145,6 +197,19 @@ const loading = ref(false)
 const error = ref('')
 const success = ref('')
 
+// Step 2: OTP verification
+const showOtpStep = ref(false)
+const pendingUserId = ref(null)
+const pendingEmail = ref('')
+const otpCode = ref('')
+const otpLoading = ref(false)
+const otpError = ref('')
+const otpSuccess = ref('')
+const resendCooldown = ref(0)
+const resendLoading = ref(false)
+
+let cooldownTimer = null
+
 // Waitlist
 const showWaitlist = ref(false)
 const waitlistEmail = ref('')
@@ -152,6 +217,35 @@ const waitlistName = ref('')
 const waitlistLoading = ref(false)
 const waitlistError = ref('')
 const waitlistSuccess = ref('')
+
+// Check if returning to page with pending verification
+onMounted(() => {
+  if (authStore.pendingVerification) {
+    pendingUserId.value = authStore.pendingVerification.userId
+    pendingEmail.value = authStore.pendingVerification.email
+    showOtpStep.value = true
+  }
+})
+
+onUnmounted(() => {
+  if (cooldownTimer) {
+    clearInterval(cooldownTimer)
+  }
+})
+
+function startCooldownTimer(seconds) {
+  resendCooldown.value = seconds
+  if (cooldownTimer) {
+    clearInterval(cooldownTimer)
+  }
+  cooldownTimer = setInterval(() => {
+    resendCooldown.value--
+    if (resendCooldown.value <= 0) {
+      clearInterval(cooldownTimer)
+      cooldownTimer = null
+    }
+  }, 1000)
+}
 
 async function handleSignup() {
   error.value = ''
@@ -165,13 +259,82 @@ async function handleSignup() {
   loading.value = true
 
   try {
-    await authStore.signup(email.value, username.value, password.value, inviteCode.value)
-    success.value = 'Account created! Redirecting to login...'
-    setTimeout(() => router.push('/login'), 1500)
+    const response = await authStore.signup(email.value, username.value, password.value, inviteCode.value)
+
+    if (response.requires_verification) {
+      // Show OTP verification step
+      pendingUserId.value = response.user_id
+      pendingEmail.value = response.email
+      showOtpStep.value = true
+      startCooldownTimer(60) // Start initial cooldown
+    } else {
+      // Email verification disabled - redirect to login
+      success.value = response.message || 'Account created! Redirecting to login...'
+      setTimeout(() => router.push('/login'), 1500)
+    }
   } catch (err) {
     error.value = err.response?.data?.detail || 'Signup failed. Please try again.'
   } finally {
     loading.value = false
+  }
+}
+
+async function handleVerifyOtp() {
+  otpError.value = ''
+  otpSuccess.value = ''
+  otpLoading.value = true
+
+  try {
+    const response = await authStore.verifyEmail(pendingUserId.value, otpCode.value)
+    if (response.success) {
+      otpSuccess.value = 'Email verified! Redirecting to login...'
+      setTimeout(() => router.push('/login'), 1500)
+    } else {
+      otpError.value = response.message
+    }
+  } catch (err) {
+    otpError.value = err.response?.data?.detail || 'Verification failed. Please try again.'
+  } finally {
+    otpLoading.value = false
+  }
+}
+
+async function handleResendOtp() {
+  otpError.value = ''
+  otpSuccess.value = ''
+  resendLoading.value = true
+
+  try {
+    const response = await authStore.resendOTP(pendingUserId.value)
+    if (response.success) {
+      otpSuccess.value = response.message
+      otpCode.value = '' // Clear old code
+      startCooldownTimer(60)
+    } else {
+      otpError.value = response.message
+      if (response.cooldown_seconds > 0) {
+        startCooldownTimer(response.cooldown_seconds)
+      }
+    }
+  } catch (err) {
+    otpError.value = err.response?.data?.detail || 'Failed to resend code.'
+  } finally {
+    resendLoading.value = false
+  }
+}
+
+function goBackToSignup() {
+  authStore.clearPendingVerification()
+  showOtpStep.value = false
+  pendingUserId.value = null
+  pendingEmail.value = ''
+  otpCode.value = ''
+  otpError.value = ''
+  otpSuccess.value = ''
+  resendCooldown.value = 0
+  if (cooldownTimer) {
+    clearInterval(cooldownTimer)
+    cooldownTimer = null
   }
 }
 
@@ -380,5 +543,42 @@ input:focus {
 .btn-secondary:hover {
   border-color: #888;
   color: #eee;
+}
+
+/* OTP Step Styles */
+.otp-input {
+  text-align: center;
+  font-size: 1.5rem;
+  letter-spacing: 0.5rem;
+  font-family: monospace;
+}
+
+.resend-section {
+  text-align: center;
+  margin: 1.5rem 0;
+}
+
+.cooldown-text {
+  color: #888;
+  font-size: 0.9rem;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: #4ecca3;
+  cursor: pointer;
+  font-size: 0.9rem;
+  text-decoration: underline;
+  padding: 0;
+}
+
+.btn-link:hover:not(:disabled) {
+  color: #3db892;
+}
+
+.btn-link:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 </style>

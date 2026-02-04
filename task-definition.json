@@ -82,6 +82,38 @@
           "value": "7"
         },
         {
+          "name": "EMAIL_PROVIDER",
+          "value": "ses"
+        },
+        {
+          "name": "SMTP_FROM_EMAIL",
+          "value": "noreply@neymo.ai"
+        },
+        {
+          "name": "SMTP_FROM_NAME",
+          "value": "Badminton Analyzer"
+        },
+        {
+          "name": "SES_REGION",
+          "value": "ap-south-1"
+        },
+        {
+          "name": "OTP_EXPIRE_MINUTES",
+          "value": "10"
+        },
+        {
+          "name": "OTP_MAX_ATTEMPTS",
+          "value": "5"
+        },
+        {
+          "name": "OTP_RESEND_COOLDOWN_SECONDS",
+          "value": "60"
+        },
+        {
+          "name": "REQUIRE_EMAIL_VERIFICATION",
+          "value": "false"
+        },
+        {
           "name": "DD_TRACE_ENABLED",
           "value": "true"
         },
