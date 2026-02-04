@@ -2,7 +2,8 @@
   <div class="court-setup">
     <div class="header">
       <h1>Setup Court Boundary</h1>
-      <p class="subtitle">Click to select the 4 corners of the court</p>
+      <p class="subtitle" v-if="!useEntireFrame">Click to select the 4 corners of the court</p>
+      <p class="subtitle" v-else>Entire video frame will be analyzed</p>
     </div>
 
     <div v-if="loading" class="loading">Loading video frame...</div>
@@ -14,8 +15,14 @@
 
     <div v-else class="setup-container">
       <div class="canvas-container">
+        <div v-if="useEntireFrame && frameUrl" class="entire-frame-preview">
+          <img :src="frameUrl" alt="Video frame" class="frame-image" />
+          <div class="entire-frame-overlay">
+            <span>Entire frame will be analyzed</span>
+          </div>
+        </div>
         <CourtSelector
-          v-if="frameUrl"
+          v-else-if="frameUrl"
           :image-url="frameUrl"
           :video-width="videoInfo?.width"
           :video-height="videoInfo?.height"
@@ -24,6 +31,18 @@
       </div>
 
       <div class="controls-panel">
+        <div class="frame-mode-toggle">
+          <label class="toggle-label">
+            <input
+              type="checkbox"
+              v-model="useEntireFrame"
+              @change="handleFrameModeChange"
+            />
+            <span class="toggle-text">Analyze entire frame</span>
+          </label>
+          <p class="toggle-hint">Skip court boundary selection</p>
+        </div>
+
         <div class="timestamp-control">
           <label>Frame timestamp (seconds)</label>
           <input
@@ -55,7 +74,7 @@
           </p>
         </div>
 
-        <div v-if="boundary" class="boundary-preview">
+        <div v-if="boundary && !useEntireFrame" class="boundary-preview">
           <h3>Selected Boundary</h3>
           <div class="coords">
             <p>Top-Left: ({{ boundary.top_left.join(', ') }})</p>
@@ -65,10 +84,15 @@
           </div>
         </div>
 
+        <div v-if="useEntireFrame && videoInfo" class="boundary-preview entire-frame-info">
+          <h3>Entire Frame Mode</h3>
+          <p>Full video resolution: {{ videoInfo.width }} x {{ videoInfo.height }}</p>
+        </div>
+
         <button
           @click="startAnalysis"
           class="btn-start"
-          :disabled="!boundary || starting"
+          :disabled="(!boundary && !useEntireFrame) || starting"
         >
           {{ starting ? 'Starting...' : 'Start Analysis' }}
         </button>
@@ -100,6 +124,7 @@ const timestamp = ref(0)
 const boundary = ref(null)
 const speedPreset = ref('balanced')
 const starting = ref(false)
+const useEntireFrame = ref(false)
 
 onMounted(() => {
   loadVideoInfo()
@@ -153,15 +178,37 @@ function handleBoundarySelected(selectedBoundary) {
   boundary.value = selectedBoundary
 }
 
+function handleFrameModeChange() {
+  // Clear manual boundary when switching to entire frame mode
+  if (useEntireFrame.value) {
+    boundary.value = null
+  }
+}
+
+function getFullFrameBoundary() {
+  // Create boundary that covers the entire video frame
+  const width = videoInfo.value?.width || 1920
+  const height = videoInfo.value?.height || 1080
+  return {
+    top_left: [0, 0],
+    top_right: [width, 0],
+    bottom_left: [0, height],
+    bottom_right: [width, height],
+    court_color: 'green'
+  }
+}
+
 async function startAnalysis() {
-  if (!boundary.value) return
+  // Use full frame boundary or manual selection
+  const analysisBoundary = useEntireFrame.value ? getFullFrameBoundary() : boundary.value
+  if (!analysisBoundary) return
 
   starting.value = true
   error.value = ''
 
   try {
     // Pass the current timestamp so the same frame is used for heatmap backgrounds
-    await jobsStore.startAnalysis(jobId, boundary.value, speedPreset.value, timestamp.value)
+    await jobsStore.startAnalysis(jobId, analysisBoundary, speedPreset.value, timestamp.value)
     router.push('/dashboard')
   } catch (err) {
     error.value = err.response?.data?.detail || 'Failed to start analysis'
@@ -342,6 +389,82 @@ h1 {
 .btn-cancel:hover {
   border-color: #e74c3c;
   color: #e74c3c;
+}
+
+.frame-mode-toggle {
+  background: #1a1a2e;
+  padding: 1rem;
+  border-radius: 6px;
+  border: 2px solid #3a3a5a;
+}
+
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+}
+
+.toggle-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #4ecca3;
+  cursor: pointer;
+}
+
+.toggle-text {
+  color: #eee;
+  font-weight: 500;
+}
+
+.toggle-hint {
+  color: #888;
+  font-size: 0.75rem;
+  margin-top: 0.5rem;
+  margin-left: 1.75rem;
+}
+
+.entire-frame-preview {
+  position: relative;
+  width: 100%;
+}
+
+.frame-image {
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
+.entire-frame-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(78, 204, 163, 0.15);
+  border: 3px dashed #4ecca3;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.entire-frame-overlay span {
+  background: rgba(26, 26, 46, 0.9);
+  color: #4ecca3;
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+.entire-frame-info {
+  background: rgba(78, 204, 163, 0.1);
+  border: 1px solid #4ecca3;
+}
+
+.entire-frame-info p {
+  color: #4ecca3;
+  font-size: 0.85rem;
 }
 
 @media (max-width: 900px) {

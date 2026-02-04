@@ -128,6 +128,26 @@ export const useJobsStore = defineStore('jobs', () => {
     }
   }
 
+  async function cancelJob(jobId) {
+    loading.value = true
+    error.value = null
+
+    try {
+      await api.post(`/api/v1/analysis/${jobId}/cancel`)
+      // Update job status in list
+      const index = jobs.value.findIndex(j => j.id === jobId)
+      if (index !== -1) {
+        jobs.value[index] = { ...jobs.value[index], status: 'cancelled', status_message: 'Cancelled by user' }
+      }
+      combineAnalysis()
+    } catch (err) {
+      error.value = err.response?.data?.detail || 'Failed to cancel job'
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
   async function deleteJob(jobId) {
     loading.value = true
     error.value = null
@@ -199,6 +219,7 @@ export const useJobsStore = defineStore('jobs', () => {
     uploadVideo,
     getJobStatus,
     startAnalysis,
+    cancelJob,
     deleteJob,
     deleteSession,
     updateJobProgress,

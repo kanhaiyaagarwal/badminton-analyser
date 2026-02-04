@@ -53,13 +53,16 @@ onUnmounted(() => {
 })
 
 function startPolling() {
-  // Poll every 5 seconds as fallback
+  // Poll every 3 seconds as fallback
   pollInterval = setInterval(async () => {
     try {
       const status = await jobsStore.getJobStatus(props.jobId)
-      if (status.progress > progress.value) {
+      // Always update message, update progress if higher
+      if (status.status_message) {
+        message.value = status.status_message
+      }
+      if (status.progress >= progress.value) {
         progress.value = status.progress
-        message.value = status.status_message || message.value
       }
       if (status.status === 'completed') {
         progress.value = 100
@@ -72,11 +75,16 @@ function startPolling() {
         message.value = status.error_message || 'Analysis failed'
         jobsStore.updateJobStatus(props.jobId, 'failed')
         clearInterval(pollInterval)
+      } else if (status.status === 'cancelled') {
+        message.value = 'Cancelled'
+        jobsStore.updateJobStatus(props.jobId, 'cancelled')
+        clearInterval(pollInterval)
+        await jobsStore.fetchJobs()
       }
     } catch (e) {
       console.error('Polling error:', e)
     }
-  }, 5000)
+  }, 3000)
 }
 
 function connectWebSocket() {
@@ -191,6 +199,6 @@ function handleError(error) {
   text-overflow: ellipsis;
   overflow: hidden;
   white-space: nowrap;
-  max-width: 150px;
+  max-width: 200px;
 }
 </style>

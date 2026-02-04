@@ -45,13 +45,8 @@
         </div>
 
         <div class="job-info">
-          <!-- Video job processing -->
-          <div v-if="item.type === 'video' && item.status === 'processing'" class="progress-bar">
-            <div class="progress-fill" :style="{ width: item.progress + '%' }"></div>
-            <span class="progress-text">{{ Math.round(item.progress) }}%</span>
-          </div>
-
-          <p v-if="item.status_message" class="status-message">{{ item.status_message }}</p>
+          <!-- Show status message for non-processing jobs -->
+          <p v-if="item.status !== 'processing' && item.status_message" class="status-message">{{ item.status_message }}</p>
           <p v-if="item.error_message" class="error-message">{{ item.error_message }}</p>
 
           <!-- Show stats for completed stream sessions -->
@@ -95,12 +90,18 @@
 
             <template v-else-if="item.status === 'processing'">
               <ProgressTracker :job-id="item.id" />
+              <button
+                @click="handleCancelJob(item.id)"
+                class="btn-action btn-cancel"
+              >
+                Cancel
+              </button>
             </template>
 
             <button
+              v-if="item.status !== 'processing'"
               @click="handleDeleteJob(item.id)"
               class="btn-action btn-danger"
-              :disabled="item.status === 'processing'"
             >
               Delete
             </button>
@@ -186,6 +187,16 @@ function formatStatus(status) {
     'ended': 'Completed'
   }
   return statusMap[status] || status
+}
+
+async function handleCancelJob(jobId) {
+  if (confirm('Are you sure you want to cancel this analysis?')) {
+    try {
+      await jobsStore.cancelJob(jobId)
+    } catch (err) {
+      alert('Failed to cancel job: ' + (err.response?.data?.detail || err.message))
+    }
+  }
 }
 
 async function handleDeleteJob(jobId) {
@@ -431,6 +442,17 @@ h1 {
 .btn-action.btn-danger:hover:not(:disabled) {
   background: #e74c3c;
   color: white;
+}
+
+.btn-action.btn-cancel {
+  background: transparent;
+  border: 1px solid #f39c12;
+  color: #f39c12;
+}
+
+.btn-action.btn-cancel:hover {
+  background: #f39c12;
+  color: #1a1a2e;
 }
 
 .btn-action:disabled {

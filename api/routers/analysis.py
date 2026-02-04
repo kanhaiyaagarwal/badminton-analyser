@@ -196,6 +196,33 @@ async def get_job_status(
     )
 
 
+@router.post("/{job_id}/cancel")
+async def cancel_job(
+    job_id: int,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+    job_manager: JobManager = Depends(get_job_manager)
+):
+    """Cancel a running job without deleting it."""
+    job = db.query(Job).filter(
+        Job.id == job_id,
+        Job.user_id == current_user.id
+    ).first()
+
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if job.status not in [JobStatus.PENDING, JobStatus.PROCESSING]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot cancel job with status: {job.status.value}"
+        )
+
+    await job_manager.cancel_job(db, job)
+
+    return {"message": "Job cancelled", "job_id": job_id}
+
+
 @router.delete("/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_job(
     job_id: int,
@@ -203,7 +230,7 @@ async def delete_job(
     db: Session = Depends(get_db),
     job_manager: JobManager = Depends(get_job_manager)
 ):
-    """Cancel or delete a job."""
+    """Cancel and delete a job."""
     job = db.query(Job).filter(
         Job.id == job_id,
         Job.user_id == current_user.id

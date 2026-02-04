@@ -647,10 +647,17 @@ class CourtBoundedAnalyzer:
         # Classify shot
         shot_type, confidence = self.classify_shot(movement_data, pose_landmarks)
 
-        # Get wrist position for visualization
-        h, w = frame.shape[:2]
+        # Get wrist position for visualization (use court region transform)
         wrist = pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_WRIST]
-        wrist_pos = (int(wrist.x * w), int(wrist.y * h))
+        if hasattr(self, '_last_transform') and self._last_transform:
+            transform = self._last_transform
+            wrist_pos = (
+                int(wrist.x * transform['court_w'] + transform['x1']),
+                int(wrist.y * transform['court_h'] + transform['y1'])
+            )
+        else:
+            h, w = frame.shape[:2]
+            wrist_pos = (int(wrist.x * w), int(wrist.y * h))
 
         # Create shot data
         shot_data = ShotData(
@@ -739,6 +746,72 @@ class CourtBoundedAnalyzer:
 
         return frame
 
+    def draw_skeleton(self, frame: np.ndarray, pose_landmarks, pose_color: tuple) -> None:
+        """Draw pose skeleton with correct coordinate mapping for court-region landmarks"""
+
+        # Get transform info for correct coordinate mapping
+        if hasattr(self, '_last_transform') and self._last_transform:
+            transform = self._last_transform
+            court_w = transform['court_w']
+            court_h = transform['court_h']
+            offset_x = transform['x1']
+            offset_y = transform['y1']
+        else:
+            h, w = frame.shape[:2]
+            court_w, court_h = w, h
+            offset_x, offset_y = 0, 0
+
+        landmarks = pose_landmarks.landmark
+
+        # Helper to convert normalized landmark to pixel coordinates
+        def to_pixel(landmark):
+            if landmark.visibility < 0.5:
+                return None
+            x = int(landmark.x * court_w + offset_x)
+            y = int(landmark.y * court_h + offset_y)
+            return (x, y)
+
+        # Define pose connections (same as MediaPipe POSE_CONNECTIONS)
+        connections = [
+            # Face
+            (0, 1), (1, 2), (2, 3), (3, 7),  # Left eye
+            (0, 4), (4, 5), (5, 6), (6, 8),  # Right eye
+            (9, 10),  # Mouth
+            # Torso
+            (11, 12),  # Shoulders
+            (11, 23), (12, 24),  # Shoulders to hips
+            (23, 24),  # Hips
+            # Left arm
+            (11, 13), (13, 15),  # Shoulder to wrist
+            (15, 17), (15, 19), (15, 21), (17, 19),  # Hand
+            # Right arm
+            (12, 14), (14, 16),  # Shoulder to wrist
+            (16, 18), (16, 20), (16, 22), (18, 20),  # Hand
+            # Left leg
+            (23, 25), (25, 27),  # Hip to ankle
+            (27, 29), (27, 31), (29, 31),  # Foot
+            # Right leg
+            (24, 26), (26, 28),  # Hip to ankle
+            (28, 30), (28, 32), (30, 32),  # Foot
+        ]
+
+        # Draw connections
+        for start_idx, end_idx in connections:
+            start_lm = landmarks[start_idx]
+            end_lm = landmarks[end_idx]
+
+            start_pt = to_pixel(start_lm)
+            end_pt = to_pixel(end_lm)
+
+            if start_pt and end_pt:
+                cv2.line(frame, start_pt, end_pt, (255, 0, 0), 2)
+
+        # Draw landmark points
+        for i, landmark in enumerate(landmarks):
+            pt = to_pixel(landmark)
+            if pt:
+                cv2.circle(frame, pt, 3, pose_color, -1)
+
     def draw_annotations(self, frame: np.ndarray, shot_data: Optional[ShotData],
                          pose_landmarks) -> np.ndarray:
         """Draw all annotations on frame"""
@@ -760,12 +833,8 @@ class CourtBoundedAnalyzer:
             else:
                 pose_color = (128, 128, 128)
 
-            # Draw skeleton connections
-            self.mp_drawing.draw_landmarks(
-                frame, pose_landmarks, self.mp_pose.POSE_CONNECTIONS,
-                self.mp_drawing.DrawingSpec(color=pose_color, thickness=2, circle_radius=3),
-                self.mp_drawing.DrawingSpec(color=(255, 0, 0), thickness=2)
-            )
+            # Draw skeleton connections manually (not using mp_drawing which expects full-frame normalized coords)
+            self.draw_skeleton(frame, pose_landmarks, pose_color)
 
             # Draw body part labels
             self.draw_body_part_labels(frame, pose_landmarks)
@@ -783,6 +852,19 @@ class CourtBoundedAnalyzer:
         """Draw labels for each detected body part"""
         h, w = frame.shape[:2]
         landmarks = pose_landmarks.landmark
+
+        # Get transform info for correct coordinate mapping
+        # Landmarks are normalized to the cropped court region, not full frame
+        if hasattr(self, '_last_transform') and self._last_transform:
+            transform = self._last_transform
+            court_w = transform['court_w']
+            court_h = transform['court_h']
+            offset_x = transform['x1']
+            offset_y = transform['y1']
+        else:
+            # Fallback to full frame (may be inaccurate)
+            court_w, court_h = w, h
+            offset_x, offset_y = 0, 0
 
         # Define which body parts to label with their MediaPipe indices
         # Using shorter labels to reduce clutter
@@ -817,8 +899,9 @@ class CourtBoundedAnalyzer:
             # Only draw if landmark is visible enough
             if landmark.visibility > 0.5:
                 # Convert normalized coordinates to pixel coordinates
-                x = int(landmark.x * w)
-                y = int(landmark.y * h)
+                # Landmarks are normalized to court region, so we map through court dimensions + offset
+                x = int(landmark.x * court_w + offset_x)
+                y = int(landmark.y * court_h + offset_y)
 
                 # Draw a larger circle for the landmark
                 cv2.circle(frame, (x, y), 6, color, -1)
@@ -861,17 +944,28 @@ class CourtBoundedAnalyzer:
     def draw_computed_points(self, frame: np.ndarray, landmarks, h: int, w: int) -> None:
         """Draw computed reference points used in shot classification"""
 
+        # Get transform info for correct coordinate mapping
+        if hasattr(self, '_last_transform') and self._last_transform:
+            transform = self._last_transform
+            court_w = transform['court_w']
+            court_h = transform['court_h']
+            offset_x = transform['x1']
+            offset_y = transform['y1']
+        else:
+            court_w, court_h = w, h
+            offset_x, offset_y = 0, 0
+
         # Get landmarks for computed points
         r_shoulder = landmarks[self.mp_pose.PoseLandmark.RIGHT_SHOULDER]
         l_shoulder = landmarks[self.mp_pose.PoseLandmark.LEFT_SHOULDER]
         r_hip = landmarks[self.mp_pose.PoseLandmark.RIGHT_HIP]
         l_hip = landmarks[self.mp_pose.PoseLandmark.LEFT_HIP]
 
-        # Calculate centers
-        shoulder_center_x = int((r_shoulder.x + l_shoulder.x) / 2 * w)
-        shoulder_center_y = int((r_shoulder.y + l_shoulder.y) / 2 * h)
-        hip_center_x = int((r_hip.x + l_hip.x) / 2 * w)
-        hip_center_y = int((r_hip.y + l_hip.y) / 2 * h)
+        # Calculate centers (map through court region coordinates)
+        shoulder_center_x = int((r_shoulder.x + l_shoulder.x) / 2 * court_w + offset_x)
+        shoulder_center_y = int((r_shoulder.y + l_shoulder.y) / 2 * court_h + offset_y)
+        hip_center_x = int((r_hip.x + l_hip.x) / 2 * court_w + offset_x)
+        hip_center_y = int((r_hip.y + l_hip.y) / 2 * court_h + offset_y)
 
         # Draw shoulder center
         cv2.circle(frame, (shoulder_center_x, shoulder_center_y), 8, (0, 255, 255), 2)
@@ -904,8 +998,8 @@ class CourtBoundedAnalyzer:
 
         # Show wrist position relative to these lines
         r_wrist = landmarks[self.mp_pose.PoseLandmark.RIGHT_WRIST]
-        wrist_x = int(r_wrist.x * w)
-        wrist_y = int(r_wrist.y * h)
+        wrist_x = int(r_wrist.x * court_w + offset_x)
+        wrist_y = int(r_wrist.y * court_h + offset_y)
 
         # Determine zone
         if wrist_y < shoulder_center_y - 20:
@@ -1113,6 +1207,12 @@ class CourtBoundedAnalyzer:
                                 }, f)
                         except Exception:
                             pass
+
+                    # Check for cancellation flag
+                    if hasattr(self, 'cancel_flag_path') and self.cancel_flag_path:
+                        if Path(self.cancel_flag_path).exists():
+                            logger.info("Analysis cancelled by user")
+                            raise KeyboardInterrupt("Cancelled by user")
 
         except KeyboardInterrupt:
             logger.info("Analysis interrupted")

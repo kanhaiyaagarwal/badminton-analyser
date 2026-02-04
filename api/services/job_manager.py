@@ -199,24 +199,36 @@ class JobManager:
             self._active_jobs.pop(job_id, None)
             self.unregister_progress_callback(job_id)
 
+            # Clean up cancel flag if it exists
+            cancel_flag = Path(output_dir) / "cancel_requested"
+            if cancel_flag.exists():
+                try:
+                    cancel_flag.unlink()
+                    logger.info(f"Cleaned up cancel flag for job {job_id}")
+                except Exception as e:
+                    logger.warning(f"Failed to clean up cancel flag: {e}")
+
     async def _poll_progress(self, job_id: int, progress_file: str):
         """Poll progress file and update database/WebSocket."""
         from ..database import SessionLocal
 
         last_progress = 0.0
+        last_message = ""
 
         while True:
             try:
-                await asyncio.sleep(5)  # Poll every 5 seconds
+                await asyncio.sleep(2)  # Poll every 2 seconds for faster transcoding updates
 
                 progress_data = AnalyzerService.read_progress_file(progress_file)
                 if progress_data:
                     progress = progress_data.get('progress', 0)
                     message = progress_data.get('message', 'Processing...')
+                    stage = progress_data.get('stage', '')
 
-                    # Only update if progress changed
-                    if progress > last_progress:
+                    # Update if progress or message changed
+                    if progress > last_progress or message != last_message:
                         last_progress = progress
+                        last_message = message
 
                         # Update database
                         db = SessionLocal()
@@ -231,6 +243,7 @@ class JobManager:
 
                         # Notify WebSocket
                         await self._notify_progress(job_id, progress, message)
+                        logger.info(f"Job {job_id} progress: {progress:.1f}% - {message} (stage: {stage})")
 
             except asyncio.CancelledError:
                 break
@@ -242,7 +255,17 @@ class JobManager:
         if job.status not in [JobStatus.PENDING, JobStatus.PROCESSING]:
             return False
 
-        # Cancel the task if running
+        # Create cancellation flag file that the worker process will check
+        output_dir = settings.output_path / str(job.user_id) / str(job.id)
+        cancel_flag = output_dir / "cancel_requested"
+        try:
+            output_dir.mkdir(parents=True, exist_ok=True)
+            cancel_flag.touch()
+            logger.info(f"Created cancel flag for job {job.id}: {cancel_flag}")
+        except Exception as e:
+            logger.error(f"Failed to create cancel flag: {e}")
+
+        # Cancel the asyncio task if running
         if job.id in self._active_jobs:
             self._active_jobs[job.id].cancel()
             self._active_jobs.pop(job.id, None)
