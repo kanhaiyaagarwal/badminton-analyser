@@ -1,8 +1,8 @@
 <template>
   <div id="app">
-    <nav v-if="authStore.isAuthenticated" class="navbar">
+    <nav v-if="authStore.isAuthenticated && !isLandingPage" class="navbar">
       <div class="nav-brand">
-        <router-link to="/">Badminton Analyzer</router-link>
+        <router-link to="/dashboard">🏸 vision.neymo.ai</router-link>
       </div>
       <div class="nav-links">
         <router-link to="/dashboard">Dashboard</router-link>
@@ -11,22 +11,27 @@
         <button @click="logout" class="btn-logout">Logout</button>
       </div>
     </nav>
-    <main class="main-content">
+    <main :class="['main-content', { 'full-width': isLandingPage || isAuthPage }]">
       <router-view />
     </main>
   </div>
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { useAuthStore } from './stores/auth'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 
 const authStore = useAuthStore()
 const router = useRouter()
+const route = useRoute()
+
+const isLandingPage = computed(() => route.name === 'Landing')
+const isAuthPage = computed(() => ['Login', 'Signup'].includes(route.name))
 
 const logout = () => {
   authStore.logout()
-  router.push('/login')
+  router.push('/')
 }
 </script>
 
@@ -35,10 +40,29 @@ const logout = () => {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  background-image: url('@/assets/images/pattern-bg.jpg');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  position: relative;
+}
+
+#app::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(10, 10, 26, 0.8);
+  z-index: 0;
+  pointer-events: none;
 }
 
 .navbar {
-  background: #16213e;
+  background: rgba(22, 33, 62, 0.95);
+  position: relative;
+  z-index: 1;
   padding: 1rem 2rem;
   display: flex;
   justify-content: space-between;
@@ -99,5 +123,12 @@ const logout = () => {
   max-width: 1400px;
   margin: 0 auto;
   width: 100%;
+  position: relative;
+  z-index: 1;
+}
+
+.main-content.full-width {
+  padding: 0;
+  max-width: 100%;
 }
 </style>

@@ -3,6 +3,12 @@ import { useAuthStore } from '../stores/auth'
 
 const routes = [
   {
+    path: '/',
+    name: 'Landing',
+    component: () => import('../views/LandingView.vue'),
+    meta: { guest: true }
+  },
+  {
     path: '/login',
     name: 'Login',
     component: () => import('../views/LoginView.vue'),
@@ -13,10 +19,6 @@ const routes = [
     name: 'Signup',
     component: () => import('../views/SignupView.vue'),
     meta: { guest: true }
-  },
-  {
-    path: '/',
-    redirect: '/dashboard'
   },
   {
     path: '/dashboard',
@@ -72,7 +74,8 @@ router.beforeEach((to, from, next) => {
 
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     next('/login')
-  } else if (to.meta.guest && authStore.isAuthenticated) {
+  } else if (to.meta.guest && authStore.isAuthenticated && to.name !== 'Landing') {
+    // Redirect authenticated users from login/signup to dashboard, but allow landing page
     next('/dashboard')
   } else if (to.meta.requiresAdmin && !authStore.user?.is_admin) {
     next('/dashboard')
