@@ -179,6 +179,17 @@ async def end_stream(
     db: Session = Depends(get_db)
 ):
     """End the streaming session and get final report."""
+    from pathlib import Path
+    from ..config import get_settings
+    from ..services.storage_service import get_storage_service
+    import cv2
+    import numpy as np
+    import logging
+
+    logger = logging.getLogger(__name__)
+    settings = get_settings()
+    storage = get_storage_service()
+
     session = db.query(StreamSession).filter(
         StreamSession.id == session_id,
         StreamSession.user_id == current_user.id
@@ -190,8 +201,59 @@ async def end_stream(
     if session.status == StreamStatus.ENDED:
         raise HTTPException(status_code=400, detail="Session already ended")
 
-    # Get final report from analyzer
+    # Get analyzer before ending session
     session_manager = get_stream_session_manager()
+    analyzer = session_manager.get_session(session_id)
+
+    # If recording was active, save it before ending
+    if analyzer and session.is_recording:
+        logger.info(f"Auto-saving recording for session {session_id} before ending")
+        frames = analyzer.stop_recording()
+        session.is_recording = False
+
+        if frames:
+            try:
+                # Create output directory
+                output_dir = settings.output_path / str(current_user.id) / f"stream_{session_id}"
+                output_dir.mkdir(parents=True, exist_ok=True)
+                video_path = str(output_dir / "recording.mp4")
+
+                # Decode first frame to get dimensions
+                first_frame = cv2.imdecode(np.frombuffer(frames[0], np.uint8), cv2.IMREAD_COLOR)
+                height, width = first_frame.shape[:2]
+
+                # Create video writer
+                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                fps = session.frame_rate or 10
+                out = cv2.VideoWriter(video_path, fourcc, fps, (width, height))
+
+                # Write all frames
+                for frame_data in frames:
+                    frame = cv2.imdecode(np.frombuffer(frame_data, np.uint8), cv2.IMREAD_COLOR)
+                    if frame is not None:
+                        out.write(frame)
+                out.release()
+
+                # Upload to S3 if enabled
+                if storage.is_s3():
+                    try:
+                        s3_key = f"streams/{current_user.id}/stream_{session_id}/recording.mp4"
+                        with open(video_path, 'rb') as f:
+                            storage.outputs.save(s3_key, f, content_type='video/mp4')
+                        session.recording_s3_key = s3_key
+                        logger.info(f"Uploaded stream recording to S3: {s3_key}")
+                        Path(video_path).unlink(missing_ok=True)
+                    except Exception as e:
+                        logger.error(f"Failed to upload recording to S3: {e}")
+                        session.recording_local_path = video_path
+                else:
+                    session.recording_local_path = video_path
+
+                logger.info(f"Auto-saved recording with {len(frames)} frames for session {session_id}")
+            except Exception as e:
+                logger.error(f"Failed to auto-save recording: {e}")
+
+    # Get final report from analyzer
     report = session_manager.end_session(session_id)
 
     # Update session in database
@@ -294,10 +356,14 @@ async def stop_recording(
     """Stop recording the stream."""
     from pathlib import Path
     from ..config import get_settings
+    from ..services.storage_service import get_storage_service
     import cv2
     import numpy as np
+    import logging
 
+    logger = logging.getLogger(__name__)
     settings = get_settings()
+    storage = get_storage_service()
 
     session = db.query(StreamSession).filter(
         StreamSession.id == session_id,
@@ -311,18 +377,28 @@ async def stop_recording(
     analyzer = session_manager.get_session(session_id)
 
     if not analyzer:
-        raise HTTPException(status_code=400, detail="Analyzer not found")
+        # Check if session already has a recording (auto-saved on end)
+        if session.recording_s3_key or session.recording_local_path:
+            return {
+                "recording": False,
+                "message": "Recording already saved when session ended",
+                "frame_count": 0,
+                "has_video": True
+            }
+        logger.warning(f"Analyzer not found for session {session_id} - session may have ended")
+        raise HTTPException(status_code=400, detail="Stream session not active. Recording may have been auto-saved when session ended.")
 
     frames = analyzer.stop_recording()
     session.is_recording = False
 
     video_path = None
+    s3_key = None
     if frames:
-        # Create output directory
+        # Create output directory for local processing
         output_dir = settings.output_path / str(current_user.id) / f"stream_{session_id}"
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Save frames as video
+        # Save frames as video locally first (needed for encoding)
         video_path = str(output_dir / "recording.mp4")
 
         try:
@@ -343,9 +419,27 @@ async def stop_recording(
 
             out.release()
 
-            session.recording_local_path = video_path
+            # Upload to S3 if enabled
+            if storage.is_s3():
+                try:
+                    s3_key = f"streams/{current_user.id}/stream_{session_id}/recording.mp4"
+                    with open(video_path, 'rb') as f:
+                        storage.outputs.save(s3_key, f, content_type='video/mp4')
+                    session.recording_s3_key = s3_key
+                    logger.info(f"Uploaded stream recording to S3: {s3_key}")
+
+                    # Clean up local file after successful S3 upload
+                    Path(video_path).unlink(missing_ok=True)
+                    video_path = None
+                except Exception as e:
+                    logger.error(f"Failed to upload recording to S3: {e}")
+                    # Keep local path as fallback
+                    session.recording_local_path = video_path
+            else:
+                session.recording_local_path = video_path
 
         except Exception as e:
+            logger.error(f"Failed to create recording: {e}")
             video_path = None
             # Log error but don't fail the request
 
@@ -353,9 +447,9 @@ async def stop_recording(
 
     return {
         "recording": False,
-        "message": "Recording stopped and saved" if video_path else "Recording stopped",
+        "message": "Recording stopped and saved" if (video_path or s3_key) else "Recording stopped",
         "frame_count": len(frames),
-        "has_video": video_path is not None
+        "has_video": (video_path is not None) or (s3_key is not None)
     }
 
 
@@ -366,8 +460,15 @@ async def download_recording(
     db: Session = Depends(get_db)
 ):
     """Download the recorded video for a session."""
-    from fastapi.responses import FileResponse
+    from fastapi.responses import FileResponse, Response
     from pathlib import Path
+    from ..services.storage_service import get_storage_service
+    import logging
+
+    logger = logging.getLogger(__name__)
+    logger.info(f"Download recording request for session {session_id} by user {current_user.id}")
+
+    storage = get_storage_service()
 
     session = db.query(StreamSession).filter(
         StreamSession.id == session_id,
@@ -375,22 +476,42 @@ async def download_recording(
     ).first()
 
     if not session:
+        logger.warning(f"Session {session_id} not found for user {current_user.id}")
         raise HTTPException(status_code=404, detail="Session not found")
 
-    if not session.recording_local_path:
-        raise HTTPException(status_code=404, detail="No recording available for this session")
-
-    video_path = Path(session.recording_local_path)
-    if not video_path.exists():
-        raise HTTPException(status_code=404, detail="Recording file not found")
-
+    logger.info(f"Session found: s3_key={session.recording_s3_key}, local_path={session.recording_local_path}")
     filename = f"stream_recording_{session_id}.mp4"
 
-    return FileResponse(
-        path=str(video_path),
-        media_type="video/mp4",
-        filename=filename
-    )
+    # Check S3 first
+    if session.recording_s3_key and storage.is_s3():
+        try:
+            logger.info(f"Loading recording from S3: {session.recording_s3_key}")
+            video_data = storage.outputs.load(session.recording_s3_key)
+            logger.info(f"S3 recording loaded, size: {len(video_data)} bytes")
+            return Response(
+                content=video_data,
+                media_type="video/mp4",
+                headers={
+                    "Content-Disposition": f'attachment; filename="{filename}"'
+                }
+            )
+        except Exception as e:
+            logger.error(f"Failed to load from S3: {e}")
+            # Fall through to local check
+
+    # Check local file
+    if session.recording_local_path:
+        video_path = Path(session.recording_local_path)
+        logger.info(f"Checking local path: {video_path}, exists: {video_path.exists()}")
+        if video_path.exists():
+            return FileResponse(
+                path=str(video_path),
+                media_type="video/mp4",
+                filename=filename
+            )
+
+    logger.warning(f"No recording available for session {session_id}")
+    raise HTTPException(status_code=404, detail="No recording available for this session")
 
 
 @router.get("/{session_id}/stats")
@@ -474,6 +595,10 @@ async def list_all_sessions(
     sessions = query.order_by(StreamSession.created_at.desc()).offset(skip).limit(limit).all()
 
     def has_recording(s):
+        # Check S3 first
+        if s.recording_s3_key:
+            return True
+        # Check local file
         if s.recording_local_path:
             return Path(s.recording_local_path).exists()
         return False
@@ -507,6 +632,9 @@ async def get_session_results(
 ):
     """Get full results for an ended stream session."""
     from pathlib import Path
+    import logging
+
+    logger = logging.getLogger(__name__)
 
     session = db.query(StreamSession).filter(
         StreamSession.id == session_id,
@@ -524,10 +652,14 @@ async def get_session_results(
     if session.started_at and session.ended_at:
         duration = (session.ended_at - session.started_at).total_seconds()
 
-    # Check if recording exists
+    # Check if recording exists (S3 or local)
     has_recording = False
-    if session.recording_local_path:
+    if session.recording_s3_key:
+        has_recording = True
+        logger.info(f"Session {session_id} has S3 recording: {session.recording_s3_key}")
+    elif session.recording_local_path:
         has_recording = Path(session.recording_local_path).exists()
+        logger.info(f"Session {session_id} local recording: {session.recording_local_path}, exists: {has_recording}")
 
     return {
         "session_id": session.id,

@@ -345,12 +345,39 @@ function drawAnnotations() {
     console.log('drawAnnotations drawing! canvas:', canvas.width, 'x', canvas.height, 'video:', video.videoWidth, 'x', video.videoHeight)
   }
 
-  // Update canvas size if needed
+  // Calculate actual video display area (accounting for object-fit: contain)
+  const containerRect = video.parentElement.getBoundingClientRect()
+  const videoAspect = video.videoWidth / video.videoHeight
+  const containerAspect = containerRect.width / containerRect.height
+
+  let displayWidth, displayHeight, offsetX, offsetY
+
+  if (videoAspect > containerAspect) {
+    // Video is wider - letterboxing top/bottom
+    displayWidth = containerRect.width
+    displayHeight = containerRect.width / videoAspect
+    offsetX = 0
+    offsetY = (containerRect.height - displayHeight) / 2
+  } else {
+    // Video is taller - letterboxing left/right
+    displayHeight = containerRect.height
+    displayWidth = containerRect.height * videoAspect
+    offsetX = (containerRect.width - displayWidth) / 2
+    offsetY = 0
+  }
+
+  // Set canvas internal size to match video native dimensions
   if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
     canvas.width = video.videoWidth
     canvas.height = video.videoHeight
     console.log('Canvas resized to:', canvas.width, 'x', canvas.height)
   }
+
+  // Position and size canvas to match actual video display area
+  canvas.style.left = offsetX + 'px'
+  canvas.style.top = offsetY + 'px'
+  canvas.style.width = displayWidth + 'px'
+  canvas.style.height = displayHeight + 'px'
 
   const ctx = canvas.getContext('2d')
   ctx.clearRect(0, 0, canvas.width, canvas.height)
@@ -619,15 +646,14 @@ watch(() => props.poseData, () => {
 .stream-video {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  background: #0f0f1a;
 }
 
 .overlay-canvas {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
   pointer-events: none;
+  /* Positioned dynamically via JS to match video's object-fit: contain */
 }
 
 .stream-badge {
