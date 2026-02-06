@@ -422,18 +422,73 @@ function drawAnnotations() {
     const scaleX = canvas.width / pose.width
     const scaleY = canvas.height / pose.height
 
-    // Draw connections (skeleton lines)
-    ctx.strokeStyle = '#00ff00'  // Bright green for visibility
+    // Define colors for different body parts (matching video upload style)
+    const bodyPartColors = {
+      // Connection colors by type
+      connections: {
+        torso: '#00ff00',      // Green - shoulders, hips
+        leftArm: '#00ffff',    // Cyan - left arm
+        rightArm: '#ffff00',   // Yellow - right arm
+        leftLeg: '#ff00ff',    // Magenta - left leg
+        rightLeg: '#ff66ff',   // Pink - right leg
+      },
+      // Landmark colors by index
+      landmarks: {
+        0: '#ffffff',   // Nose - white
+        11: '#00ff96',  // Left shoulder - light green
+        12: '#00ff96',  // Right shoulder - light green
+        13: '#00ccff',  // Left elbow - light blue
+        14: '#ffc800',  // Right elbow - orange
+        15: '#00ffff',  // Left wrist - cyan
+        16: '#ffff00',  // Right wrist - yellow
+        23: '#00ff00',  // Left hip - green
+        24: '#64ff00',  // Right hip - light green
+        25: '#ff00ff',  // Left knee - magenta
+        26: '#ff66ff',  // Right knee - pink
+        27: '#8000ff',  // Left ankle - purple
+        28: '#cc80ff',  // Right ankle - light purple
+      }
+    }
+
+    // Categorize connections by body part
+    const getConnectionColor = (i, j) => {
+      // Torso connections
+      if ((i === 11 && j === 12) || (i === 23 && j === 24) ||
+          (i === 11 && j === 23) || (i === 12 && j === 24)) {
+        return bodyPartColors.connections.torso
+      }
+      // Left arm
+      if ((i === 11 && j === 13) || (i === 13 && j === 15)) {
+        return bodyPartColors.connections.leftArm
+      }
+      // Right arm
+      if ((i === 12 && j === 14) || (i === 14 && j === 16)) {
+        return bodyPartColors.connections.rightArm
+      }
+      // Left leg
+      if ((i === 23 && j === 25) || (i === 25 && j === 27)) {
+        return bodyPartColors.connections.leftLeg
+      }
+      // Right leg
+      if ((i === 24 && j === 26) || (i === 26 && j === 28)) {
+        return bodyPartColors.connections.rightLeg
+      }
+      return '#00ff00' // Default green
+    }
+
+    // Draw connections (skeleton lines) with body-part specific colors
     ctx.lineWidth = 3
     ctx.lineCap = 'round'
-    ctx.shadowColor = '#00ff00'
-    ctx.shadowBlur = 5
 
     for (const [i, j] of pose.connections) {
       const p1 = pose.landmarks[i]
       const p2 = pose.landmarks[j]
 
       if (p1 && p2 && p1.visibility > 0.5 && p2.visibility > 0.5) {
+        const color = getConnectionColor(i, j)
+        ctx.strokeStyle = color
+        ctx.shadowColor = color
+        ctx.shadowBlur = 5
         ctx.beginPath()
         ctx.moveTo(p1.x * scaleX, p1.y * scaleY)
         ctx.lineTo(p2.x * scaleX, p2.y * scaleY)
@@ -443,23 +498,38 @@ function drawAnnotations() {
 
     ctx.shadowBlur = 0
 
-    // Draw landmarks (joints)
-    for (const lm of pose.landmarks) {
+    // Draw landmarks (joints) with body-part specific colors
+    pose.landmarks.forEach((lm, index) => {
       if (lm.visibility > 0.5) {
         const x = lm.x * scaleX
         const y = lm.y * scaleY
+        const color = bodyPartColors.landmarks[index] || '#00ff00'
 
         // Outer glow
         ctx.beginPath()
         ctx.arc(x, y, 8, 0, Math.PI * 2)
-        ctx.fillStyle = 'rgba(0, 255, 0, 0.3)'
+        ctx.fillStyle = color.replace('#', 'rgba(') + ', 0.3)'.replace('rgba(', 'rgba(' +
+          parseInt(color.slice(1, 3), 16) + ',' +
+          parseInt(color.slice(3, 5), 16) + ',' +
+          parseInt(color.slice(5, 7), 16) + ',')
+        // Simpler approach for glow
+        ctx.globalAlpha = 0.3
+        ctx.fillStyle = color
         ctx.fill()
+        ctx.globalAlpha = 1.0
 
         // Main circle
         ctx.beginPath()
         ctx.arc(x, y, 5, 0, Math.PI * 2)
-        ctx.fillStyle = '#00ff00'
+        ctx.fillStyle = color
         ctx.fill()
+
+        // White outline for visibility
+        ctx.beginPath()
+        ctx.arc(x, y, 6, 0, Math.PI * 2)
+        ctx.strokeStyle = '#ffffff'
+        ctx.lineWidth = 1
+        ctx.stroke()
 
         // Inner dot
         ctx.beginPath()
@@ -467,7 +537,7 @@ function drawAnnotations() {
         ctx.fillStyle = 'white'
         ctx.fill()
       }
-    }
+    })
   }
 
   // Continue animation loop

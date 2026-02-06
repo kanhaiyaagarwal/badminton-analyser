@@ -61,8 +61,39 @@
           <span :class="['corner-label', { active: currentCorner === 3 }]">Bottom-Left</span>
         </p>
 
+        <!-- Camera Controls -->
+        <div class="camera-controls">
+          <div class="camera-select-row">
+            <label>Camera:</label>
+            <select v-model="selectedCourtCamera" @change="switchCourtCamera" :disabled="availableCameras.length === 0">
+              <option value="">Select camera...</option>
+              <option v-for="cam in availableCameras" :key="cam.deviceId" :value="cam.deviceId">
+                {{ cam.label || `Camera ${availableCameras.indexOf(cam) + 1}` }}
+              </option>
+            </select>
+          </div>
+          <div class="zoom-control-row" v-if="zoomSupported">
+            <label>Zoom: {{ currentZoom.toFixed(1) }}x</label>
+            <input
+              type="range"
+              :min="zoomRange.min"
+              :max="zoomRange.max"
+              :step="0.1"
+              v-model.number="currentZoom"
+              @input="applyZoom"
+              class="zoom-slider"
+            />
+          </div>
+        </div>
+
         <!-- Court Selection Video Preview -->
-        <div class="court-selection-container" ref="courtSelectionContainer">
+        <div
+          class="court-selection-container"
+          ref="courtSelectionContainer"
+          @touchstart="handleTouchStart"
+          @touchmove="handleTouchMove"
+          @touchend="handleTouchEnd"
+        >
           <video
             ref="courtPreviewVideo"
             autoplay
@@ -279,6 +310,17 @@ const currentCorner = ref(0)
 const cornerNames = ['Top-Left', 'Top-Right', 'Bottom-Right', 'Bottom-Left']
 let courtMediaStream = null
 
+// Camera selection and zoom
+const availableCameras = ref([])
+const selectedCourtCamera = ref('')
+const zoomSupported = ref(false)
+const zoomRange = ref({ min: 1, max: 1 })
+const currentZoom = ref(1)
+
+// Pinch-to-zoom state
+let initialPinchDistance = 0
+let initialZoom = 1
+
 const isRecording = ref(false)
 const hasRecording = ref(false)
 const recordingDuration = ref(0)
@@ -399,14 +441,20 @@ watch(step, async (newStep) => {
 
 async function initCourtCamera() {
   try {
+    // First, enumerate available cameras
+    await enumerateCameras()
+
     // On mobile, explicitly request back camera
     const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
     const videoConstraints = {
-      width: { ideal: 1280 },
-      height: { ideal: 720 }
+      width: { ideal: 1920 },
+      height: { ideal: 1080 }
     }
 
-    if (isMobile) {
+    // If a specific camera is selected, use it
+    if (selectedCourtCamera.value) {
+      videoConstraints.deviceId = { exact: selectedCourtCamera.value }
+    } else if (isMobile) {
       // Use exact facingMode on mobile to ensure back camera
       videoConstraints.facingMode = { exact: 'environment' }
     } else {
@@ -419,11 +467,11 @@ async function initCourtCamera() {
       })
     } catch (e) {
       // If exact constraint fails, try without it
-      console.log('Exact facingMode failed, trying without:', e.message)
+      console.log('Exact constraint failed, trying without:', e.message)
       courtMediaStream = await navigator.mediaDevices.getUserMedia({
         video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
           facingMode: 'environment'
         }
       })
@@ -433,6 +481,9 @@ async function initCourtCamera() {
       courtPreviewVideo.value.srcObject = courtMediaStream
       await courtPreviewVideo.value.play()
     }
+
+    // Check zoom capabilities
+    checkZoomCapabilities()
 
     courtCameraReady.value = true
     courtCameraError.value = ''
@@ -452,6 +503,154 @@ async function initCourtCamera() {
     courtCameraError.value = 'Camera access denied. Please allow camera access.'
     error.value = courtCameraError.value
   }
+}
+
+async function enumerateCameras() {
+  try {
+    // Request permission first to get camera labels
+    await navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
+      stream.getTracks().forEach(track => track.stop())
+    })
+
+    const devices = await navigator.mediaDevices.enumerateDevices()
+    availableCameras.value = devices.filter(d => d.kind === 'videoinput')
+    console.log('Available cameras:', availableCameras.value.map(c => c.label))
+
+    // Auto-select back/environment camera if not already selected
+    if (!selectedCourtCamera.value && availableCameras.value.length > 0) {
+      // Look for back camera (various naming conventions)
+      const backCamera = availableCameras.value.find(cam => {
+        const label = cam.label.toLowerCase()
+        return label.includes('back') ||
+               label.includes('rear') ||
+               label.includes('environment') ||
+               label.includes('wide') ||
+               label.includes('0, facing back')
+      })
+
+      if (backCamera) {
+        selectedCourtCamera.value = backCamera.deviceId
+      } else if (availableCameras.value.length > 1) {
+        // On mobile, last camera is often the back camera
+        selectedCourtCamera.value = availableCameras.value[availableCameras.value.length - 1].deviceId
+      } else {
+        selectedCourtCamera.value = availableCameras.value[0].deviceId
+      }
+    }
+  } catch (e) {
+    console.error('Failed to enumerate cameras:', e)
+  }
+}
+
+async function switchCourtCamera() {
+  if (!selectedCourtCamera.value) return
+
+  // Stop current stream
+  if (courtMediaStream) {
+    courtMediaStream.getTracks().forEach(track => track.stop())
+  }
+
+  courtCameraReady.value = false
+  zoomSupported.value = false
+  currentZoom.value = 1
+
+  try {
+    courtMediaStream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        deviceId: { exact: selectedCourtCamera.value },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
+      }
+    })
+
+    if (courtPreviewVideo.value) {
+      courtPreviewVideo.value.srcObject = courtMediaStream
+      await courtPreviewVideo.value.play()
+    }
+
+    checkZoomCapabilities()
+    courtCameraReady.value = true
+
+    setTimeout(() => drawCourtOverlay(), 100)
+  } catch (e) {
+    console.error('Failed to switch camera:', e)
+    courtCameraError.value = 'Failed to switch camera: ' + e.message
+  }
+}
+
+function checkZoomCapabilities() {
+  if (!courtMediaStream) return
+
+  const videoTrack = courtMediaStream.getVideoTracks()[0]
+  if (!videoTrack) return
+
+  try {
+    const capabilities = videoTrack.getCapabilities()
+    if (capabilities.zoom) {
+      zoomSupported.value = true
+      zoomRange.value = {
+        min: capabilities.zoom.min,
+        max: capabilities.zoom.max
+      }
+      // Get current zoom level
+      const settings = videoTrack.getSettings()
+      currentZoom.value = settings.zoom || 1
+      console.log('Zoom supported:', zoomRange.value, 'current:', currentZoom.value)
+    } else {
+      zoomSupported.value = false
+      console.log('Zoom not supported by this camera')
+    }
+  } catch (e) {
+    console.log('Failed to check zoom capabilities:', e)
+    zoomSupported.value = false
+  }
+}
+
+async function applyZoom() {
+  if (!courtMediaStream || !zoomSupported.value) return
+
+  const videoTrack = courtMediaStream.getVideoTracks()[0]
+  if (!videoTrack) return
+
+  try {
+    await videoTrack.applyConstraints({
+      advanced: [{ zoom: currentZoom.value }]
+    })
+  } catch (e) {
+    console.error('Failed to apply zoom:', e)
+  }
+}
+
+// Pinch-to-zoom handlers
+function handleTouchStart(event) {
+  if (event.touches.length === 2) {
+    initialPinchDistance = getPinchDistance(event.touches)
+    initialZoom = currentZoom.value
+  }
+}
+
+function handleTouchMove(event) {
+  if (event.touches.length === 2 && zoomSupported.value) {
+    event.preventDefault()
+    const currentDistance = getPinchDistance(event.touches)
+    const scale = currentDistance / initialPinchDistance
+
+    // Calculate new zoom level
+    let newZoom = initialZoom * scale
+    newZoom = Math.max(zoomRange.value.min, Math.min(zoomRange.value.max, newZoom))
+    currentZoom.value = newZoom
+    applyZoom()
+  }
+}
+
+function handleTouchEnd(event) {
+  initialPinchDistance = 0
+}
+
+function getPinchDistance(touches) {
+  const dx = touches[0].clientX - touches[1].clientX
+  const dy = touches[0].clientY - touches[1].clientY
+  return Math.sqrt(dx * dx + dy * dy)
 }
 
 function handleCourtClick(event) {
@@ -1187,6 +1386,74 @@ h1 {
   font-weight: bold;
 }
 
+.camera-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding: 1rem;
+  background: rgba(22, 33, 62, 0.8);
+  border-radius: 8px;
+}
+
+.camera-select-row,
+.zoom-control-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.camera-select-row label,
+.zoom-control-row label {
+  min-width: 80px;
+  color: #aaa;
+  font-size: 0.9rem;
+}
+
+.camera-select-row select {
+  flex: 1;
+  padding: 0.5rem;
+  background: #1a1a2e;
+  border: 1px solid #3a3a5a;
+  border-radius: 6px;
+  color: #eee;
+  font-size: 0.9rem;
+}
+
+.camera-select-row select:focus {
+  outline: none;
+  border-color: #4ecca3;
+}
+
+.zoom-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  background: #3a3a5a;
+  border-radius: 3px;
+  outline: none;
+}
+
+.zoom-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  background: #4ecca3;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.zoom-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  background: #4ecca3;
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+}
+
 .court-selection-container {
   position: relative;
   width: 100%;
@@ -1195,6 +1462,7 @@ h1 {
   border-radius: 12px;
   overflow: hidden;
   margin-bottom: 1rem;
+  touch-action: none; /* Enable custom touch handling for pinch-to-zoom */
 }
 
 .court-preview-video {
