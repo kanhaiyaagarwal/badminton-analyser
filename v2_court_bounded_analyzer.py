@@ -19,7 +19,7 @@ import math
 from pathlib import Path
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Any
 from datetime import datetime
 import logging
 
@@ -151,9 +151,38 @@ class RallyData:
 class CourtBoundedAnalyzer:
     """Badminton analyzer that only processes within defined court boundaries"""
 
+    ACTUAL_SHOTS = ['smash', 'clear', 'drop_shot', 'net_shot', 'drive', 'lift']
+    NON_SHOT_STATES = ['static', 'ready_position', 'preparation', 'follow_through']
+
+    # Time-based velocity thresholds (units: normalized_distance_per_second)
+    # Calibrated for ~30 FPS baseline: new_threshold = old_threshold * 30
+    VELOCITY_THRESHOLDS = {
+        'static': 0.9,           # Was 0.03 per frame - minimum motion
+        'movement': 0.75,        # Was 0.025 per frame - preparation
+        'power_overhead': 1.8,   # Was 0.06 per frame - smash swing
+        'gentle_overhead': 1.2,  # Was 0.04 per frame - clear/drop
+        'drive': 1.5,            # Was 0.05 per frame - horizontal
+        'net_min': 0.9,          # Was 0.03 per frame - gentle net
+        'net_max': 3.6,          # Was 0.12 per frame - max net speed
+        'lift': 1.2,             # Was 0.04 per frame - defensive
+        'smash_vs_clear': 2.4,   # Was 0.08 per frame - power split
+        'drop_min': 0.8,         # Minimum velocity for drop shot in arc detection
+    }
+
+    # Position thresholds for body position classification
+    # These define how wrist position relative to body determines shot type
+    POSITION_THRESHOLDS = {
+        'overhead_offset': 0.08,      # wrist_y < shoulder_y - THIS = overhead position
+        'low_position_offset': 0.1,   # wrist_y > hip_y - THIS = low position (net/lift)
+        'arm_extension_min': 0.15,    # arm_extension > THIS = extended arm
+    }
+
     def __init__(self, court_boundary: CourtBoundary, process_every_n_frames: int = 2,
                  processing_width: int = 640, model_complexity: int = 1,
-                 skip_static_frames: bool = True):
+                 skip_static_frames: bool = True, effective_fps: float = 30.0,
+                 velocity_thresholds: Optional[Dict[str, float]] = None,
+                 position_thresholds: Optional[Dict[str, float]] = None,
+                 shot_cooldown_seconds: float = 0.4):
         """
         Initialize analyzer with performance options.
 
@@ -163,12 +192,28 @@ class CourtBoundedAnalyzer:
             processing_width: Resize frame to this width for processing (smaller=faster)
             model_complexity: MediaPipe model complexity (0=fastest, 1=balanced, 2=accurate)
             skip_static_frames: Skip pose detection when no motion detected
+            effective_fps: Effective frame rate for velocity calculations
+            velocity_thresholds: Optional custom velocity thresholds (uses defaults if None)
+            position_thresholds: Optional custom position thresholds (uses defaults if None)
+            shot_cooldown_seconds: Cooldown period after detecting a shot
         """
         self.court = court_boundary
         self.process_every_n_frames = process_every_n_frames
         self.processing_width = processing_width
         self.model_complexity = model_complexity
         self.skip_static_frames = skip_static_frames
+        self.effective_fps = effective_fps
+
+        # Apply custom thresholds if provided
+        if velocity_thresholds:
+            self.VELOCITY_THRESHOLDS = {**self.VELOCITY_THRESHOLDS, **velocity_thresholds}
+
+        # Apply custom position thresholds if provided
+        if position_thresholds:
+            self.POSITION_THRESHOLDS = {**self.POSITION_THRESHOLDS, **position_thresholds}
+
+        # Store cooldown setting (used in reset_analysis_state)
+        self._custom_cooldown = shot_cooldown_seconds
 
         # For motion detection
         self.prev_gray = None
@@ -257,7 +302,7 @@ class CourtBoundedAnalyzer:
         self.rally_history: List[RallyData] = []
         self.session_stats = defaultdict(int)
 
-        # Movement tracking
+        # Movement tracking (stores {pose_state, timestamp})
         self.pose_history = []
         self.movement_history = []
         self.foot_position_history: List[Tuple[int, int]] = []  # Full video tracking for heatmap
@@ -273,6 +318,10 @@ class CourtBoundedAnalyzer:
         self.last_shot_frame = 0
         self.player_detected_frames = 0
         self.total_frames_processed = 0
+
+        # Shot cooldown mechanism
+        self.last_shot_timestamp: float = -999.0
+        self.shot_cooldown_seconds: float = getattr(self, '_custom_cooldown', 0.4)
 
     def get_coaching_tip(self, shot_type: str) -> str:
         """Get a coaching tip for the shot type"""
@@ -444,8 +493,16 @@ class CourtBoundedAnalyzer:
 
         return results.pose_landmarks, player_bbox
 
-    def analyze_movement(self, pose_landmarks) -> dict:
-        """Analyze player movement from pose landmarks"""
+    def analyze_movement(self, pose_landmarks, timestamp: float) -> dict:
+        """Analyze player movement from pose landmarks.
+
+        Args:
+            pose_landmarks: MediaPipe pose landmarks
+            timestamp: Current frame timestamp in seconds
+
+        Returns:
+            Movement data dict with time-based velocities (per second)
+        """
         if not pose_landmarks:
             return {}
 
@@ -471,7 +528,8 @@ class CourtBoundedAnalyzer:
             'hip_center': (
                 (right_hip.x + left_hip.x) / 2,
                 (right_hip.y + left_hip.y) / 2
-            )
+            ),
+            'timestamp': timestamp  # Store timestamp for time-based calculations
         }
 
         # Debug: Log positions occasionally to understand the data
@@ -481,19 +539,31 @@ class CourtBoundedAnalyzer:
 
         # Calculate velocities if we have history
         movement_data = {
-            'wrist_velocity': 0.0,
-            'body_velocity': 0.0,
+            'wrist_velocity': 0.0,  # Now in units per second
+            'body_velocity': 0.0,   # Now in units per second
             'wrist_direction': 'none',  # up, down, left, right
-            'swing_type': 'none'
+            'swing_type': 'none',
+            'time_delta': 0.0  # For debugging
         }
 
         if len(self.pose_history) > 0:
             prev_state = self.pose_history[-1]
 
-            # Wrist velocity
+            # Calculate time delta between frames
+            time_delta = timestamp - prev_state['timestamp']
+            if time_delta <= 0:
+                # Fallback to expected frame time if timestamp is invalid
+                time_delta = 1.0 / self.effective_fps
+
+            movement_data['time_delta'] = time_delta
+
+            # Wrist displacement
             wrist_dx = current_state['wrist'][0] - prev_state['wrist'][0]
             wrist_dy = current_state['wrist'][1] - prev_state['wrist'][1]
-            movement_data['wrist_velocity'] = math.sqrt(wrist_dx**2 + wrist_dy**2)
+            distance = math.sqrt(wrist_dx**2 + wrist_dy**2)
+
+            # Time-based velocity (distance per second)
+            movement_data['wrist_velocity'] = distance / time_delta
 
             # Wrist direction
             if abs(wrist_dy) > abs(wrist_dx):
@@ -501,18 +571,22 @@ class CourtBoundedAnalyzer:
             else:
                 movement_data['wrist_direction'] = 'right' if wrist_dx > 0 else 'left'
 
-            # Body velocity
+            # Body displacement and velocity
             body_dx = current_state['shoulder_center'][0] - prev_state['shoulder_center'][0]
             body_dy = current_state['shoulder_center'][1] - prev_state['shoulder_center'][1]
-            movement_data['body_velocity'] = math.sqrt(body_dx**2 + body_dy**2)
+            body_distance = math.sqrt(body_dx**2 + body_dy**2)
+            movement_data['body_velocity'] = body_distance / time_delta
 
-            # Classify swing type
+            # Classify swing type using time-based thresholds
             movement_data['swing_type'] = self.classify_swing(
                 movement_data['wrist_velocity'],
                 movement_data['wrist_direction'],
                 current_state,
-                wrist_dy
+                wrist_dy / time_delta  # Also convert dy to per-second for consistency
             )
+
+        # Store wrist_direction in current_state for motion arc detection
+        current_state['wrist_direction'] = movement_data['wrist_direction']
 
         # Store in history (keep last 10 frames)
         self.pose_history.append(current_state)
@@ -521,13 +595,90 @@ class CourtBoundedAnalyzer:
 
         return movement_data
 
+    def detect_overhead_arc(self, current_velocity: float, current_direction: str) -> Optional[str]:
+        """
+        Detect if we're at the contact point of an overhead motion arc.
+        Pattern: UP phase (preparation) → DOWN phase (hit)
+
+        All three overhead shots follow the same arc pattern - the descent velocity
+        determines which shot:
+        - SMASH: Very high descent velocity (>2.4)
+        - CLEAR: Medium descent velocity (1.5-2.4)
+        - DROP: Low descent velocity (0.8-1.5)
+
+        Args:
+            current_velocity: Current wrist velocity in normalized distance per second
+            current_direction: Current wrist movement direction ('up', 'down', etc.)
+
+        Returns:
+            'smash_arc' if high velocity descent (>2.4)
+            'clear_arc' if medium velocity descent (1.5-2.4)
+            'drop_arc' if low velocity descent (0.8-1.5)
+            None if not an overhead arc
+        """
+        if len(self.pose_history) < 3:
+            return None
+
+        recent = self.pose_history[-3:]
+        T = self.VELOCITY_THRESHOLDS
+        P = self.POSITION_THRESHOLDS
+
+        # Check 1: Was recently moving UP? (at least 2 of last 3 frames)
+        up_frames = sum(1 for p in recent if p.get('wrist_direction') == 'up')
+        had_upward_motion = up_frames >= 2
+
+        # Check 2: Currently moving DOWN?
+        moving_down = current_direction == 'down'
+
+        # Check 3: Was overhead at peak? (wrist above shoulder in recent frames)
+        was_overhead = any(
+            p.get('wrist', (0, 1))[1] < p.get('shoulder', (0, 0))[1] - P.get('overhead_offset', 0.08)
+            for p in recent
+        )
+
+        # Check 4: Time window (arc within 0.5 seconds)
+        time_span = self.pose_history[-1].get('timestamp', 0) - recent[0].get('timestamp', 0)
+        within_window = time_span < 0.5
+
+        # Must satisfy arc pattern first
+        if not (had_upward_motion and moving_down and was_overhead and within_window):
+            return None
+
+        # Check 5: Classify based on descent velocity
+        if current_velocity > T.get('smash_vs_clear', 2.4):
+            return 'smash_arc'
+        elif current_velocity > T.get('gentle_overhead', 1.5):
+            return 'clear_arc'
+        elif current_velocity > T.get('drop_min', 0.8):
+            return 'drop_arc'
+
+        return None  # Too slow to be an overhead shot
+
     def classify_swing(self, wrist_vel: float, wrist_dir: str,
                        pose_state: dict, wrist_dy: float) -> str:
-        """Classify the type of swing based on movement"""
+        """Classify the type of swing based on movement.
+
+        Args:
+            wrist_vel: Wrist velocity in normalized distance per second
+            wrist_dir: Direction of wrist movement ('up', 'down', 'left', 'right')
+            pose_state: Current pose state dict
+            wrist_dy: Vertical wrist velocity (per second, negative = up)
+
+        Returns:
+            Swing type string
+        """
+        T = self.VELOCITY_THRESHOLDS  # Shorthand
+        P = self.POSITION_THRESHOLDS  # Position thresholds
 
         # Threshold for significant movement - need meaningful motion to classify as a shot
-        if wrist_vel < 0.03:
+        if wrist_vel < T['static']:
             return 'static'
+
+        # Check for overhead arc pattern (smash/clear/drop)
+        # This detects the UP→DOWN transition at contact point
+        overhead_arc = self.detect_overhead_arc(wrist_vel, wrist_dir)
+        if overhead_arc:
+            return overhead_arc  # 'smash_arc', 'clear_arc', or 'drop_arc'
 
         wrist_y = pose_state['wrist'][1]
         wrist_x = pose_state['wrist'][0]
@@ -539,27 +690,27 @@ class CourtBoundedAnalyzer:
         # Calculate arm extension (how far wrist is from shoulder)
         arm_extension = math.sqrt((wrist_x - shoulder_x)**2 + (wrist_y - shoulder_y)**2)
 
-        # Overhead position (wrist clearly above shoulder)
-        is_overhead = wrist_y < shoulder_y - 0.08
+        # Overhead position (wrist clearly above shoulder) - uses tunable threshold
+        is_overhead = wrist_y < shoulder_y - P['overhead_offset']
 
-        # Wrist is very low (below hip level) - potential net shot position
-        is_low_position = wrist_y > hip_y - 0.1
+        # Wrist is very low (below hip level) - potential net shot position - uses tunable threshold
+        is_low_position = wrist_y > hip_y - P['low_position_offset']
 
-        # Arm is extended forward (wrist far from shoulder horizontally)
-        is_arm_extended = arm_extension > 0.15
+        # Arm is extended forward (wrist far from shoulder) - uses tunable threshold
+        is_arm_extended = arm_extension > P['arm_extension_min']
 
         # === OVERHEAD SHOTS (smash, clear, drop) ===
         # High velocity + upward movement + overhead position = power shot
-        if wrist_vel > 0.06 and wrist_dir == 'up' and is_overhead:
+        if wrist_vel > T['power_overhead'] and wrist_dir == 'up' and is_overhead:
             return 'power_overhead'
 
         # Moderate velocity + overhead position + upward or forward motion
-        if wrist_vel > 0.04 and is_overhead and wrist_dir in ['up', 'left', 'right']:
+        if wrist_vel > T['gentle_overhead'] and is_overhead and wrist_dir in ['up', 'left', 'right']:
             return 'gentle_overhead'
 
         # === DRIVE SHOTS ===
         # Fast horizontal movement at mid-body height
-        if wrist_vel > 0.05 and wrist_dir in ['left', 'right']:
+        if wrist_vel > T['drive'] and wrist_dir in ['left', 'right']:
             # Wrist roughly between shoulder and hip
             if shoulder_y < wrist_y < hip_y:
                 return 'drive'
@@ -568,48 +719,76 @@ class CourtBoundedAnalyzer:
         # Must be: low position + arm extended + moderate forward/down movement
         # Net shots are gentle, controlled - not fast swings
         if is_low_position and is_arm_extended:
-            if wrist_vel > 0.03 and wrist_vel < 0.12:  # Gentle movement, not a smash
+            if T['net_min'] < wrist_vel < T['net_max']:  # Gentle movement, not a smash
                 if wrist_dir in ['down', 'left', 'right']:  # Forward or slight down
                     return 'net_play'
 
         # === DEFENSIVE/LIFT SHOTS ===
         # Low position + upward movement = lifting the shuttle
-        if is_low_position and wrist_dir == 'up' and wrist_vel > 0.04:
+        if is_low_position and wrist_dir == 'up' and wrist_vel > T['lift']:
             return 'lift'
 
         # === PREPARATION/RECOVERY ===
         # Some movement but doesn't match shot patterns
-        if wrist_vel > 0.025:
+        if wrist_vel > T['movement']:
             return 'movement'
 
         return 'ready'
 
     def classify_shot(self, movement_data: dict, pose_landmarks) -> Tuple[str, float]:
-        """Classify shot type from movement data"""
+        """Classify shot type from movement data.
 
+        Args:
+            movement_data: Movement analysis dict with time-based velocities
+            pose_landmarks: MediaPipe pose landmarks
+
+        Returns:
+            Tuple of (shot_type, confidence)
+        """
         swing_type = movement_data.get('swing_type', 'none')
         wrist_vel = movement_data.get('wrist_velocity', 0)
+        T = self.VELOCITY_THRESHOLDS
 
-        # Map swing type to shot type
+        # Arc-detected overhead shots (high confidence - detected at contact point)
+        if swing_type == 'smash_arc':
+            confidence = min(0.95, 0.7 + (wrist_vel - T.get('smash_vs_clear', 2.4)) * 0.1)
+            return 'smash', confidence
+
+        elif swing_type == 'clear_arc':
+            confidence = min(0.90, 0.6 + (wrist_vel - T.get('gentle_overhead', 1.5)) * 0.15)
+            return 'clear', confidence
+
+        elif swing_type == 'drop_arc':
+            confidence = min(0.85, 0.5 + wrist_vel * 0.2)
+            return 'drop_shot', confidence
+
+        # Map swing type to shot type (legacy single-frame detection)
         if swing_type == 'power_overhead':
-            # High velocity overhead = smash, lower velocity = clear
-            if wrist_vel > 0.08:
-                return 'smash', min(0.9, 0.6 + wrist_vel * 3)
+            # Use time-based threshold for smash vs clear distinction
+            if wrist_vel > T['smash_vs_clear']:
+                # Scale confidence based on velocity (higher velocity = more confident smash)
+                confidence = min(0.9, 0.6 + (wrist_vel - T['smash_vs_clear']) * 0.1)
+                return 'smash', confidence
             else:
-                return 'clear', min(0.85, 0.5 + wrist_vel * 4)
+                confidence = min(0.85, 0.5 + (wrist_vel - T['gentle_overhead']) * 0.15)
+                return 'clear', confidence
 
         elif swing_type == 'gentle_overhead':
-            return 'drop_shot', min(0.8, 0.5 + wrist_vel * 5)
+            confidence = min(0.8, 0.5 + (wrist_vel - T['gentle_overhead']) * 0.2)
+            return 'drop_shot', confidence
 
         elif swing_type == 'net_play':
-            return 'net_shot', min(0.75, 0.5 + wrist_vel * 3)
+            confidence = min(0.75, 0.5 + (wrist_vel - T['net_min']) * 0.1)
+            return 'net_shot', confidence
 
         elif swing_type == 'drive':
-            return 'drive', min(0.75, 0.5 + wrist_vel * 4)
+            confidence = min(0.75, 0.5 + (wrist_vel - T['drive']) * 0.15)
+            return 'drive', confidence
 
         elif swing_type == 'lift':
             # Defensive lift from low position
-            return 'lift', min(0.7, 0.4 + wrist_vel * 4)
+            confidence = min(0.7, 0.4 + (wrist_vel - T['lift']) * 0.2)
+            return 'lift', confidence
 
         elif swing_type == 'movement':
             return 'preparation', 0.4
@@ -641,11 +820,22 @@ class CourtBoundedAnalyzer:
         # Accumulate foot position for heatmap
         self._accumulate_foot_position(pose_landmarks, frame_number, timestamp)
 
-        # Analyze movement
-        movement_data = self.analyze_movement(pose_landmarks)
+        # Analyze movement with timestamp for time-based velocity
+        movement_data = self.analyze_movement(pose_landmarks, timestamp)
 
         # Classify shot
         shot_type, confidence = self.classify_shot(movement_data, pose_landmarks)
+
+        # Apply cooldown for actual shots to prevent follow-through misclassification
+        if shot_type in self.ACTUAL_SHOTS and confidence > 0.5:
+            time_since_last = timestamp - self.last_shot_timestamp
+            if time_since_last < self.shot_cooldown_seconds:
+                # In cooldown period - this is follow-through, not a new shot
+                shot_type = 'follow_through'
+                confidence = 0.3
+            else:
+                # Valid new shot - update last shot timestamp
+                self.last_shot_timestamp = timestamp
 
         # Get wrist position for visualization (use court region transform)
         wrist = pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_WRIST]
@@ -667,13 +857,12 @@ class CourtBoundedAnalyzer:
             confidence=confidence,
             player_bbox=player_bbox,
             wrist_position=wrist_pos,
-            coaching_tip=self.get_coaching_tip(shot_type) if shot_type not in ['static', 'ready_position', 'preparation'] else "",
+            coaching_tip=self.get_coaching_tip(shot_type) if shot_type not in self.NON_SHOT_STATES else "",
             movement_data=movement_data
         )
 
-        # Track actual shots (not static/ready/preparation positions)
-        actual_shots = ['smash', 'clear', 'drop_shot', 'net_shot', 'drive', 'lift']
-        if shot_type in actual_shots and confidence > 0.5:
+        # Track actual shots (not static/ready/preparation/follow_through positions)
+        if shot_type in self.ACTUAL_SHOTS and confidence > 0.5:
             self.shot_history.append(shot_data)
             self.session_stats[shot_type] += 1
             self.last_shot_frame = frame_number
@@ -1103,12 +1292,21 @@ class CourtBoundedAnalyzer:
             y_offset += line_height
 
     def analyze_video(self, video_path: str, output_path: Optional[str] = None,
-                      show_live: bool = False) -> dict:
-        """Analyze video within court boundaries"""
+                      show_live: bool = False, save_frame_data: bool = False) -> dict:
+        """Analyze video within court boundaries
+
+        Args:
+            video_path: Path to video file
+            output_path: Optional path for annotated output video
+            show_live: Whether to show live preview
+            save_frame_data: Whether to capture per-frame data for tuning (captured during this pass)
+        """
 
         logger.info(f"Starting analysis: {video_path}")
         logger.info(f"Court boundary: {self.court.get_bounding_rect()}")
         logger.info(f"Processing every {self.process_every_n_frames} frame(s) for pose")
+        if save_frame_data:
+            logger.info("Frame data capture enabled for tuning")
 
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
@@ -1121,6 +1319,9 @@ class CourtBoundedAnalyzer:
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
         logger.info(f"Video: {total_frames} frames, {fps} FPS, {width}x{height}")
+
+        # Frame data for tuning (captured during this pass to ensure consistency)
+        tuning_frame_data = [] if save_frame_data else None
 
         # Video writer
         out = None
@@ -1160,6 +1361,13 @@ class CourtBoundedAnalyzer:
                         last_shot_data = shot_data
                     if pose_landmarks:
                         last_pose_landmarks = pose_landmarks
+
+                    # Capture frame data for tuning (during main pass for consistency)
+                    if save_frame_data and tuning_frame_data is not None:
+                        frame_metrics = self._extract_frame_metrics(
+                            frame_number, timestamp, shot_data, pose_landmarks
+                        )
+                        tuning_frame_data.append(frame_metrics)
                 else:
                     # Use cached data for skipped frames
                     shot_data = last_shot_data
@@ -1236,6 +1444,22 @@ class CourtBoundedAnalyzer:
         if heatmap_result:
             report['heatmap_image_path'] = heatmap_result['image_path']
             report['heatmap_data_path'] = heatmap_result['data_path']
+
+        # Include frame data for tuning if captured
+        if save_frame_data and tuning_frame_data:
+            report['tuning_frame_data'] = {
+                "video_info": {
+                    "fps": fps,
+                    "duration": total_frames / fps if fps > 0 else 0,
+                    "frame_count": total_frames,
+                    "width": width,
+                    "height": height
+                },
+                "thresholds_used": self.VELOCITY_THRESHOLDS.copy(),
+                "cooldown_seconds": self.shot_cooldown_seconds,
+                "frames": tuning_frame_data
+            }
+            logger.info(f"Captured {len(tuning_frame_data)} frames for tuning")
 
         return report
 
@@ -1358,6 +1582,306 @@ class CourtBoundedAnalyzer:
             'image_path': str(image_path),
             'data_path': str(data_path)
         }
+
+    def _extract_frame_metrics(self, frame_number: int, timestamp: float,
+                                shot_data: Optional[ShotData], pose_landmarks) -> Dict:
+        """Extract frame metrics for tuning data.
+
+        This is called during the main analysis pass to capture consistent frame data.
+        Captures all raw pose data needed to understand and verify classification decisions.
+        """
+        if not shot_data:
+            return {
+                "frame_number": frame_number,
+                "timestamp": timestamp,
+                "player_detected": False
+            }
+
+        # Get raw measurements from movement_data if available
+        movement = shot_data.movement_data or {}
+        P = self.POSITION_THRESHOLDS  # Position thresholds for calculating booleans
+
+        # Extract all pose positions if pose landmarks available
+        wrist_x = wrist_y = None
+        shoulder_x = shoulder_y = None
+        elbow_x = elbow_y = None
+        hip_x = hip_y = None
+        arm_extension = None
+        is_overhead = is_low_position = is_arm_extended = is_wrist_between_shoulder_hip = None
+
+        if pose_landmarks:
+            landmarks = pose_landmarks.landmark
+            right_wrist = landmarks[self.mp_pose.PoseLandmark.RIGHT_WRIST]
+            right_shoulder = landmarks[self.mp_pose.PoseLandmark.RIGHT_SHOULDER]
+            right_elbow = landmarks[self.mp_pose.PoseLandmark.RIGHT_ELBOW]
+            right_hip = landmarks[self.mp_pose.PoseLandmark.RIGHT_HIP]
+            left_hip = landmarks[self.mp_pose.PoseLandmark.LEFT_HIP]
+
+            # Extract raw positions (normalized 0-1)
+            if right_wrist.visibility > 0.5:
+                wrist_x = right_wrist.x
+                wrist_y = right_wrist.y
+
+            if right_shoulder.visibility > 0.5:
+                shoulder_x = right_shoulder.x
+                shoulder_y = right_shoulder.y
+
+            if right_elbow.visibility > 0.5:
+                elbow_x = right_elbow.x
+                elbow_y = right_elbow.y
+
+            if right_hip.visibility > 0.5 and left_hip.visibility > 0.5:
+                hip_x = (right_hip.x + left_hip.x) / 2
+                hip_y = (right_hip.y + left_hip.y) / 2
+
+            # Calculate arm extension
+            if wrist_x is not None and shoulder_x is not None:
+                arm_extension = math.sqrt((wrist_x - shoulder_x)**2 + (wrist_y - shoulder_y)**2)
+
+            # Calculate boolean conditions (for debugging/visualization)
+            if wrist_y is not None and shoulder_y is not None:
+                is_overhead = wrist_y < shoulder_y - P['overhead_offset']
+
+            if wrist_y is not None and hip_y is not None:
+                is_low_position = wrist_y > hip_y - P['low_position_offset']
+
+            if arm_extension is not None:
+                is_arm_extended = arm_extension > P['arm_extension_min']
+
+            if wrist_y is not None and shoulder_y is not None and hip_y is not None:
+                is_wrist_between_shoulder_hip = shoulder_y < wrist_y < hip_y
+
+        # Build classification reason string for debugging
+        classification_reason = self._build_classification_reason(
+            shot_data.shot_type, movement.get('swing_type', 'none'),
+            movement.get('wrist_velocity', 0), movement.get('wrist_direction', 'none'),
+            is_overhead, is_low_position, is_arm_extended
+        )
+
+        return {
+            "frame_number": frame_number,
+            "timestamp": timestamp,
+            "player_detected": True,
+
+            # === RAW POSE DATA (doesn't change with thresholds) ===
+            "wrist_x": wrist_x,
+            "wrist_y": wrist_y,
+            "shoulder_x": shoulder_x,
+            "shoulder_y": shoulder_y,
+            "elbow_x": elbow_x,
+            "elbow_y": elbow_y,
+            "hip_x": hip_x,
+            "hip_y": hip_y,
+
+            # === CALCULATED VALUES (from raw pose) ===
+            "wrist_velocity": movement.get('wrist_velocity', 0.0),
+            "body_velocity": movement.get('body_velocity', 0.0),
+            "wrist_direction": movement.get('wrist_direction', 'none'),
+            "arm_extension": arm_extension,
+
+            # === BOOLEAN CONDITIONS (for debugging) ===
+            "is_overhead": is_overhead,
+            "is_low_position": is_low_position,
+            "is_arm_extended": is_arm_extended,
+            "is_wrist_between_shoulder_hip": is_wrist_between_shoulder_hip,
+
+            # === CLASSIFICATION RESULTS (changes with thresholds) ===
+            "swing_type": movement.get('swing_type', 'none'),
+            "shot_type": shot_data.shot_type,
+            "confidence": shot_data.confidence,
+            "cooldown_active": shot_data.shot_type == 'follow_through',
+
+            # === WHY THIS CLASSIFICATION (human readable) ===
+            "classification_reason": classification_reason,
+            "is_actual_shot": shot_data.shot_type in self.ACTUAL_SHOTS
+        }
+
+    def _build_classification_reason(self, shot_type: str, swing_type: str,
+                                      velocity: float, direction: str,
+                                      is_overhead: Optional[bool], is_low_position: Optional[bool],
+                                      is_arm_extended: Optional[bool]) -> str:
+        """Build human-readable classification reason string."""
+        T = self.VELOCITY_THRESHOLDS
+
+        if shot_type in ['static', 'ready_position']:
+            return f"vel({velocity:.2f}) < static({T['static']})"
+
+        if shot_type == 'preparation':
+            return f"movement: vel({velocity:.2f}) > movement({T['movement']})"
+
+        parts = []
+
+        if swing_type == 'power_overhead':
+            parts.append(f"power_overhead: vel({velocity:.2f}) > {T['power_overhead']}")
+            if is_overhead:
+                parts.append("overhead=true")
+            if direction == 'up':
+                parts.append("dir=up")
+
+            if shot_type == 'smash':
+                parts.append(f"-> smash: vel > smash_vs_clear({T['smash_vs_clear']})")
+            elif shot_type == 'clear':
+                parts.append(f"-> clear: vel <= smash_vs_clear({T['smash_vs_clear']})")
+
+        elif swing_type == 'gentle_overhead':
+            parts.append(f"gentle_overhead: vel({velocity:.2f}) > {T['gentle_overhead']}")
+            if is_overhead:
+                parts.append("overhead=true")
+
+        elif swing_type == 'drive':
+            parts.append(f"drive: vel({velocity:.2f}) > {T['drive']}")
+            parts.append(f"dir={direction}")
+
+        elif swing_type == 'net_play':
+            parts.append(f"net_play: {T['net_min']} < vel({velocity:.2f}) < {T['net_max']}")
+            if is_low_position:
+                parts.append("low_pos=true")
+            if is_arm_extended:
+                parts.append("arm_ext=true")
+
+        elif swing_type == 'lift':
+            parts.append(f"lift: vel({velocity:.2f}) > {T['lift']}")
+            if is_low_position:
+                parts.append("low_pos=true")
+            parts.append("dir=up")
+
+        return " AND ".join(parts) if parts else f"{swing_type} -> {shot_type}"
+
+    def get_current_thresholds(self) -> Dict[str, Any]:
+        """Get all current thresholds being used (velocity and position)."""
+        return {
+            'velocity': self.VELOCITY_THRESHOLDS.copy(),
+            'position': self.POSITION_THRESHOLDS.copy()
+        }
+
+    def get_velocity_thresholds(self) -> Dict[str, float]:
+        """Get current velocity thresholds being used."""
+        return self.VELOCITY_THRESHOLDS.copy()
+
+    def get_position_thresholds(self) -> Dict[str, float]:
+        """Get current position thresholds being used."""
+        return self.POSITION_THRESHOLDS.copy()
+
+    def get_cooldown_seconds(self) -> float:
+        """Get current shot cooldown setting."""
+        return self.shot_cooldown_seconds
+
+    def export_frame_data_for_tuning(self, video_path: str, output_path: Optional[str] = None) -> Optional[Dict]:
+        """
+        Analyze video and export detailed per-frame data for tuning.
+
+        This captures all raw measurements needed for re-classification
+        without re-running pose detection.
+
+        Args:
+            video_path: Path to video file
+            output_path: Optional path to save frame data JSON
+
+        Returns:
+            Dictionary with video info, thresholds, and per-frame metrics
+        """
+        logger.info(f"Exporting frame data for tuning: {video_path}")
+
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            raise ValueError(f"Could not open video: {video_path}")
+
+        fps = int(cap.get(cv2.CAP_PROP_FPS))
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        duration = total_frames / fps if fps > 0 else 0
+
+        frame_data = {
+            "video_info": {
+                "fps": fps,
+                "duration": duration,
+                "frame_count": total_frames,
+                "width": width,
+                "height": height
+            },
+            "thresholds_used": self.VELOCITY_THRESHOLDS.copy(),
+            "cooldown_seconds": self.shot_cooldown_seconds,
+            "frames": []
+        }
+
+        frame_number = 0
+
+        try:
+            while True:
+                ret, frame = cap.read()
+                if not ret:
+                    break
+
+                timestamp = frame_number / fps
+
+                # Only process frames according to skip setting
+                if frame_number % self.process_every_n_frames == 0:
+                    should_process = True
+                    if self.skip_static_frames and not self.detect_motion(frame):
+                        should_process = False
+
+                    if should_process:
+                        shot_data, pose_landmarks = self.analyze_frame(frame, frame_number, timestamp)
+
+                        if pose_landmarks and shot_data:
+                            # Export detailed metrics
+                            pose_state = self.pose_history[-1] if self.pose_history else {}
+
+                            frame_metrics = {
+                                "frame_number": frame_number,
+                                "timestamp": timestamp,
+                                "player_detected": True,
+                                "wrist_velocity": shot_data.movement_data.get("wrist_velocity", 0),
+                                "body_velocity": shot_data.movement_data.get("body_velocity", 0),
+                                "wrist_direction": shot_data.movement_data.get("wrist_direction", "none"),
+                                "swing_type": shot_data.movement_data.get("swing_type", "none"),
+                                "shot_type": shot_data.shot_type,
+                                "confidence": shot_data.confidence,
+                                "cooldown_active": timestamp - self.last_shot_timestamp < self.shot_cooldown_seconds,
+                                "wrist_position": list(shot_data.wrist_position) if shot_data.wrist_position else None,
+                                # Raw pose data for re-classification
+                                "wrist_y": pose_state.get("wrist", (0, 0))[1] if pose_state else None,
+                                "shoulder_y": pose_state.get("shoulder", (0, 0))[1] if pose_state else None,
+                                "hip_y": pose_state.get("hip_center", (0, 0))[1] if pose_state else None,
+                                "arm_extension": self._calculate_arm_extension(pose_state) if pose_state else None
+                            }
+                        else:
+                            frame_metrics = {
+                                "frame_number": frame_number,
+                                "timestamp": timestamp,
+                                "player_detected": False
+                            }
+
+                        frame_data["frames"].append(frame_metrics)
+
+                frame_number += 1
+
+                # Progress logging
+                if frame_number % (fps * 5) == 0:
+                    progress = (frame_number / total_frames) * 100
+                    logger.info(f"Frame export progress: {progress:.1f}%")
+
+        finally:
+            cap.release()
+
+        logger.info(f"Exported {len(frame_data['frames'])} frames for tuning")
+
+        # Save to file if path provided
+        if output_path:
+            with open(output_path, 'w') as f:
+                json.dump(frame_data, f, indent=2)
+            logger.info(f"Frame data saved: {output_path}")
+
+        return frame_data
+
+    def _calculate_arm_extension(self, pose_state: Dict) -> float:
+        """Calculate arm extension from pose state."""
+        if not pose_state:
+            return 0.0
+        wrist = pose_state.get("wrist", (0, 0))
+        shoulder = pose_state.get("shoulder", (0, 0))
+        return math.sqrt((wrist[0] - shoulder[0])**2 + (wrist[1] - shoulder[1])**2)
 
 
 @dataclass
