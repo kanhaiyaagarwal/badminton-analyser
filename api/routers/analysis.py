@@ -219,7 +219,11 @@ async def start_analysis(
     job_manager.register_progress_callback(job_id, progress_callback)
 
     # Start job
-    success = await job_manager.start_job(db, job, analysis_config.speed_preset)
+    success = await job_manager.start_job(
+        db, job,
+        speed_preset=analysis_config.speed_preset,
+        save_frame_data=analysis_config.save_frame_data
+    )
 
     if not success:
         raise HTTPException(status_code=400, detail="Failed to start job")

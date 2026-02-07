@@ -141,6 +141,68 @@ class AnalyzerService:
         return cancel_flag.exists()
 
     @staticmethod
+    def _reencode_to_h264(input_path: str, output_dir: Path = None) -> Optional[str]:
+        """
+        Re-encode a video from mp4v to browser-compatible H.264.
+
+        OpenCV's VideoWriter uses mp4v codec which browsers don't support.
+        This function re-encodes to H.264 for browser playback.
+
+        Args:
+            input_path: Path to the mp4v encoded video
+            output_dir: Optional output directory (defaults to same as input)
+
+        Returns:
+            Path to the H.264 encoded video, or None if failed
+        """
+        if not input_path or not Path(input_path).exists():
+            return None
+
+        input_path = Path(input_path)
+        if output_dir is None:
+            output_dir = input_path.parent
+
+        # Create temporary output path
+        temp_output = output_dir / f"_h264_{input_path.name}"
+
+        try:
+            cmd = [
+                'ffmpeg', '-y',
+                '-loglevel', 'warning',
+                '-i', str(input_path),
+                '-c:v', 'libx264',
+                '-preset', 'fast',
+                '-crf', '23',
+                '-pix_fmt', 'yuv420p',  # Ensure browser compatibility
+                '-movflags', '+faststart',  # Enable progressive download
+                str(temp_output)
+            ]
+
+            logger.info(f"Re-encoding annotated video to H.264: {input_path.name}")
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+
+            if result.returncode != 0:
+                logger.error(f"H.264 re-encoding failed: {result.stderr}")
+                return None
+
+            # Replace original with H.264 version
+            input_path.unlink()
+            temp_output.rename(input_path)
+            logger.info(f"Successfully re-encoded to H.264: {input_path.name}")
+            return str(input_path)
+
+        except subprocess.TimeoutExpired:
+            logger.error("H.264 re-encoding timed out")
+            if temp_output.exists():
+                temp_output.unlink()
+            return None
+        except Exception as e:
+            logger.error(f"H.264 re-encoding error: {e}")
+            if temp_output.exists():
+                temp_output.unlink()
+            return None
+
+    @staticmethod
     def _scale_court_boundary(boundary: Dict[str, Any], scale_factor: float) -> Dict[str, Any]:
         """Scale court boundary coordinates when video is downscaled."""
         scaled = {}
@@ -308,7 +370,11 @@ class AnalyzerService:
         output_dir: Path,
         speed_preset: str = "balanced",
         progress_callback: Optional[Callable[[float, str], None]] = None,
-        background_frame_path: Optional[str] = None
+        background_frame_path: Optional[str] = None,
+        velocity_thresholds: Optional[Dict[str, float]] = None,
+        position_thresholds: Optional[Dict[str, float]] = None,
+        shot_cooldown_seconds: Optional[float] = None,
+        save_frame_data: bool = False
     ) -> Dict[str, Any]:
         """
         Run video analysis.
@@ -320,6 +386,10 @@ class AnalyzerService:
             speed_preset: Speed preset (fast, balanced, accurate)
             progress_callback: Optional callback for progress updates (progress%, message)
             background_frame_path: Optional path to background frame for heatmaps
+            velocity_thresholds: Optional custom velocity thresholds for shot detection
+            position_thresholds: Optional custom position thresholds for shot detection
+            shot_cooldown_seconds: Optional custom shot cooldown period
+            save_frame_data: Whether to save per-frame data for tuning
 
         Returns:
             Analysis report dictionary
@@ -389,14 +459,39 @@ class AnalyzerService:
         # Create court boundary
         court = AnalyzerService.create_court_boundary(scaled_boundary)
 
-        # Create analyzer
-        analyzer = CourtBoundedAnalyzer(
-            court_boundary=court,
-            process_every_n_frames=preset["process_every_n_frames"],
-            processing_width=preset["processing_width"],
-            model_complexity=preset["model_complexity"],
-            skip_static_frames=preset["skip_static_frames"]
-        )
+        # Get video FPS for time-based velocity calculations
+        import cv2
+        cap = cv2.VideoCapture(analysis_video_path)
+        video_fps = cap.get(cv2.CAP_PROP_FPS) if cap.isOpened() else 30.0
+        cap.release()
+
+        # Calculate effective FPS (accounts for frame skipping)
+        effective_fps = video_fps / preset["process_every_n_frames"]
+        logger.info(f"Video FPS: {video_fps:.1f}, effective FPS: {effective_fps:.1f} (every {preset['process_every_n_frames']} frames)")
+
+        # Prepare analyzer kwargs with optional thresholds
+        analyzer_kwargs = {
+            "court_boundary": court,
+            "process_every_n_frames": preset["process_every_n_frames"],
+            "processing_width": preset["processing_width"],
+            "model_complexity": preset["model_complexity"],
+            "skip_static_frames": preset["skip_static_frames"],
+            "effective_fps": effective_fps,
+        }
+
+        # Add custom thresholds if provided
+        if velocity_thresholds:
+            analyzer_kwargs["velocity_thresholds"] = velocity_thresholds
+            logger.info(f"Using custom velocity thresholds: {velocity_thresholds}")
+        if position_thresholds:
+            analyzer_kwargs["position_thresholds"] = position_thresholds
+            logger.info(f"Using custom position thresholds: {position_thresholds}")
+        if shot_cooldown_seconds is not None:
+            analyzer_kwargs["shot_cooldown_seconds"] = shot_cooldown_seconds
+            logger.info(f"Using custom shot cooldown: {shot_cooldown_seconds}s")
+
+        # Create analyzer with effective FPS for time-based velocity
+        analyzer = CourtBoundedAnalyzer(**analyzer_kwargs)
 
         # Set progress file for external monitoring
         analyzer.progress_file = str(progress_file)
@@ -413,10 +508,12 @@ class AnalyzerService:
         annotated_video_path = None if skip_video else str(output_dir / f"analyzed_{video_name}.mp4")
 
         # Run analysis (use transcoded path if available)
+        # Pass save_frame_data to capture frame data during main pass (avoids inconsistent second pass)
         report = analyzer.analyze_video(
             video_path=analysis_video_path,
             output_path=annotated_video_path,
-            show_live=False
+            show_live=False,
+            save_frame_data=save_frame_data
         )
 
         # Save report
@@ -427,6 +524,9 @@ class AnalyzerService:
         # Add paths to report
         report["report_path"] = report_path
         report["annotated_video_path"] = annotated_video_path
+
+        # Note: Annotated video uses mp4v codec (not browser-compatible)
+        # Re-encoding to H.264 is done on-demand in the tuning router when requested
 
         # If video was transcoded, extract background frame from transcoded video
         # (original background_frame_path is from 4K, but analysis ran on 720p)
@@ -444,6 +544,23 @@ class AnalyzerService:
                 heatmap_data_path, output_dir, actual_background_frame
             )
             report["heatmap_paths"] = heatmap_paths
+
+        # Save frame data for tuning if requested (already captured during main pass)
+        if save_frame_data and 'tuning_frame_data' in report:
+            try:
+                frame_data_path = str(output_dir / f"frame_data_{video_name}.json")
+                with open(frame_data_path, 'w') as f:
+                    json.dump(report['tuning_frame_data'], f, indent=2)
+                report["frame_data_path"] = frame_data_path
+                logger.info(f"Frame data saved for tuning: {frame_data_path} ({len(report['tuning_frame_data'].get('frames', []))} frames)")
+                # Remove from report to save memory (data is in file now)
+                del report['tuning_frame_data']
+            except Exception as e:
+                logger.warning(f"Failed to save frame data for tuning: {e}")
+
+        # Store thresholds used in report
+        report["thresholds_used"] = analyzer.get_current_thresholds()
+        report["cooldown_seconds"] = analyzer.get_cooldown_seconds()
 
         # Clean up progress file
         if progress_file.exists():

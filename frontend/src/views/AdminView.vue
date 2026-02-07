@@ -1,7 +1,10 @@
 <template>
   <div class="admin-view">
     <div class="header">
-      <router-link to="/dashboard" class="back-link">Back to Dashboard</router-link>
+      <div class="header-nav">
+        <router-link to="/dashboard" class="back-link">Back to Dashboard</router-link>
+        <router-link to="/tuning" class="tuning-link">Tuning Dashboard</router-link>
+      </div>
       <h1>Admin Panel</h1>
     </div>
 
@@ -478,10 +481,30 @@ function formatDate(dateStr) {
   margin-bottom: 2rem;
 }
 
+.header-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 .back-link {
   color: #888;
   text-decoration: none;
   font-size: 0.9rem;
+}
+
+.tuning-link {
+  color: #4ecca3;
+  text-decoration: none;
+  font-size: 0.9rem;
+  padding: 0.5rem 1rem;
+  background: rgba(78, 204, 163, 0.1);
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.tuning-link:hover {
+  background: rgba(78, 204, 163, 0.2);
 }
 
 h1 {

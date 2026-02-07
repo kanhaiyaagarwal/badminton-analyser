@@ -27,7 +27,8 @@ def _run_analysis_process(
     court_boundary: Dict[str, Any],
     output_dir: str,
     speed_preset: str,
-    background_frame_path: str = None
+    background_frame_path: str = None,
+    save_frame_data: bool = False
 ) -> Dict[str, Any]:
     """Run analysis in a separate process."""
     return AnalyzerService.run_analysis(
@@ -35,7 +36,8 @@ def _run_analysis_process(
         court_boundary=court_boundary,
         output_dir=Path(output_dir),
         speed_preset=speed_preset,
-        background_frame_path=background_frame_path
+        background_frame_path=background_frame_path,
+        save_frame_data=save_frame_data
     )
 
 
@@ -80,7 +82,8 @@ class JobManager:
         self,
         db: Session,
         job: Job,
-        speed_preset: str = "balanced"
+        speed_preset: str = "balanced",
+        save_frame_data: bool = False
     ) -> bool:
         """Start an analysis job."""
         if job.status != JobStatus.PENDING:
@@ -119,7 +122,8 @@ class JobManager:
                 court_boundary=job.court_boundary,
                 output_dir=str(output_dir),
                 speed_preset=speed_preset,
-                background_frame_path=job.background_frame_path
+                background_frame_path=job.background_frame_path,
+                save_frame_data=save_frame_data
             )
         )
         self._active_jobs[job.id] = task
@@ -135,7 +139,8 @@ class JobManager:
         output_dir: str,
         speed_preset: str,
         background_frame_path: str = None,
-        s3_video_key: str = None
+        s3_video_key: str = None,
+        save_frame_data: bool = False
     ):
         """Run analysis job asynchronously."""
         from ..database import SessionLocal
@@ -170,7 +175,8 @@ class JobManager:
                     court_boundary=court_boundary,
                     output_dir=output_dir,
                     speed_preset=speed_preset,
-                    background_frame_path=background_frame_path
+                    background_frame_path=background_frame_path,
+                    save_frame_data=save_frame_data
                 )
             )
 
@@ -345,6 +351,16 @@ class JobManager:
 
         if s3_heatmap_paths:
             s3_paths["heatmap_paths"] = s3_heatmap_paths
+
+        # Upload frame data for tuning (if exists)
+        frame_data_path = result.get("frame_data_path")
+        if frame_data_path and Path(frame_data_path).exists():
+            frame_data_filename = Path(frame_data_path).name
+            s3_key = storage.get_output_path(job_id, frame_data_filename)
+            with open(frame_data_path, 'rb') as f:
+                storage.outputs.save(s3_key, f, content_type="application/json")
+            s3_paths["frame_data_path"] = s3_key
+            logger.info(f"Uploaded frame data to S3: {s3_key}")
 
         return s3_paths
 

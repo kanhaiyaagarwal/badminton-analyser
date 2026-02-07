@@ -59,22 +59,41 @@ class StreamAnalyzer:
     for shot detection, position updates, and statistics.
     """
 
-    def __init__(self, court_boundary: dict, session_id: int = 0):
+    def __init__(
+        self,
+        court_boundary: dict,
+        session_id: int = 0,
+        frame_rate: float = 30.0,
+        velocity_thresholds: Optional[Dict[str, float]] = None,
+        position_thresholds: Optional[Dict[str, float]] = None,
+        shot_cooldown_seconds: float = 0.4
+    ):
         """
         Initialize stream analyzer.
 
         Args:
             court_boundary: Court boundary as dict (from database)
             session_id: Stream session ID for logging
+            frame_rate: Expected frame rate of the stream for velocity calculations
+            velocity_thresholds: Optional custom velocity thresholds for tuning
+            position_thresholds: Optional custom position thresholds for tuning
+            shot_cooldown_seconds: Cooldown period after detecting a shot
         """
         self.session_id = session_id
         self.court = CourtBoundary.from_dict(court_boundary)
+        self._velocity_thresholds = velocity_thresholds
+        self._position_thresholds = position_thresholds
+        self._shot_cooldown_seconds = shot_cooldown_seconds
 
-        # Initialize frame analyzer
+        # Initialize frame analyzer with frame rate for time-based velocity
         self.frame_analyzer = FrameAnalyzer(
             court_boundary=self.court,
             processing_width=640,
-            model_complexity=1
+            model_complexity=1,
+            effective_fps=frame_rate,
+            velocity_thresholds=velocity_thresholds,
+            position_thresholds=position_thresholds,
+            shot_cooldown_seconds=shot_cooldown_seconds
         )
 
         # Streaming state
@@ -383,6 +402,48 @@ class StreamAnalyzer:
         self._frame_counter = 0
         self._start_time = datetime.now()
 
+    def update_thresholds(
+        self,
+        velocity_thresholds: Optional[Dict[str, float]] = None,
+        position_thresholds: Optional[Dict[str, float]] = None,
+        shot_cooldown_seconds: Optional[float] = None
+    ):
+        """
+        Update thresholds on-the-fly during live streaming.
+
+        New thresholds are applied immediately to all future frames.
+        No need to re-process past frames - this is the key advantage of live tuning.
+
+        Args:
+            velocity_thresholds: New velocity thresholds (merged with existing)
+            position_thresholds: New position thresholds (merged with existing)
+            shot_cooldown_seconds: New shot cooldown period
+        """
+        if velocity_thresholds:
+            self._velocity_thresholds = velocity_thresholds
+            # Update frame analyzer's thresholds
+            self.frame_analyzer.VELOCITY_THRESHOLDS.update(velocity_thresholds)
+            logger.info(f"Session {self.session_id}: Updated velocity thresholds")
+
+        if position_thresholds:
+            self._position_thresholds = position_thresholds
+            # Update frame analyzer's position thresholds
+            self.frame_analyzer.POSITION_THRESHOLDS.update(position_thresholds)
+            logger.info(f"Session {self.session_id}: Updated position thresholds")
+
+        if shot_cooldown_seconds is not None:
+            self._shot_cooldown_seconds = shot_cooldown_seconds
+            self.frame_analyzer.shot_cooldown_seconds = shot_cooldown_seconds
+            logger.info(f"Session {self.session_id}: Updated cooldown to {shot_cooldown_seconds}s")
+
+    def get_current_thresholds(self) -> Dict:
+        """Get current threshold settings."""
+        return {
+            'velocity_thresholds': self.frame_analyzer.get_velocity_thresholds(),
+            'position_thresholds': self.frame_analyzer.get_position_thresholds(),
+            'shot_cooldown_seconds': self.frame_analyzer.get_cooldown_seconds()
+        }
+
     def close(self):
         """Release resources."""
         self.frame_analyzer.close()
@@ -398,14 +459,55 @@ class StreamSessionManager:
     def __init__(self):
         self._sessions: Dict[int, StreamAnalyzer] = {}
 
-    def create_session(self, session_id: int, court_boundary: dict) -> StreamAnalyzer:
-        """Create a new streaming session."""
+    def create_session(
+        self,
+        session_id: int,
+        court_boundary: dict,
+        frame_rate: float = 30.0,
+        velocity_thresholds: Optional[Dict[str, float]] = None,
+        position_thresholds: Optional[Dict[str, float]] = None,
+        shot_cooldown_seconds: float = 0.4
+    ) -> StreamAnalyzer:
+        """Create a new streaming session.
+
+        Args:
+            session_id: Unique session identifier
+            court_boundary: Court boundary as dict
+            frame_rate: Expected frame rate of the stream for velocity calculations
+            velocity_thresholds: Optional custom velocity thresholds
+            position_thresholds: Optional custom position thresholds
+            shot_cooldown_seconds: Shot cooldown period
+        """
         if session_id in self._sessions:
             self._sessions[session_id].close()
 
-        analyzer = StreamAnalyzer(court_boundary, session_id)
+        analyzer = StreamAnalyzer(
+            court_boundary=court_boundary,
+            session_id=session_id,
+            frame_rate=frame_rate,
+            velocity_thresholds=velocity_thresholds,
+            position_thresholds=position_thresholds,
+            shot_cooldown_seconds=shot_cooldown_seconds
+        )
         self._sessions[session_id] = analyzer
         return analyzer
+
+    def update_session_thresholds(
+        self,
+        session_id: int,
+        velocity_thresholds: Optional[Dict[str, float]] = None,
+        position_thresholds: Optional[Dict[str, float]] = None,
+        shot_cooldown_seconds: Optional[float] = None
+    ) -> bool:
+        """Update thresholds for an active session.
+
+        Returns True if session exists and was updated.
+        """
+        analyzer = self._sessions.get(session_id)
+        if analyzer:
+            analyzer.update_thresholds(velocity_thresholds, position_thresholds, shot_cooldown_seconds)
+            return True
+        return False
 
     def get_session(self, session_id: int) -> Optional[StreamAnalyzer]:
         """Get an existing session."""

@@ -102,7 +102,7 @@ export const useJobsStore = defineStore('jobs', () => {
     }
   }
 
-  async function startAnalysis(jobId, courtBoundary, speedPreset = 'balanced', frameTimestamp = 0.0) {
+  async function startAnalysis(jobId, courtBoundary, speedPreset = 'balanced', frameTimestamp = 0.0, saveFrameData = false) {
     loading.value = true
     error.value = null
 
@@ -110,7 +110,8 @@ export const useJobsStore = defineStore('jobs', () => {
       const response = await api.post(`/api/v1/analysis/start/${jobId}`, {
         court_boundary: courtBoundary,
         speed_preset: speedPreset,
-        frame_timestamp: frameTimestamp
+        frame_timestamp: frameTimestamp,
+        save_frame_data: saveFrameData
       })
 
       // Update job in list

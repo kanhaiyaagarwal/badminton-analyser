@@ -74,6 +74,17 @@
           </p>
         </div>
 
+        <div class="tuning-option">
+          <label class="toggle-label">
+            <input
+              type="checkbox"
+              v-model="saveFrameData"
+            />
+            <span class="toggle-text">Enable tuning data</span>
+          </label>
+          <p class="toggle-hint">Save per-frame data for threshold tuning (admin)</p>
+        </div>
+
         <div v-if="boundary && !useEntireFrame" class="boundary-preview">
           <h3>Selected Boundary</h3>
           <div class="coords">
@@ -125,6 +136,7 @@ const boundary = ref(null)
 const speedPreset = ref('balanced')
 const starting = ref(false)
 const useEntireFrame = ref(false)
+const saveFrameData = ref(false)
 
 onMounted(() => {
   loadVideoInfo()
@@ -208,7 +220,7 @@ async function startAnalysis() {
 
   try {
     // Pass the current timestamp so the same frame is used for heatmap backgrounds
-    await jobsStore.startAnalysis(jobId, analysisBoundary, speedPreset.value, timestamp.value)
+    await jobsStore.startAnalysis(jobId, analysisBoundary, speedPreset.value, timestamp.value, saveFrameData.value)
     router.push('/dashboard')
   } catch (err) {
     error.value = err.response?.data?.detail || 'Failed to start analysis'
@@ -465,6 +477,13 @@ h1 {
 .entire-frame-info p {
   color: #4ecca3;
   font-size: 0.85rem;
+}
+
+.tuning-option {
+  background: #1a1a2e;
+  padding: 1rem;
+  border-radius: 6px;
+  border: 1px solid #3a3a5a;
 }
 
 @media (max-width: 900px) {

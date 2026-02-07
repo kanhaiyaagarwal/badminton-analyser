@@ -11,6 +11,7 @@ class AnalysisStart(BaseModel):
     court_boundary: CourtBoundaryCreate
     speed_preset: str = "balanced"  # fast, balanced, accurate, turbo
     frame_timestamp: float = 0.0  # Timestamp for background frame (the one user selected for court setup)
+    save_frame_data: bool = False  # Save per-frame data for tuning dashboard
 
 
 class ShotInfo(BaseModel):
