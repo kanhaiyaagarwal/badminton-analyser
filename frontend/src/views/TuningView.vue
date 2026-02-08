@@ -12,11 +12,10 @@
 
     <template v-else>
       <div class="tuning-layout">
-        <!-- Left Column: Source & Thresholds -->
-        <div class="left-column">
-          <!-- Source Selection -->
-          <div class="section source-section">
-            <h2>Source</h2>
+        <!-- Row 1: Source Selection (full width) -->
+        <div class="section source-section">
+          <h2>Source</h2>
+          <div class="source-row">
             <div class="source-tabs">
               <button
                 :class="['tab', { active: sourceMode === 'video' }]"
@@ -34,8 +33,8 @@
 
             <!-- Video Source -->
             <div v-if="sourceMode === 'video'" class="source-content">
-              <div class="form-group">
-                <label>Select Job</label>
+              <div class="form-group-inline">
+                <label>Job:</label>
                 <select v-model="selectedJobId" @change="loadJobFrameData">
                   <option value="">-- Select a completed job --</option>
                   <option v-for="job in completedJobs" :key="job.id" :value="job.id">
@@ -52,12 +51,11 @@
               <div v-if="loadingLiveSessions" class="loading">Loading active sessions...</div>
               <div v-else-if="liveSessions.length === 0" class="no-sessions">
                 <p>No active streaming sessions.</p>
-                <p class="hint">Start a live stream first, then come back here to tune thresholds in real-time.</p>
                 <router-link to="/live" class="btn-secondary">Go to Live Stream</router-link>
               </div>
-              <div v-else>
-                <div class="form-group">
-                  <label>Active Session</label>
+              <div v-else class="live-source-row">
+                <div class="form-group-inline">
+                  <label>Session:</label>
                   <select v-model="selectedLiveSessionId" @change="loadLiveSession">
                     <option value="">-- Select active session --</option>
                     <option v-for="session in liveSessions" :key="session.session_id" :value="session.session_id">
@@ -65,24 +63,36 @@
                     </option>
                   </select>
                 </div>
-                <div v-if="liveSessionStats" class="live-stats">
-                  <div class="stat-row">
-                    <span class="label">Frames:</span>
-                    <span class="value">{{ liveSessionStats.frames_processed }}</span>
-                  </div>
-                  <div class="stat-row">
-                    <span class="label">Shots:</span>
-                    <span class="value">{{ liveSessionStats.total_shots }}</span>
-                  </div>
-                  <div class="stat-row">
-                    <span class="label">Detection Rate:</span>
-                    <span class="value">{{ (liveSessionStats.player_detection_rate * 100).toFixed(0) }}%</span>
-                  </div>
+                <div v-if="liveSessionStats" class="live-stats-inline">
+                  <span>{{ liveSessionStats.frames_processed }} frames</span>
+                  <span>{{ liveSessionStats.total_shots }} shots</span>
+                  <span>{{ (liveSessionStats.player_detection_rate * 100).toFixed(0) }}% detect</span>
                 </div>
               </div>
             </div>
           </div>
+        </div>
 
+        <!-- Row 2: Frame Viewer (full width) -->
+        <div class="section viewer-section">
+          <FrameViewer
+            v-if="frameData && frameData.frames.length > 0"
+            :frames="frameData.frames"
+            :videoInfo="frameData.video_info"
+            :currentFrame="currentFrameIndex"
+            :reclassifyResults="reclassifyResults"
+            :videoUrl="videoUrl"
+            :jobId="selectedJobId"
+            :rallyThresholds="rallyThresholds"
+            @frameChange="handleFrameChange"
+          />
+          <div v-else-if="!loadingFrameData" class="empty-viewer">
+            <p>Select a job to view frame data</p>
+          </div>
+        </div>
+
+        <!-- Row 3: Thresholds + Results side by side -->
+        <div class="bottom-row">
           <!-- Threshold Controls -->
           <div class="section threshold-section">
             <div class="section-header">
@@ -105,9 +115,6 @@
               <p v-if="schemaError" class="error-text">{{ schemaError }}</p>
             </div>
             <template v-else>
-              <div class="schema-debug" v-if="false">
-                Schema loaded: {{ thresholdSchema?.categories?.length || 0 }} categories
-              </div>
               <ThresholdSliders
                 :schema="thresholdSchema"
                 :values="currentThresholds"
@@ -133,28 +140,6 @@
                 Apply to Live Stream
               </button>
               <button @click="resetThresholds" class="btn-secondary">Reset</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Right Column: Frame Viewer & Results -->
-        <div class="right-column">
-          <!-- Frame Viewer -->
-          <div class="section viewer-section">
-            <h2>Frame Viewer</h2>
-            <FrameViewer
-              v-if="frameData && frameData.frames.length > 0"
-              :frames="frameData.frames"
-              :videoInfo="frameData.video_info"
-              :currentFrame="currentFrameIndex"
-              :reclassifyResults="reclassifyResults"
-              :videoUrl="videoUrl"
-              :jobId="selectedJobId"
-              :rallyThresholds="rallyThresholds"
-              @frameChange="handleFrameChange"
-            />
-            <div v-else-if="!loadingFrameData" class="empty-viewer">
-              <p>Select a job to view frame data</p>
             </div>
           </div>
 
@@ -305,8 +290,8 @@ const hasChanges = computed(() => {
 
 // Rally detection thresholds for FrameViewer
 const rallyThresholds = computed(() => ({
-  stillness_frames: currentThresholds.value.stillness_frames ?? 4,
-  stillness_threshold: currentThresholds.value.stillness_threshold ?? 0.02
+  shuttle_gap_frames: currentThresholds.value.shuttle_gap_frames ?? 90,
+  shuttle_gap_miss_pct: currentThresholds.value.shuttle_gap_miss_pct ?? 80
 }))
 
 onMounted(async () => {
@@ -727,45 +712,58 @@ h1 {
 }
 
 .tuning-layout {
-  display: grid;
-  grid-template-columns: 400px 1fr;
-  gap: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
-@media (max-width: 1200px) {
-  .tuning-layout {
-    grid-template-columns: 1fr;
-  }
+.bottom-row {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
 .section {
   background: #16213e;
   border-radius: 12px;
-  padding: 1.5rem;
-  margin-bottom: 1.5rem;
+  padding: 1rem;
 }
 
 .section h2 {
   color: #eee;
-  margin: 0 0 1rem;
-  font-size: 1.1rem;
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+}
+
+.threshold-section {
+  padding: 0.75rem;
+}
+
+.threshold-section h2 {
+  margin-bottom: 0.5rem;
 }
 
 .section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
 }
 
 .section-header h2 {
   margin: 0;
 }
 
+.source-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
 .source-tabs {
   display: flex;
   gap: 0.5rem;
-  margin-bottom: 1rem;
 }
 
 .tab {
@@ -809,6 +807,44 @@ h1 {
   border: 1px solid #2a2a4a;
   border-radius: 8px;
   color: #eee;
+}
+
+.form-group-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.form-group-inline label {
+  color: #888;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.form-group-inline select {
+  padding: 0.5rem 0.75rem;
+  background: #1a1a2e;
+  border: 1px solid #2a2a4a;
+  border-radius: 8px;
+  color: #eee;
+  min-width: 250px;
+}
+
+.live-source-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.live-stats-inline {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.85rem;
+  color: #888;
+}
+
+.live-stats-inline span {
+  color: #4ecca3;
 }
 
 .preset-selector {

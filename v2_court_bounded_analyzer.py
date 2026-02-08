@@ -182,7 +182,8 @@ class CourtBoundedAnalyzer:
                  skip_static_frames: bool = True, effective_fps: float = 30.0,
                  velocity_thresholds: Optional[Dict[str, float]] = None,
                  position_thresholds: Optional[Dict[str, float]] = None,
-                 shot_cooldown_seconds: float = 0.4):
+                 shot_cooldown_seconds: float = 0.4,
+                 shuttle_tracker=None):
         """
         Initialize analyzer with performance options.
 
@@ -196,6 +197,7 @@ class CourtBoundedAnalyzer:
             velocity_thresholds: Optional custom velocity thresholds (uses defaults if None)
             position_thresholds: Optional custom position thresholds (uses defaults if None)
             shot_cooldown_seconds: Cooldown period after detecting a shot
+            shuttle_tracker: Optional ShuttleTracker instance for shuttle detection
         """
         self.court = court_boundary
         self.process_every_n_frames = process_every_n_frames
@@ -203,6 +205,7 @@ class CourtBoundedAnalyzer:
         self.model_complexity = model_complexity
         self.skip_static_frames = skip_static_frames
         self.effective_fps = effective_fps
+        self.shuttle_tracker = shuttle_tracker
 
         # Apply custom thresholds if provided
         if velocity_thresholds:
@@ -492,6 +495,58 @@ class CourtBoundedAnalyzer:
         }
 
         return results.pose_landmarks, player_bbox
+
+    def _extract_pose_state(self, pose_landmarks, timestamp: float) -> Optional[dict]:
+        """Extract pose state (wrist/shoulder/hip positions) from landmarks.
+
+        Returns a dict suitable for ShotClassifier consumption, or None if
+        landmarks are unavailable.
+        """
+        if not pose_landmarks:
+            return None
+
+        landmarks = pose_landmarks.landmark
+
+        right_wrist = landmarks[self.mp_pose.PoseLandmark.RIGHT_WRIST]
+        right_elbow = landmarks[self.mp_pose.PoseLandmark.RIGHT_ELBOW]
+        right_shoulder = landmarks[self.mp_pose.PoseLandmark.RIGHT_SHOULDER]
+        left_shoulder = landmarks[self.mp_pose.PoseLandmark.LEFT_SHOULDER]
+        right_hip = landmarks[self.mp_pose.PoseLandmark.RIGHT_HIP]
+        left_hip = landmarks[self.mp_pose.PoseLandmark.LEFT_HIP]
+
+        return {
+            'wrist': (right_wrist.x, right_wrist.y),
+            'elbow': (right_elbow.x, right_elbow.y),
+            'shoulder': (right_shoulder.x, right_shoulder.y),
+            'shoulder_center': (
+                (right_shoulder.x + left_shoulder.x) / 2,
+                (right_shoulder.y + left_shoulder.y) / 2
+            ),
+            'hip_center': (
+                (right_hip.x + left_hip.x) / 2,
+                (right_hip.y + left_hip.y) / 2
+            ),
+            'timestamp': timestamp,
+        }
+
+    def _extract_foot_position(self, pose_landmarks) -> Optional[Tuple[float, float]]:
+        """Extract foot midpoint in normalized coordinates from landmarks."""
+        if not pose_landmarks:
+            return None
+
+        landmarks = pose_landmarks.landmark
+        left_ankle = landmarks[self.mp_pose.PoseLandmark.LEFT_ANKLE]
+        right_ankle = landmarks[self.mp_pose.PoseLandmark.RIGHT_ANKLE]
+
+        if left_ankle.visibility < 0.5 and right_ankle.visibility < 0.5:
+            return None
+
+        if left_ankle.visibility >= 0.5 and right_ankle.visibility >= 0.5:
+            return ((left_ankle.x + right_ankle.x) / 2, (left_ankle.y + right_ankle.y) / 2)
+        elif left_ankle.visibility >= 0.5:
+            return (left_ankle.x, left_ankle.y)
+        else:
+            return (right_ankle.x, right_ankle.y)
 
     def analyze_movement(self, pose_landmarks, timestamp: float) -> dict:
         """Analyze player movement from pose landmarks.
@@ -1037,6 +1092,24 @@ class CourtBoundedAnalyzer:
 
         return frame
 
+    def draw_shuttle_marker(self, frame: np.ndarray, shuttle_data: Optional[dict]) -> None:
+        """Draw shuttle position marker on frame."""
+        if not shuttle_data or not shuttle_data.get("visible"):
+            return
+
+        x, y = shuttle_data["x"], shuttle_data["y"]
+        confidence = shuttle_data.get("confidence", 0)
+
+        # Yellow filled circle
+        cv2.circle(frame, (x, y), 4, (0, 255, 255), -1)
+        # Crosshair
+        cv2.line(frame, (x - 12, y), (x + 12, y), (0, 255, 255), 1)
+        cv2.line(frame, (x, y - 12), (x, y + 12), (0, 255, 255), 1)
+        # Label
+        label = f"Shuttle ({confidence:.2f})"
+        cv2.putText(frame, label, (x + 10, y - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
+
     def draw_body_part_labels(self, frame: np.ndarray, pose_landmarks) -> None:
         """Draw labels for each detected body part"""
         h, w = frame.shape[:2]
@@ -1293,20 +1366,34 @@ class CourtBoundedAnalyzer:
 
     def analyze_video(self, video_path: str, output_path: Optional[str] = None,
                       show_live: bool = False, save_frame_data: bool = False) -> dict:
-        """Analyze video within court boundaries
+        """Analyze video using 3-phase approach: Detection → Classification → Annotation.
+
+        Phase 1 (Detection): Single pass over every frame — both MediaPipe Pose and
+            TrackNetV2 shuttle detection run on every frame. No frame skipping.
+        Phase 2 (Classification): Post-processing on all raw data using ShotClassifier.
+        Phase 3 (Annotation): Write annotated output video with all overlays.
 
         Args:
             video_path: Path to video file
             output_path: Optional path for annotated output video
-            show_live: Whether to show live preview
-            save_frame_data: Whether to capture per-frame data for tuning (captured during this pass)
+            show_live: Whether to show live preview (only used during detection phase)
+            save_frame_data: Whether to capture per-frame data for tuning
         """
+        # Import ShotClassifier here to avoid circular imports
+        import sys as _sys
+        _sys.path.insert(0, str(Path(__file__).parent / "api" / "services"))
+        try:
+            from api.services.shot_classifier import ShotClassifier
+        except ImportError:
+            # Fallback for when running from project root
+            try:
+                from shot_classifier import ShotClassifier
+            except ImportError:
+                ShotClassifier = None
 
         logger.info(f"Starting analysis: {video_path}")
         logger.info(f"Court boundary: {self.court.get_bounding_rect()}")
-        logger.info(f"Processing every {self.process_every_n_frames} frame(s) for pose")
-        if save_frame_data:
-            logger.info("Frame data capture enabled for tuning")
+        logger.info(f"Shuttle tracking: {'enabled' if self.shuttle_tracker else 'disabled'}")
 
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
@@ -1320,19 +1407,13 @@ class CourtBoundedAnalyzer:
 
         logger.info(f"Video: {total_frames} frames, {fps} FPS, {width}x{height}")
 
-        # Frame data for tuning (captured during this pass to ensure consistency)
-        tuning_frame_data = [] if save_frame_data else None
-
-        # Video writer
-        out = None
-        if output_path:
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-            out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
-
+        # =====================================================================
+        # PHASE 1: DETECTION — single pass, both models on every frame
+        # =====================================================================
+        logger.info("Phase 1: Detection pass (pose + shuttle on every frame)")
+        raw_frame_data = []
+        shuttle_frame_buffer = []  # 3-frame sliding window for TrackNetV2
         frame_number = 0
-        last_shot_data = None
-        last_pose_landmarks = None
-        frames_skipped_motion = 0
 
         try:
             while True:
@@ -1340,128 +1421,596 @@ class CourtBoundedAnalyzer:
                 if not ret:
                     break
 
-                timestamp = frame_number / fps
+                timestamp = frame_number / fps if fps > 0 else 0.0
 
-                # Decide whether to process this frame
-                should_process = False
+                frame_data = {
+                    "frame_number": frame_number,
+                    "timestamp": timestamp,
+                    "player_detected": False,
+                    "pose_landmarks": None,  # not serialized — used only in-memory
+                    "player_bbox": None,
+                    "pose_state": None,
+                    "foot_position": None,
+                    "shuttle": None,
+                }
 
-                if frame_number % self.process_every_n_frames == 0:
-                    # Check motion if skip_static_frames is enabled
-                    if self.skip_static_frames:
-                        if self.detect_motion(frame):
-                            should_process = True
-                        else:
-                            frames_skipped_motion += 1
-                    else:
-                        should_process = True
+                # --- Pose detection (every frame) ---
+                pose_landmarks, player_bbox = self.analyze_pose_in_court(frame)
+                if pose_landmarks:
+                    frame_data["player_detected"] = True
+                    frame_data["pose_landmarks"] = pose_landmarks
+                    frame_data["player_bbox"] = player_bbox
+                    frame_data["pose_state"] = self._extract_pose_state(pose_landmarks, timestamp)
+                    frame_data["foot_position"] = self._extract_foot_position(pose_landmarks)
 
-                if should_process:
-                    shot_data, pose_landmarks = self.analyze_frame(frame, frame_number, timestamp)
-                    if shot_data:
-                        last_shot_data = shot_data
-                    if pose_landmarks:
-                        last_pose_landmarks = pose_landmarks
+                    # Accumulate foot position for heatmap
+                    self.player_detected_frames += 1
+                    self._accumulate_foot_position(pose_landmarks, frame_number, timestamp)
 
-                    # Capture frame data for tuning (during main pass for consistency)
-                    if save_frame_data and tuning_frame_data is not None:
-                        frame_metrics = self._extract_frame_metrics(
-                            frame_number, timestamp, shot_data, pose_landmarks
-                        )
-                        tuning_frame_data.append(frame_metrics)
-                else:
-                    # Use cached data for skipped frames
-                    shot_data = last_shot_data
-                    pose_landmarks = last_pose_landmarks
+                self.total_frames_processed += 1
 
-                # Draw annotations
-                annotated_frame = self.draw_annotations(frame, shot_data, pose_landmarks)
+                # --- Shuttle detection (every frame, needs 3-frame buffer) ---
+                if self.shuttle_tracker:
+                    shuttle_frame_buffer.append(frame)
+                    if len(shuttle_frame_buffer) > 3:
+                        shuttle_frame_buffer.pop(0)
 
-                # Live display
-                if show_live:
-                    # Resize for display if too large
-                    display_frame = annotated_frame
-                    if width > 1280:
-                        scale = 1280 / width
-                        display_frame = cv2.resize(annotated_frame,
-                                                   (int(width * scale), int(height * scale)))
+                    if len(shuttle_frame_buffer) == 3:
+                        visible, sx, sy, conf = self.shuttle_tracker.detect_in_frame(shuttle_frame_buffer)
+                        frame_data["shuttle"] = {
+                            "x": sx, "y": sy,
+                            "confidence": round(conf, 4),
+                            "visible": visible,
+                        }
 
-                    cv2.imshow('Badminton Analysis - Press Q to quit', display_frame)
-                    if cv2.waitKey(1) & 0xFF == ord('q'):
-                        logger.info("User quit")
-                        break
-
-                # Save frame (always full resolution)
-                if out:
-                    out.write(annotated_frame)
-
+                raw_frame_data.append(frame_data)
                 frame_number += 1
 
-                # Progress update
-                if frame_number % (fps * 3) == 0:
-                    progress = (frame_number / total_frames) * 100
-                    skip_info = f" | Static skipped: {frames_skipped_motion}" if self.skip_static_frames else ""
-                    logger.info(f"Progress: {progress:.1f}% | Shots: {len(self.shot_history)}{skip_info}")
+                # Progress update (detection = 0-80% of total)
+                if frame_number % max(1, fps * 3) == 0:
+                    progress = (frame_number / total_frames) * 80 if total_frames > 0 else 0
+                    logger.info(f"Detection: {progress:.1f}% | Frame {frame_number}/{total_frames}")
 
-                    # Write progress to file for external monitoring
                     if hasattr(self, 'progress_file') and self.progress_file:
                         try:
                             with open(self.progress_file, 'w') as f:
                                 json.dump({
                                     'progress': progress,
-                                    'shots': len(self.shot_history),
                                     'frame': frame_number,
                                     'total_frames': total_frames,
-                                    'message': f"Processing: {progress:.1f}% ({len(self.shot_history)} shots detected)"
+                                    'stage': 'detection',
+                                    'message': f"Detecting: {progress:.1f}%"
                                 }, f)
                         except Exception:
                             pass
 
-                    # Check for cancellation flag
+                    # Check for cancellation
                     if hasattr(self, 'cancel_flag_path') and self.cancel_flag_path:
                         if Path(self.cancel_flag_path).exists():
                             logger.info("Analysis cancelled by user")
                             raise KeyboardInterrupt("Cancelled by user")
 
         except KeyboardInterrupt:
-            logger.info("Analysis interrupted")
+            logger.info("Detection interrupted")
 
         finally:
-            # End any remaining rally
-            if self.current_rally_shots:
-                self.end_current_rally()
-
             cap.release()
-            if out:
-                out.release()
-            if show_live:
-                cv2.destroyAllWindows()
 
+        logger.info(f"Detection complete: {len(raw_frame_data)} frames processed")
+
+        # =====================================================================
+        # PHASE 2: CLASSIFICATION — post-processing on all raw data
+        # =====================================================================
+        logger.info("Phase 2: Classification")
+        if hasattr(self, 'progress_file') and self.progress_file:
+            try:
+                with open(self.progress_file, 'w') as f:
+                    json.dump({'progress': 82, 'stage': 'classification',
+                               'message': 'Classifying shots...'}, f)
+            except Exception:
+                pass
+
+        classified = None
+        if ShotClassifier is not None:
+            classifier = ShotClassifier(
+                velocity_thresholds=self.VELOCITY_THRESHOLDS,
+                position_thresholds=self.POSITION_THRESHOLDS,
+                shot_cooldown_seconds=self.shot_cooldown_seconds,
+                effective_fps=self.effective_fps,
+                shuttle_gap_frames=getattr(self, 'shuttle_gap_frames', 90),
+                shuttle_gap_miss_pct=getattr(self, 'shuttle_gap_miss_pct', 80.0),
+            )
+            classified = classifier.classify_all(raw_frame_data, fps)
+        else:
+            # Fallback: run legacy per-frame classification
+            logger.warning("ShotClassifier not available, using legacy per-frame analysis")
+            classified = self._legacy_classify(raw_frame_data, fps)
+
+        logger.info(f"Classification complete: {classified['summary']['total_shots']} shots, "
+                    f"{classified['summary']['total_rallies']} rallies")
+
+        # =====================================================================
+        # PHASE 3: ANNOTATION — write video with all overlays
+        # =====================================================================
+        if output_path:
+            logger.info("Phase 3: Writing annotated video")
+            if hasattr(self, 'progress_file') and self.progress_file:
+                try:
+                    with open(self.progress_file, 'w') as f:
+                        json.dump({'progress': 90, 'stage': 'annotation',
+                                   'message': 'Writing annotated video...'}, f)
+                except Exception:
+                    pass
+
+            self._write_annotated_video(
+                video_path, output_path, raw_frame_data, classified,
+                fps, width, height, show_live
+            )
+
+        # =====================================================================
+        # Build report
+        # =====================================================================
         # Generate movement heatmap
         video_name = Path(video_path).stem if video_path else None
         heatmap_result = self.generate_movement_heatmap(video_name)
 
-        report = self.generate_report()
+        report = self._build_report(raw_frame_data, classified, fps, total_frames, width, height)
         if heatmap_result:
             report['heatmap_image_path'] = heatmap_result['image_path']
             report['heatmap_data_path'] = heatmap_result['data_path']
 
-        # Include frame data for tuning if captured
-        if save_frame_data and tuning_frame_data:
-            report['tuning_frame_data'] = {
-                "video_info": {
-                    "fps": fps,
-                    "duration": total_frames / fps if fps > 0 else 0,
-                    "frame_count": total_frames,
-                    "width": width,
-                    "height": height
-                },
-                "thresholds_used": self.VELOCITY_THRESHOLDS.copy(),
-                "cooldown_seconds": self.shot_cooldown_seconds,
-                "frames": tuning_frame_data
-            }
-            logger.info(f"Captured {len(tuning_frame_data)} frames for tuning")
+        # Include frame data for tuning if requested
+        if save_frame_data:
+            tuning_frames = self._extract_tuning_data(raw_frame_data, classified)
+            if tuning_frames:
+                report['tuning_frame_data'] = {
+                    "video_info": {
+                        "fps": fps,
+                        "duration": total_frames / fps if fps > 0 else 0,
+                        "frame_count": total_frames,
+                        "width": width,
+                        "height": height
+                    },
+                    "thresholds_used": self.VELOCITY_THRESHOLDS.copy(),
+                    "cooldown_seconds": self.shot_cooldown_seconds,
+                    "frames": tuning_frames
+                }
+                logger.info(f"Captured {len(tuning_frames)} frames for tuning")
 
         return report
+
+    def _legacy_classify(self, raw_frame_data: List[dict], fps: float) -> dict:
+        """Fallback: run the old per-frame classification when ShotClassifier is unavailable."""
+        self.reset_analysis_state()
+
+        for frame_data in raw_frame_data:
+            pose_landmarks = frame_data.get("pose_landmarks")
+            if pose_landmarks is None:
+                self.frames_since_last_shot += 1
+                continue
+
+            frame_number = frame_data["frame_number"]
+            timestamp = frame_data["timestamp"]
+
+            self.player_detected_frames += 1
+            self.total_frames_processed += 1
+
+            movement_data = self.analyze_movement(pose_landmarks, timestamp)
+            shot_type, confidence = self.classify_shot(movement_data, pose_landmarks)
+
+            if shot_type in self.ACTUAL_SHOTS and confidence > 0.5:
+                time_since_last = timestamp - self.last_shot_timestamp
+                if time_since_last < self.shot_cooldown_seconds:
+                    shot_type = 'follow_through'
+                    confidence = 0.3
+                else:
+                    self.last_shot_timestamp = timestamp
+
+            if shot_type in self.ACTUAL_SHOTS and confidence > 0.5:
+                shot_data = ShotData(
+                    frame_number=frame_number, timestamp=timestamp,
+                    shot_type=shot_type, confidence=confidence,
+                    player_bbox=frame_data.get("player_bbox"),
+                    movement_data=movement_data,
+                )
+                self.shot_history.append(shot_data)
+                self.session_stats[shot_type] += 1
+                self.frames_since_last_shot = 0
+                self.current_rally_shots.append(shot_data)
+            else:
+                self.frames_since_last_shot += 1
+
+            if (self.frames_since_last_shot > self.rally_gap_threshold and
+                len(self.current_rally_shots) > 0):
+                self.end_current_rally()
+
+        if self.current_rally_shots:
+            self.end_current_rally()
+
+        report = self.generate_report()
+        return {
+            "shots": [
+                {"frame": s.frame_number, "timestamp": s.timestamp,
+                 "shot_type": s.shot_type, "confidence": s.confidence,
+                 "shuttle_speed_px_per_sec": None, "shuttle_hit_matched": False}
+                for s in self.shot_history
+            ],
+            "rallies": report.get("rallies", []),
+            "shuttle_hits": [],
+            "shot_timeline": report.get("shot_timeline", []),
+            "shot_distribution": report.get("shot_distribution", {}),
+            "summary": report.get("summary", {}),
+        }
+
+    def _write_annotated_video(
+        self, video_path: str, output_path: str,
+        raw_frame_data: List[dict], classified: dict,
+        fps: int, width: int, height: int, show_live: bool = False
+    ):
+        """Phase 3: Read original video + raw data + classified → annotate → write."""
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            logger.error(f"Cannot reopen video for annotation: {video_path}")
+            return
+
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+
+        # Build a lookup of shot events by frame for quick annotation
+        shot_by_frame = {}
+        for shot in classified.get("shots", []):
+            shot_by_frame[shot["frame"]] = shot
+
+        # Keep track of "current shot" for display persistence
+        current_shot_display = None
+        shot_display_frames = 0
+        max_display_frames = fps  # Show shot label for ~1 second
+
+        # Also build shuttle hit lookup
+        hit_by_frame = {}
+        for hit in classified.get("shuttle_hits", []):
+            hit_by_frame[hit["frame"]] = hit
+
+        frame_number = 0
+        try:
+            while True:
+                ret, frame = cap.read()
+                if not ret:
+                    break
+
+                frame_data = raw_frame_data[frame_number] if frame_number < len(raw_frame_data) else {}
+
+                # Draw court boundary
+                frame = self.draw_court_boundary(frame)
+
+                # Draw pose skeleton if detected
+                pose_landmarks = frame_data.get("pose_landmarks")
+                if pose_landmarks:
+                    pose_color = (128, 128, 128)  # default gray
+
+                    # Check if there's an active shot on this frame
+                    if frame_number in shot_by_frame:
+                        current_shot_display = shot_by_frame[frame_number]
+                        shot_display_frames = 0
+                        pose_color = (0, 255, 0)  # green for active shot
+                    elif current_shot_display and shot_display_frames < max_display_frames:
+                        pose_color = (0, 255, 0)
+
+                    self.draw_skeleton(frame, pose_landmarks, pose_color)
+                    self.draw_body_part_labels(frame, pose_landmarks)
+
+                # Draw shuttle marker
+                shuttle_data = frame_data.get("shuttle")
+                self.draw_shuttle_marker(frame, shuttle_data)
+
+                # Draw shot label (persists for ~1 second)
+                if current_shot_display and shot_display_frames < max_display_frames:
+                    shot_text = f"{current_shot_display['shot_type'].upper()} ({current_shot_display['confidence']:.0%})"
+                    speed = current_shot_display.get("shuttle_speed_px_per_sec")
+                    if speed is not None:
+                        shot_text += f" | {speed:.0f} px/s"
+                    text_size = cv2.getTextSize(shot_text, cv2.FONT_HERSHEY_SIMPLEX, 1.0, 2)[0]
+                    cv2.rectangle(frame, (5, 10), (15 + text_size[0], 50), (0, 0, 0), -1)
+                    colors = {
+                        'smash': (0, 0, 255), 'clear': (0, 255, 0),
+                        'drop_shot': (255, 165, 0), 'net_shot': (255, 255, 0),
+                        'drive': (255, 0, 255), 'lift': (255, 200, 100),
+                    }
+                    color = colors.get(current_shot_display["shot_type"], (255, 255, 255))
+                    cv2.putText(frame, shot_text, (10, 40),
+                                cv2.FONT_HERSHEY_SIMPLEX, 1.0, color, 2)
+                    shot_display_frames += 1
+
+                # Draw shuttle hit marker
+                if frame_number in hit_by_frame:
+                    hit = hit_by_frame[frame_number]
+                    hx, hy = hit["hit_position"]["x"], hit["hit_position"]["y"]
+                    cv2.circle(frame, (hx, hy), 15, (0, 0, 255), 3)
+                    cv2.putText(frame, "HIT", (hx + 18, hy - 5),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+
+                # Draw stats panel (use classified summary)
+                self._draw_classified_stats(frame, classified)
+
+                # Draw player bbox
+                bbox = frame_data.get("player_bbox")
+                if bbox and pose_landmarks:
+                    x1, y1, x2, y2 = bbox
+                    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
+                out.write(frame)
+
+                if show_live:
+                    display_frame = frame
+                    if width > 1280:
+                        scale = 1280 / width
+                        display_frame = cv2.resize(frame, (int(width * scale), int(height * scale)))
+                    cv2.imshow('Badminton Analysis', display_frame)
+                    if cv2.waitKey(1) & 0xFF == ord('q'):
+                        break
+
+                frame_number += 1
+
+        finally:
+            cap.release()
+            out.release()
+            if show_live:
+                cv2.destroyAllWindows()
+
+        logger.info(f"Annotated video written: {output_path}")
+
+    def _draw_classified_stats(self, frame: np.ndarray, classified: dict):
+        """Draw stats panel using classified results."""
+        h, w = frame.shape[:2]
+        summary = classified.get("summary", {})
+        dist = classified.get("shot_distribution", {})
+
+        panel_x, panel_y = 10, h - 140
+        panel_w, panel_h = 280, 130
+
+        overlay = frame.copy()
+        cv2.rectangle(overlay, (panel_x, panel_y),
+                     (panel_x + panel_w, panel_y + panel_h), (0, 0, 0), -1)
+        cv2.addWeighted(overlay, 0.7, frame, 0.3, 0, frame)
+        cv2.rectangle(frame, (panel_x, panel_y),
+                     (panel_x + panel_w, panel_y + panel_h), (255, 255, 255), 1)
+
+        cv2.putText(frame, "SESSION STATS", (panel_x + 10, panel_y + 25),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+
+        y_offset = panel_y + 50
+        stats_text = [
+            f"Shots: {summary.get('total_shots', 0)} | Rallies: {summary.get('total_rallies', 0)}",
+            f"Smash: {dist.get('smash', 0)} | Clear: {dist.get('clear', 0)}",
+            f"Drop: {dist.get('drop_shot', 0)} | Drive: {dist.get('drive', 0)}",
+            f"Net: {dist.get('net_shot', 0)} | Lift: {dist.get('lift', 0)}",
+        ]
+
+        shuttle_rate = summary.get("shuttle_detection_rate")
+        if shuttle_rate is not None:
+            stats_text.append(f"Shuttle: {shuttle_rate:.0%} | Hits: {summary.get('shuttle_hits_detected', 0)}")
+
+        for text in stats_text:
+            cv2.putText(frame, text, (panel_x + 10, y_offset),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1)
+            y_offset += 18
+
+    def _build_report(self, raw_frame_data: List[dict], classified: dict,
+                      fps: int, total_frames: int, width: int, height: int) -> dict:
+        """Build final report from raw data + classified results."""
+        summary = classified.get("summary", {})
+        summary["foot_positions_recorded"] = len(self.foot_position_history)
+
+        # Shuttle tracking section
+        shuttle_tracking = None
+        has_shuttle = any(f.get("shuttle") is not None for f in raw_frame_data)
+        if has_shuttle:
+            shuttle_detected = sum(
+                1 for f in raw_frame_data
+                if f.get("shuttle") and f["shuttle"].get("visible")
+            )
+            shuttle_tracking = {
+                "available": True,
+                "summary": {
+                    "total_frames": len(raw_frame_data),
+                    "detected_frames": shuttle_detected,
+                    "detection_rate": shuttle_detected / len(raw_frame_data) if raw_frame_data else 0,
+                },
+                "hits": classified.get("shuttle_hits", []),
+            }
+
+        report = {
+            'summary': summary,
+            'shot_distribution': classified.get("shot_distribution", {}),
+            'rallies': classified.get("rallies", []),
+            'gap_zones': classified.get("gap_zones", []),
+            'shot_timeline': classified.get("shot_timeline", []),
+            'court_settings': self.court.to_dict(),
+        }
+
+        if shuttle_tracking:
+            report['shuttle_tracking'] = shuttle_tracking
+
+        return report
+
+    def _extract_tuning_data(self, raw_frame_data: List[dict], classified: dict) -> List[dict]:
+        """Extract tuning-compatible frame metrics from raw data + classified results.
+
+        Produces the same per-frame fields that FrameViewer expects:
+        shot_type, confidence, swing_type, wrist_velocity, body_velocity,
+        wrist_direction, cooldown_active, positions, booleans, shuttle, etc.
+        """
+        # Import ShotClassifier to recompute velocities for per-frame data
+        try:
+            from api.services.shot_classifier import ShotClassifier
+        except ImportError:
+            try:
+                from shot_classifier import ShotClassifier
+            except ImportError:
+                ShotClassifier = None
+
+        # Recompute per-frame velocities + classification using ShotClassifier
+        velocity_data = []
+        per_frame_classification = {}
+        if ShotClassifier is not None:
+            sc = ShotClassifier(
+                velocity_thresholds=self.VELOCITY_THRESHOLDS,
+                position_thresholds=self.POSITION_THRESHOLDS,
+                shot_cooldown_seconds=self.shot_cooldown_seconds,
+                effective_fps=self.effective_fps,
+            )
+            velocity_data = sc._compute_velocities(raw_frame_data)
+
+            # Run per-frame classification (matching classify_all logic)
+            last_shot_ts = -999.0
+            for i, fd in enumerate(raw_frame_data):
+                if not fd.get("player_detected") or not fd.get("pose_state"):
+                    continue
+                vel = velocity_data[i] if i < len(velocity_data) else {}
+                if not vel:
+                    continue
+                ps = fd["pose_state"]
+                swing = sc._classify_swing(
+                    vel["wrist_velocity"], vel["wrist_direction"],
+                    ps, vel.get("wrist_dy_per_sec", 0),
+                    vel.get("pose_history_window", []),
+                )
+                shot_type, confidence = sc._classify_shot(swing, vel["wrist_velocity"])
+                ts = fd["timestamp"]
+                cooldown_active = False
+                if shot_type in sc.ACTUAL_SHOTS and confidence > 0.5:
+                    if ts - last_shot_ts < sc.shot_cooldown_seconds:
+                        shot_type = 'follow_through'
+                        confidence = 0.3
+                        cooldown_active = True
+                    else:
+                        last_shot_ts = ts
+                per_frame_classification[fd["frame_number"]] = {
+                    "swing_type": swing,
+                    "shot_type": shot_type,
+                    "confidence": confidence,
+                    "cooldown_active": cooldown_active,
+                }
+
+        P = self.POSITION_THRESHOLDS
+        tuning = []
+        for i, fd in enumerate(raw_frame_data):
+            if not fd.get("player_detected"):
+                tuning.append({
+                    "frame_number": fd["frame_number"],
+                    "timestamp": fd["timestamp"],
+                    "player_detected": False,
+                })
+                continue
+
+            ps = fd.get("pose_state", {})
+            wrist_x = ps.get("wrist", (None, None))[0]
+            wrist_y = ps.get("wrist", (None, None))[1]
+            shoulder_x = ps.get("shoulder", (None, None))[0]
+            shoulder_y = ps.get("shoulder", (None, None))[1]
+            elbow_x = ps.get("elbow", (None, None))[0]
+            elbow_y = ps.get("elbow", (None, None))[1]
+            hip_x = ps.get("hip_center", (None, None))[0]
+            hip_y = ps.get("hip_center", (None, None))[1]
+
+            # Compute derived values
+            arm_extension = None
+            is_overhead = is_low_position = is_arm_extended = is_wrist_between = None
+            if wrist_x is not None and shoulder_x is not None:
+                arm_extension = math.sqrt((wrist_x - shoulder_x)**2 + (wrist_y - shoulder_y)**2)
+                is_overhead = wrist_y < shoulder_y - P['overhead_offset']
+                is_arm_extended = arm_extension > P['arm_extension_min']
+            if wrist_y is not None and hip_y is not None:
+                is_low_position = wrist_y > hip_y - P['low_position_offset']
+            if wrist_y is not None and shoulder_y is not None and hip_y is not None:
+                is_wrist_between = shoulder_y < wrist_y < hip_y
+
+            # Get velocity + classification for this frame
+            vel = velocity_data[i] if i < len(velocity_data) else {}
+            cls = per_frame_classification.get(fd["frame_number"], {})
+
+            entry = {
+                "frame_number": fd["frame_number"],
+                "timestamp": fd["timestamp"],
+                "player_detected": True,
+                # Raw pose
+                "wrist_x": wrist_x,
+                "wrist_y": wrist_y,
+                "shoulder_x": shoulder_x,
+                "shoulder_y": shoulder_y,
+                "elbow_x": elbow_x,
+                "elbow_y": elbow_y,
+                "hip_x": hip_x,
+                "hip_y": hip_y,
+                # Velocities
+                "wrist_velocity": vel.get("wrist_velocity", 0.0),
+                "body_velocity": vel.get("body_velocity", 0.0),
+                "wrist_direction": vel.get("wrist_direction", "none"),
+                # Derived booleans
+                "arm_extension": arm_extension,
+                "is_overhead": is_overhead,
+                "is_low_position": is_low_position,
+                "is_arm_extended": is_arm_extended,
+                "is_wrist_between_shoulder_hip": is_wrist_between,
+                # Classification
+                "swing_type": cls.get("swing_type", "none"),
+                "shot_type": cls.get("shot_type", "static"),
+                "confidence": cls.get("confidence", 0.3),
+                "cooldown_active": cls.get("cooldown_active", False),
+                "is_actual_shot": cls.get("shot_type", "static") in self.ACTUAL_SHOTS,
+            }
+
+            # Shuttle position
+            shuttle = fd.get("shuttle")
+            if shuttle:
+                visible = shuttle.get("visible", False)
+                entry["shuttle_x"] = shuttle.get("x") if visible else None
+                entry["shuttle_y"] = shuttle.get("y") if visible else None
+                entry["shuttle_confidence"] = shuttle.get("confidence")
+                entry["shuttle_visible"] = visible
+
+            tuning.append(entry)
+
+        # Post-pass: compute shuttle velocity/speed/direction and detect hits
+        hit_frames = set()
+        for hit in classified.get("shuttle_hits", []):
+            hit_frames.add(hit.get("frame"))
+
+        prev_shuttle_frame = None
+        for entry in tuning:
+            if not entry.get("shuttle_visible"):
+                entry.setdefault("shuttle_speed", None)
+                entry.setdefault("shuttle_dx", None)
+                entry.setdefault("shuttle_dy", None)
+                entry.setdefault("shuttle_direction", None)
+                entry.setdefault("shuttle_is_hit", False)
+                continue
+
+            ts = entry.get("timestamp", 0)
+            sx = entry.get("shuttle_x")
+            sdx = sdy = speed = direction = None
+            if prev_shuttle_frame is not None and sx is not None:
+                dt = ts - prev_shuttle_frame.get("timestamp", 0)
+                if dt > 0:
+                    px = prev_shuttle_frame.get("shuttle_x")
+                    py = prev_shuttle_frame.get("shuttle_y")
+                    sdx = (sx - px) / dt
+                    sdy = (entry.get("shuttle_y") - py) / dt
+                    speed = round(math.sqrt(sdx * sdx + sdy * sdy), 1)
+                    if abs(sdy) > abs(sdx):
+                        direction = "up" if sdy < 0 else "down"
+                    else:
+                        direction = "right" if sdx > 0 else "left"
+
+            entry["shuttle_speed"] = speed
+            entry["shuttle_dx"] = round(sdx, 1) if sdx is not None else None
+            entry["shuttle_dy"] = round(sdy, 1) if sdy is not None else None
+            entry["shuttle_direction"] = direction
+            entry["shuttle_is_hit"] = entry.get("frame_number") in hit_frames
+            if entry.get("shuttle_visible"):
+                prev_shuttle_frame = entry
+
+        return tuning
 
     def generate_report(self) -> dict:
         """Generate analysis report"""

@@ -417,8 +417,8 @@ def get_badminton_activity_schema() -> Dict[str, Any]:
                 "label": "Rally Detection",
                 "description": "Settings for detecting rally boundaries",
                 "thresholds": [
-                    {"key": "stillness_frames", "label": "Stillness Frames", "min": 2, "max": 10, "step": 1, "default": 4, "description": "Consecutive still frames to detect rally end"},
-                    {"key": "stillness_threshold", "label": "Stillness Threshold", "min": 0.005, "max": 0.1, "step": 0.005, "default": 0.02, "description": "Max movement (fraction) to be still"}
+                    {"key": "shuttle_gap_frames", "label": "Shuttle Gap Window", "min": 3, "max": 300, "step": 1, "default": 90, "description": "Frame window to check shuttle absence"},
+                    {"key": "shuttle_gap_miss_pct", "label": "Shuttle Miss %", "min": 50, "max": 100, "step": 5, "default": 80, "unit": "%", "description": "% of frames without shuttle to trigger rally break"}
                 ]
             }
         ]

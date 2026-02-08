@@ -63,21 +63,23 @@
           ></div>
           <!-- Shot markers on timeline -->
           <div class="shot-markers">
-            <!-- Rally end markers - vertical lines showing where player stopped moving -->
+            <!-- Rally end markers -->
+            <template v-if="showRallyMarkers">
+              <div
+                v-for="rallyEnd in rallyEndFrames"
+                :key="'rally-' + rallyEnd.index"
+                class="rally-end-marker"
+                :class="{ 'at-position': isNearCurrentFrame(rallyEnd.index) }"
+                :style="{ left: getMarkerPosition(rallyEnd.index) + '%' }"
+                :title="`Rally ${rallyEnd.rallyNumber} End @ ${formatTime(rallyEnd.timestamp)}`"
+                @click="goToFrameIndex(rallyEnd.index)"
+              >
+                <span v-if="isNearCurrentFrame(rallyEnd.index)" class="rally-end-tooltip">Rally {{ rallyEnd.rallyNumber }} End</span>
+              </div>
+            </template>
+            <!-- Shot markers (filtered) -->
             <div
-              v-for="rallyEnd in rallyEndFrames"
-              :key="'rally-' + rallyEnd.index"
-              class="rally-end-marker"
-              :class="{ 'at-position': isNearCurrentFrame(rallyEnd.index) }"
-              :style="{ left: getMarkerPosition(rallyEnd.index) + '%' }"
-              :title="`Rally ${rallyEnd.rallyNumber} End @ ${formatTime(rallyEnd.timestamp)} (player stopped moving)`"
-              @click="goToFrameIndex(rallyEnd.index)"
-            >
-              <span v-if="isNearCurrentFrame(rallyEnd.index)" class="rally-end-tooltip">Rally {{ rallyEnd.rallyNumber }} End</span>
-            </div>
-            <!-- Shot markers -->
-            <div
-              v-for="shot in shotFrames"
+              v-for="shot in filteredShotFrames"
               :key="'shot-' + shot.index"
               class="shot-marker"
               :class="[getShotMarkerClass(shot.type), { 'at-position': isNearCurrentFrame(shot.index) }]"
@@ -87,6 +89,11 @@
             >
               <span v-if="isNearCurrentFrame(shot.index)" class="shot-label">{{ formatShotType(shot.type) }}</span>
             </div>
+          </div>
+
+          <!-- Shuttle visibility strip -->
+          <div v-if="showShuttleStrip && hasShuttleData" class="shuttle-visibility-strip">
+            <canvas ref="shuttleStripCanvas" class="shuttle-strip-canvas" @click="handleStripClick"></canvas>
           </div>
         </div>
       </div>
@@ -98,54 +105,61 @@
       </button>
     </div>
 
-    <!-- Shot Summary & Legend -->
+    <!-- Shot Filter & Summary -->
     <div class="shot-summary-section">
-      <!-- Overall Shot Counts -->
-      <div v-if="Object.keys(shotCounts).length > 0" class="shot-summary">
-        <h4>Shot Summary</h4>
+      <!-- Toggleable Shot Type Filters -->
+      <div v-if="Object.keys(allShotCounts).length > 0" class="shot-filters">
+        <div class="filter-header">
+          <h4>Shot Filters</h4>
+          <button class="filter-toggle-all" @click="toggleAllFilters">
+            {{ allFiltersEnabled ? 'None' : 'All' }}
+          </button>
+        </div>
         <div class="shot-counts-grid">
           <div
-            v-for="(count, type) in shotCounts"
+            v-for="(count, type) in allShotCounts"
             :key="type"
             class="shot-count-item"
-            :class="getShotClass(type)"
+            :class="[getShotClass(type), { disabled: !shotTypeFilter[type] }]"
+            @click="toggleShotFilter(type)"
           >
             <span class="shot-count-value">{{ count }}</span>
             <span class="shot-count-label">{{ formatShotType(type) }}</span>
           </div>
         </div>
         <div class="total-shots">
-          Total: <strong>{{ shotFrames.length }}</strong> shots
+          Showing: <strong>{{ filteredShotFrames.length }}</strong> / {{ allShotFrames.length }} shots
+        </div>
+      </div>
+
+      <!-- Overlay toggles -->
+      <div class="overlay-toggles">
+        <div
+          v-if="hasShuttleData"
+          class="overlay-toggle"
+          :class="{ active: showShuttleStrip }"
+          @click="showShuttleStrip = !showShuttleStrip"
+        >
+          <span class="toggle-dot shuttle-dot"></span>
+          Shuttle ({{ shuttleStats.detected }}/{{ shuttleStats.total }} frames)
+        </div>
+        <div
+          v-if="rallyEndFrames.length > 0"
+          class="overlay-toggle"
+          :class="{ active: showRallyMarkers }"
+          @click="showRallyMarkers = !showRallyMarkers"
+        >
+          <span class="toggle-dot rally-dot"></span>
+          Rally Breaks ({{ rallyEndFrames.length }})
         </div>
       </div>
 
       <!-- Timeline Legend -->
-      <div v-if="shotFrames.length > 0 || rallyEndFrames.length > 0" class="shot-legend">
+      <div v-if="filteredShotFrames.length > 0 || rallyEndFrames.length > 0" class="shot-legend">
         <span class="legend-label">Timeline:</span>
-        <span v-if="shotCounts.smash" class="legend-item"><span class="dot marker-smash"></span>Smash ({{ shotCounts.smash }})</span>
-        <span v-if="shotCounts.clear" class="legend-item"><span class="dot marker-clear"></span>Clear ({{ shotCounts.clear }})</span>
-        <span v-if="shotCounts.drop_shot" class="legend-item"><span class="dot marker-drop"></span>Drop ({{ shotCounts.drop_shot }})</span>
-        <span v-if="shotCounts.net_shot" class="legend-item"><span class="dot marker-net"></span>Net ({{ shotCounts.net_shot }})</span>
-        <span v-if="shotCounts.drive" class="legend-item"><span class="dot marker-drive"></span>Drive ({{ shotCounts.drive }})</span>
-        <span v-if="shotCounts.lift" class="legend-item"><span class="dot marker-lift"></span>Lift ({{ shotCounts.lift }})</span>
-        <span v-if="rallyEndFrames.length > 0" class="legend-item"><span class="dot marker-rally-end"></span>Rally End ({{ rallyEndFrames.length }})</span>
-      </div>
-    </div>
-
-    <!-- Frame Info -->
-    <div class="frame-info">
-      <div class="info-row">
-        <span class="label">Position:</span>
-        <span class="value">{{ localFrame + 1 }}</span>
-        <span class="total">/ {{ frames.length }}</span>
-      </div>
-      <div class="info-row">
-        <span class="label">Time:</span>
-        <span class="value">{{ formatTime(currentFrameData?.timestamp || 0) }}</span>
-      </div>
-      <div class="info-row">
-        <span class="label">Video Frame:</span>
-        <span class="value frame-num">{{ currentFrameData?.frame_number || 0 }}</span>
+        <span v-for="type in enabledShotTypes" :key="type" class="legend-item">
+          <span :class="['dot', getShotMarkerClass(type)]"></span>{{ formatShotType(type) }} ({{ allShotCounts[type] }})
+        </span>
       </div>
     </div>
 
@@ -156,120 +170,178 @@
       </div>
 
       <template v-else>
-        <!-- Velocity Metrics -->
-        <div class="metric-section">
-          <h4>Velocity</h4>
-          <div class="metric-row">
-            <span class="metric-label">Wrist:</span>
-            <div class="metric-bar-container">
-              <div
-                class="metric-bar"
-                :style="{ width: getVelocityWidth(currentFrameData.wrist_velocity) + '%' }"
-              ></div>
-              <span class="metric-value">{{ formatVelocity(currentFrameData.wrist_velocity) }}</span>
+        <div class="metrics-grid">
+          <!-- Col 1: Frame Info + Velocity -->
+          <div class="metrics-col">
+            <div class="metric-section">
+              <h4>Frame</h4>
+              <div class="metric-row">
+                <span class="metric-label">Position:</span>
+                <span class="metric-value">{{ localFrame + 1 }} <span class="dim">/ {{ frames.length }}</span></span>
+              </div>
+              <div class="metric-row">
+                <span class="metric-label">Time:</span>
+                <span class="metric-value">{{ formatTime(currentFrameData?.timestamp || 0) }}</span>
+              </div>
+              <div class="metric-row">
+                <span class="metric-label">Frame #:</span>
+                <span class="metric-value dim">{{ currentFrameData?.frame_number || 0 }}</span>
+              </div>
             </div>
-          </div>
-          <div class="metric-row">
-            <span class="metric-label">Body:</span>
-            <div class="metric-bar-container">
-              <div
-                class="metric-bar body"
-                :style="{ width: getVelocityWidth(currentFrameData.body_velocity) + '%' }"
-              ></div>
-              <span class="metric-value">{{ formatVelocity(currentFrameData.body_velocity) }}</span>
-            </div>
-          </div>
-          <div class="metric-row">
-            <span class="metric-label">Direction:</span>
-            <span class="metric-value direction">{{ currentFrameData.wrist_direction || '-' }}</span>
-          </div>
-        </div>
 
-        <!-- Classification -->
-        <div class="metric-section">
-          <h4>Classification</h4>
-          <div class="classification-display">
-            <div :class="['shot-badge', getShotClass(displayedShotType)]">
-              {{ displayedShotType || 'Unknown' }}
+            <div class="metric-section">
+              <h4>Velocity</h4>
+              <div class="metric-row">
+                <span class="metric-label">Wrist:</span>
+                <div class="metric-bar-container">
+                  <div
+                    class="metric-bar"
+                    :style="{ width: getVelocityWidth(currentFrameData.wrist_velocity) + '%' }"
+                  ></div>
+                  <span class="metric-value">{{ formatVelocity(currentFrameData.wrist_velocity) }}</span>
+                </div>
+              </div>
+              <div class="metric-row">
+                <span class="metric-label">Body:</span>
+                <div class="metric-bar-container">
+                  <div
+                    class="metric-bar body"
+                    :style="{ width: getVelocityWidth(currentFrameData.body_velocity) + '%' }"
+                  ></div>
+                  <span class="metric-value">{{ formatVelocity(currentFrameData.body_velocity) }}</span>
+                </div>
+              </div>
+              <div class="metric-row">
+                <span class="metric-label">Dir:</span>
+                <span class="metric-value direction">{{ currentFrameData.wrist_direction || '-' }}</span>
+              </div>
             </div>
-            <div class="confidence">
-              {{ (displayedConfidence * 100).toFixed(0) }}%
-            </div>
           </div>
-          <div class="metric-row">
-            <span class="metric-label">Swing:</span>
-            <span class="metric-value">{{ currentFrameData.swing_type || '-' }}</span>
-          </div>
-          <div class="metric-row">
-            <span class="metric-label">Cooldown:</span>
-            <span :class="['metric-value', { active: currentFrameData.cooldown_active }]">
-              {{ currentFrameData.cooldown_active ? 'Active' : 'Off' }}
-            </span>
-          </div>
-        </div>
 
-        <!-- Position Info -->
-        <div class="metric-section">
-          <h4>Position</h4>
-          <div v-if="currentFrameData.wrist_y !== null" class="metric-row">
-            <span class="metric-label">Wrist Y:</span>
-            <span class="metric-value">{{ currentFrameData.wrist_y?.toFixed(3) }}</span>
-          </div>
-          <div v-if="currentFrameData.shoulder_y !== null" class="metric-row">
-            <span class="metric-label">Shoulder Y:</span>
-            <span class="metric-value">{{ currentFrameData.shoulder_y?.toFixed(3) }}</span>
-          </div>
-          <div v-if="currentFrameData.hip_y !== null" class="metric-row">
-            <span class="metric-label">Hip Y:</span>
-            <span class="metric-value">{{ currentFrameData.hip_y?.toFixed(3) }}</span>
-          </div>
-          <div v-if="currentFrameData.arm_extension !== null" class="metric-row">
-            <span class="metric-label">Arm Ext:</span>
-            <span class="metric-value">{{ currentFrameData.arm_extension?.toFixed(3) }}</span>
-          </div>
-        </div>
-
-        <!-- Boolean Conditions -->
-        <div v-if="currentFrameData.is_overhead !== null" class="metric-section">
-          <h4>Conditions</h4>
-          <div class="condition-badges">
-            <span :class="['condition-badge', { active: currentFrameData.is_overhead }]">
-              Overhead
-            </span>
-            <span :class="['condition-badge', { active: currentFrameData.is_low_position }]">
-              Low
-            </span>
-            <span :class="['condition-badge', { active: currentFrameData.is_arm_extended }]">
-              Extended
-            </span>
-            <span v-if="currentFrameData.is_wrist_between_shoulder_hip !== null" :class="['condition-badge', { active: currentFrameData.is_wrist_between_shoulder_hip }]">
-              Mid-body
-            </span>
-          </div>
-          <div v-if="currentFrameData.classification_reason" class="classification-reason">
-            <span class="reason-text">{{ currentFrameData.classification_reason }}</span>
-          </div>
-        </div>
-
-        <!-- Re-classification Results -->
-        <div v-if="hasReclassifyResult" class="metric-section reclassify-section">
-          <h4>Re-classification</h4>
-          <div class="reclassify-comparison">
-            <div class="original">
-              <span class="label">Original:</span>
-              <span :class="['shot-badge small', getShotClass(currentFrameData.shot_type)]">
-                {{ currentFrameData.shot_type }}
-              </span>
+          <!-- Col 2: Position + Classification -->
+          <div class="metrics-col">
+            <div class="metric-section">
+              <h4>Position</h4>
+              <div v-if="currentFrameData.wrist_y !== null" class="metric-row">
+                <span class="metric-label">Wrist Y:</span>
+                <span class="metric-value">{{ currentFrameData.wrist_y?.toFixed(3) }}</span>
+              </div>
+              <div v-if="currentFrameData.shoulder_y !== null" class="metric-row">
+                <span class="metric-label">Shoulder:</span>
+                <span class="metric-value">{{ currentFrameData.shoulder_y?.toFixed(3) }}</span>
+              </div>
+              <div v-if="currentFrameData.hip_y !== null" class="metric-row">
+                <span class="metric-label">Hip Y:</span>
+                <span class="metric-value">{{ currentFrameData.hip_y?.toFixed(3) }}</span>
+              </div>
+              <div v-if="currentFrameData.arm_extension !== null" class="metric-row">
+                <span class="metric-label">Arm Ext:</span>
+                <span class="metric-value">{{ currentFrameData.arm_extension?.toFixed(3) }}</span>
+              </div>
             </div>
-            <span class="arrow">→</span>
-            <div class="new">
-              <span class="label">New:</span>
-              <span :class="['shot-badge small', getShotClass(reclassifiedShotType)]">
-                {{ reclassifiedShotType }}
-              </span>
+
+            <div class="metric-section">
+              <h4>Classification</h4>
+              <div class="classification-display">
+                <div :class="['shot-badge', getShotClass(displayedShotType)]">
+                  {{ displayedShotType || 'Unknown' }}
+                </div>
+                <div class="confidence">
+                  {{ (displayedConfidence * 100).toFixed(0) }}%
+                </div>
+              </div>
+              <div class="metric-row">
+                <span class="metric-label">Swing:</span>
+                <span class="metric-value">{{ currentFrameData.swing_type || '-' }}</span>
+              </div>
+              <div class="metric-row">
+                <span class="metric-label">Cooldown:</span>
+                <span :class="['metric-value', { active: currentFrameData.cooldown_active }]">
+                  {{ currentFrameData.cooldown_active ? 'Active' : 'Off' }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Re-classification Results -->
+            <div v-if="hasReclassifyResult" class="metric-section reclassify-section">
+              <h4>Re-classification</h4>
+              <div class="reclassify-comparison">
+                <div class="original">
+                  <span class="label">Original:</span>
+                  <span :class="['shot-badge small', getShotClass(currentFrameData.shot_type)]">
+                    {{ currentFrameData.shot_type }}
+                  </span>
+                </div>
+                <span class="arrow">→</span>
+                <div class="new">
+                  <span class="label">New:</span>
+                  <span :class="['shot-badge small', getShotClass(reclassifiedShotType)]">
+                    {{ reclassifiedShotType }}
+                  </span>
+                </div>
+              </div>
+              <div v-if="wasChanged" class="changed-badge">Changed</div>
             </div>
           </div>
-          <div v-if="wasChanged" class="changed-badge">Changed</div>
+
+          <!-- Col 3: Conditions + Shuttle -->
+          <div class="metrics-col">
+            <div v-if="currentFrameData.is_overhead !== null" class="metric-section">
+              <h4>Conditions</h4>
+              <div class="condition-badges">
+                <span :class="['condition-badge', { active: currentFrameData.is_overhead }]">
+                  Overhead
+                </span>
+                <span :class="['condition-badge', { active: currentFrameData.is_low_position }]">
+                  Low
+                </span>
+                <span :class="['condition-badge', { active: currentFrameData.is_arm_extended }]">
+                  Extended
+                </span>
+                <span v-if="currentFrameData.is_wrist_between_shoulder_hip !== null" :class="['condition-badge', { active: currentFrameData.is_wrist_between_shoulder_hip }]">
+                  Mid-body
+                </span>
+              </div>
+              <div v-if="currentFrameData.classification_reason" class="classification-reason">
+                <span class="reason-text">{{ currentFrameData.classification_reason }}</span>
+              </div>
+            </div>
+
+            <div v-if="currentFrameData.shuttle_visible !== undefined" class="metric-section">
+              <h4>Shuttle</h4>
+              <div class="metric-row">
+                <span class="metric-label">Detected:</span>
+                <span :class="['metric-value', { active: currentFrameData.shuttle_visible }]">
+                  {{ currentFrameData.shuttle_visible ? 'Yes' : 'No' }}
+                </span>
+              </div>
+              <template v-if="currentFrameData.shuttle_visible">
+                <div class="metric-row">
+                  <span class="metric-label">Pos:</span>
+                  <span class="metric-value mono">{{ currentFrameData.shuttle_x }}, {{ currentFrameData.shuttle_y }}</span>
+                </div>
+                <div v-if="currentFrameData.shuttle_confidence" class="metric-row">
+                  <span class="metric-label">Conf:</span>
+                  <span class="metric-value">{{ currentFrameData.shuttle_confidence?.toFixed(3) }}</span>
+                </div>
+                <div v-if="currentFrameData.shuttle_speed != null" class="metric-row">
+                  <span class="metric-label">Speed:</span>
+                  <span class="metric-value">{{ currentFrameData.shuttle_speed }} px/s</span>
+                </div>
+                <div v-if="currentFrameData.shuttle_direction" class="metric-row">
+                  <span class="metric-label">Dir:</span>
+                  <span class="metric-value direction">{{ currentFrameData.shuttle_direction }}</span>
+                </div>
+                <div v-if="currentFrameData.shuttle_dx != null" class="metric-row">
+                  <span class="metric-label">Vel:</span>
+                  <span class="metric-value mono">dx={{ currentFrameData.shuttle_dx }} dy={{ currentFrameData.shuttle_dy }}</span>
+                </div>
+                <div v-if="currentFrameData.shuttle_is_hit" class="shuttle-hit-badge">
+                  HIT DETECTED
+                </div>
+              </template>
+            </div>
+          </div>
         </div>
       </template>
     </div>
@@ -283,7 +355,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 
 const props = defineProps({
   frames: {
@@ -313,8 +385,8 @@ const props = defineProps({
   rallyThresholds: {
     type: Object,
     default: () => ({
-      stillness_frames: 4,
-      stillness_threshold: 0.02
+      shuttle_gap_frames: 90,
+      shuttle_gap_miss_pct: 80
     })
   }
 })
@@ -330,6 +402,91 @@ const videoDuration = ref(0)
 const syncingFromVideo = ref(false)
 const syncingFromSlider = ref(false)
 const videoError = ref('')
+
+// Shuttle & rally overlay toggles
+const shuttleStripCanvas = ref(null)
+const showShuttleStrip = ref(true)
+const showRallyMarkers = ref(true)
+
+const hasShuttleData = computed(() => {
+  return props.frames.some(f => f.shuttle_visible !== undefined)
+})
+
+const shuttleStats = computed(() => {
+  let detected = 0
+  let total = 0
+  for (const f of props.frames) {
+    if (f.shuttle_visible !== undefined) {
+      total++
+      if (f.shuttle_visible) detected++
+    }
+  }
+  return { detected, total }
+})
+
+// Draw shuttle visibility strip on canvas
+function drawShuttleStrip() {
+  const canvas = shuttleStripCanvas.value
+  if (!canvas || !props.frames.length) return
+
+  const parent = canvas.parentElement
+  if (!parent) return
+
+  const width = parent.clientWidth
+  const height = 8
+  canvas.width = width
+  canvas.height = height
+
+  const ctx = canvas.getContext('2d')
+  ctx.clearRect(0, 0, width, height)
+
+  const n = props.frames.length
+  if (n === 0) return
+
+  const gapSet = gapFrameIndices.value
+
+  // Draw per-pixel: each pixel covers a range of frames
+  for (let px = 0; px < width; px++) {
+    const startFrame = Math.floor((px / width) * n)
+    const endFrame = Math.min(Math.floor(((px + 1) / width) * n), n)
+
+    let visible = 0
+    let total = 0
+    let inGap = false
+    for (let i = startFrame; i < endFrame; i++) {
+      if (gapSet.has(i)) inGap = true
+      if (props.frames[i].shuttle_visible !== undefined) {
+        total++
+        if (props.frames[i].shuttle_visible) visible++
+      }
+    }
+
+    if (inGap) {
+      // Gap zone — muted red with stripe pattern
+      ctx.fillStyle = 'rgba(231, 76, 60, 0.4)'
+    } else if (total === 0) {
+      ctx.fillStyle = '#1a1a2e'
+    } else {
+      const ratio = visible / total
+      if (ratio > 0.5) {
+        ctx.fillStyle = `rgba(78, 204, 163, ${0.3 + ratio * 0.7})`
+      } else {
+        ctx.fillStyle = `rgba(231, 76, 60, ${0.2 + (1 - ratio) * 0.3})`
+      }
+    }
+    ctx.fillRect(px, 0, 1, height)
+  }
+}
+
+function handleStripClick(event) {
+  const canvas = shuttleStripCanvas.value
+  if (!canvas) return
+  const rect = canvas.getBoundingClientRect()
+  const x = event.clientX - rect.left
+  const ratio = x / rect.width
+  const frameIndex = Math.round(ratio * (props.frames.length - 1))
+  goToFrameIndex(frameIndex)
+}
 
 const localFrame = ref(props.currentFrame)
 
@@ -358,121 +515,136 @@ const reclassifiedShotType = computed(() => {
 
 // Compute frames that have actual shots detected
 const ACTUAL_SHOTS = ['smash', 'clear', 'drop_shot', 'net_shot', 'drive', 'lift']
-const shotFrames = computed(() => {
-  const shots = props.frames
+
+// Shot type filter state - all enabled by default
+const shotTypeFilter = ref({})
+
+// Initialize filters when frames change
+watch(() => props.frames, () => {
+  // Reset filters to all enabled when new data loads
+  const newFilter = {}
+  for (const type of ACTUAL_SHOTS) {
+    newFilter[type] = shotTypeFilter.value[type] !== undefined ? shotTypeFilter.value[type] : true
+  }
+  shotTypeFilter.value = newFilter
+}, { immediate: true })
+
+// Shuttle gap zone detection — zone-based, not rolling window.
+// Mark every frame as "in gap" if any window covering it has >= miss_pct% missing.
+// This produces continuous gap zones with no duplicate break markers.
+const shuttleGapZones = computed(() => {
+  const gapFrames = props.rallyThresholds?.shuttle_gap_frames ?? 90
+  const missPct = (props.rallyThresholds?.shuttle_gap_miss_pct ?? 80) / 100
+  const window = Math.max(1, gapFrames)
+  const n = props.frames.length
+
+  if (n === 0) return []
+  const hasShuttle = props.frames.some(f => f.shuttle_visible !== undefined)
+  if (!hasShuttle) return []
+
+  // Step 1: Build gap mask
+  const inGap = new Uint8Array(n) // 0 = not gap, 1 = gap
+  for (let i = 0; i < n; i++) {
+    const end = Math.min(i + window, n)
+    const actual = end - i
+    if (actual <= 0) continue
+    let miss = 0
+    for (let j = i; j < end; j++) {
+      if (!props.frames[j].shuttle_visible) miss++
+    }
+    if (miss / actual >= missPct) {
+      for (let j = i; j < end; j++) {
+        inGap[j] = 1
+      }
+    }
+  }
+
+  // Step 2: Extract continuous gap zones
+  const zones = []
+  let i = 0
+  while (i < n) {
+    if (inGap[i]) {
+      const start = i
+      while (i < n && inGap[i]) i++
+      zones.push({ startIdx: start, endIdx: i - 1 })
+    } else {
+      i++
+    }
+  }
+  return zones
+})
+
+// Set of frame indices inside gap zones (for fast lookup)
+const gapFrameIndices = computed(() => {
+  const s = new Set()
+  for (const gz of shuttleGapZones.value) {
+    for (let i = gz.startIdx; i <= gz.endIdx; i++) {
+      s.add(i)
+    }
+  }
+  return s
+})
+
+// Rally end markers — one per gap zone boundary
+const rallyEndFrames = computed(() => {
+  return shuttleGapZones.value.map((gz, idx) => ({
+    index: gz.startIdx,
+    timestamp: props.frames[gz.startIdx]?.timestamp || 0,
+    rallyNumber: idx + 1,
+    endIndex: gz.endIdx
+  }))
+})
+
+// All shot frames (unfiltered) — excludes cooldown, low-confidence, and gap zone frames
+const allShotFrames = computed(() => {
+  return props.frames
     .map((frame, index) => ({
       index,
       type: frame.shot_type,
       timestamp: frame.timestamp,
-      confidence: frame.confidence || 0
+      confidence: frame.confidence || 0,
+      cooldown: frame.cooldown_active || false
     }))
-    .filter(f => ACTUAL_SHOTS.includes(f.type))
-
-  console.log('Shot frames found:', shots.length, shots.slice(0, 5))
-  return shots
+    .filter(f =>
+      ACTUAL_SHOTS.includes(f.type) &&
+      !f.cooldown &&
+      f.confidence > 0.5 &&
+      !gapFrameIndices.value.has(f.index)
+    )
 })
 
-// Count shots by type
-const shotCounts = computed(() => {
+// Filtered shot frames (respects toggle state)
+const filteredShotFrames = computed(() => {
+  return allShotFrames.value.filter(f => shotTypeFilter.value[f.type])
+})
+
+// Count all shots by type (unfiltered, for showing totals)
+const allShotCounts = computed(() => {
   const counts = {}
-  for (const shot of shotFrames.value) {
+  for (const shot of allShotFrames.value) {
     counts[shot.type] = (counts[shot.type] || 0) + 1
   }
   return counts
 })
 
-// Detect rally ends by finding periods of stillness (player not moving)
-// A rally ends when body coordinates don't change by more than threshold over several frames
-// These values come from props.rallyThresholds (tunable in dashboard)
-
-const rallyEndFrames = computed(() => {
-  const stillnessFrames = props.rallyThresholds?.stillness_frames ?? 4
-  const stillnessThreshold = props.rallyThresholds?.stillness_threshold ?? 0.02
-
-  if (props.frames.length < stillnessFrames + 1) return []
-
-  const rallyEnds = []
-  let inStillPeriod = false
-  let stillStartIndex = -1
-  let hadShotBeforeStill = false
-  let lastShotIndex = -1
-
-  // Track when we last saw a shot
-  const shotIndices = new Set(shotFrames.value.map(s => s.index))
-
-  for (let i = 0; i < props.frames.length - stillnessFrames; i++) {
-    // Track if we've had a shot before this point
-    if (shotIndices.has(i)) {
-      lastShotIndex = i
-      hadShotBeforeStill = true
-    }
-
-    // Check if player is still for the next stillnessFrames frames
-    const isStill = checkStillness(i, stillnessFrames, stillnessThreshold)
-
-    if (isStill && !inStillPeriod) {
-      // Entering a still period
-      inStillPeriod = true
-      stillStartIndex = i
-
-      // If we had shots before this stillness, this is a rally end
-      if (hadShotBeforeStill && lastShotIndex >= 0) {
-        rallyEnds.push({
-          index: stillStartIndex,
-          timestamp: props.frames[stillStartIndex]?.timestamp || 0,
-          rallyNumber: rallyEnds.length + 1,
-          lastShotIndex: lastShotIndex
-        })
-        hadShotBeforeStill = false  // Reset for next rally
-      }
-    } else if (!isStill && inStillPeriod) {
-      // Exiting still period - player started moving again (new rally starting)
-      inStillPeriod = false
-    }
-  }
-
-  return rallyEnds
+// Which shot types are currently enabled
+const enabledShotTypes = computed(() => {
+  return ACTUAL_SHOTS.filter(t => shotTypeFilter.value[t] && allShotCounts.value[t])
 })
 
-// Check if player is still (not moving) for N consecutive frames starting at frameIndex
-function checkStillness(frameIndex, numFrames, threshold) {
-  const baseFrame = props.frames[frameIndex]
-  if (!baseFrame?.player_detected) return false
+const allFiltersEnabled = computed(() => {
+  return ACTUAL_SHOTS.every(t => !allShotCounts.value[t] || shotTypeFilter.value[t])
+})
 
-  // Get base positions (use wrist and hip as key indicators)
-  const baseWristX = baseFrame.wrist_x
-  const baseWristY = baseFrame.wrist_y
-  const baseHipX = baseFrame.hip_x
-  const baseHipY = baseFrame.hip_y
+function toggleShotFilter(type) {
+  shotTypeFilter.value[type] = !shotTypeFilter.value[type]
+}
 
-  // Need valid base positions
-  if (baseWristX == null || baseWristY == null) return false
-
-  for (let i = 1; i <= numFrames; i++) {
-    const frame = props.frames[frameIndex + i]
-    if (!frame?.player_detected) return false
-
-    const wristX = frame.wrist_x
-    const wristY = frame.wrist_y
-    const hipX = frame.hip_x
-    const hipY = frame.hip_y
-
-    if (wristX == null || wristY == null) return false
-
-    // Check if wrist moved too much
-    const wristDx = Math.abs(wristX - baseWristX)
-    const wristDy = Math.abs(wristY - baseWristY)
-    if (wristDx > threshold || wristDy > threshold) return false
-
-    // Check hip movement if available
-    if (baseHipX != null && hipX != null) {
-      const hipDx = Math.abs(hipX - baseHipX)
-      const hipDy = Math.abs(hipY - baseHipY)
-      if (hipDx > threshold || hipDy > threshold) return false
-    }
+function toggleAllFilters() {
+  const newState = !allFiltersEnabled.value
+  for (const type of ACTUAL_SHOTS) {
+    shotTypeFilter.value[type] = newState
   }
-
-  return true  // Player was still for all frames
 }
 
 // Time marker ticks for timeline (every 10 seconds for short videos, 30s for longer)
@@ -719,7 +891,13 @@ function handleKeydown(event) {
 
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown)
+  nextTick(drawShuttleStrip)
 })
+
+// Redraw shuttle strip when frames or toggle change
+watch(() => props.frames, () => nextTick(drawShuttleStrip), { deep: false })
+watch(showShuttleStrip, (v) => { if (v) nextTick(drawShuttleStrip) })
+watch(() => props.rallyThresholds, () => nextTick(drawShuttleStrip), { deep: true })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown)
@@ -1028,13 +1206,107 @@ function getShotClass(shotType) {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
+/* Shuttle visibility strip below timeline */
+.shuttle-visibility-strip {
+  margin-top: 2px;
+  height: 8px;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.shuttle-strip-canvas {
+  width: 100%;
+  height: 8px;
+  display: block;
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+/* Overlay toggles (shuttle strip, rally markers) */
+.overlay-toggles {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.overlay-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.6rem;
+  background: rgba(100, 100, 100, 0.15);
+  border-radius: 4px;
+  font-size: 0.72rem;
+  color: #666;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s;
+}
+
+.overlay-toggle:hover {
+  background: rgba(100, 100, 100, 0.25);
+}
+
+.overlay-toggle.active {
+  color: #ccc;
+  background: rgba(100, 100, 100, 0.3);
+}
+
+.toggle-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.toggle-dot.shuttle-dot {
+  background: #4ecca3;
+}
+
+.toggle-dot.rally-dot {
+  background: transparent;
+  border: 1px dashed #fff;
+  width: 2px;
+  height: 10px;
+  border-radius: 0;
+}
+
 .shot-summary-section {
   background: #1a1a2e;
   border-radius: 8px;
   padding: 0.75rem;
 }
 
-.shot-summary h4 {
+.filter-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.filter-header h4 {
+  margin: 0;
+  color: #4ecca3;
+  font-size: 0.9rem;
+}
+
+.filter-toggle-all {
+  background: #2a2a4a;
+  border: none;
+  color: #888;
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+
+.filter-toggle-all:hover {
+  background: #3a3a5a;
+  color: #eee;
+}
+
+.shot-filters h4 {
   margin: 0 0 0.75rem;
   color: #4ecca3;
   font-size: 0.9rem;
@@ -1054,6 +1326,18 @@ function getShotClass(shotType) {
   padding: 0.5rem;
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.1s;
+  user-select: none;
+}
+
+.shot-count-item:hover {
+  transform: scale(1.05);
+}
+
+.shot-count-item.disabled {
+  opacity: 0.3;
+  filter: grayscale(1);
 }
 
 .shot-count-value {
@@ -1159,57 +1443,46 @@ function getShotClass(shotType) {
   cursor: pointer;
 }
 
-.frame-info {
-  display: flex;
-  gap: 2rem;
-  padding: 0.75rem;
-  background: #1a1a2e;
-  border-radius: 8px;
-}
-
-.info-row {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-}
-
-.info-row .label {
-  color: #888;
-  font-size: 0.85rem;
-}
-
-.info-row .value {
-  color: #4ecca3;
-  font-size: 1.1rem;
-  font-weight: bold;
-}
-
-.info-row .total {
-  color: #666;
-  font-size: 0.85rem;
-}
-
-.info-row .frame-num {
-  color: #888;
-  font-size: 0.9rem;
-}
-
 .data-panel {
   background: #1a1a2e;
   border-radius: 8px;
-  padding: 1rem;
+  padding: 0.5rem;
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0.5rem;
+}
+
+@media (max-width: 900px) {
+  .metrics-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 500px) {
+  .metrics-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.metrics-col {
+  display: flex;
+  flex-direction: column;
 }
 
 .no-player {
   text-align: center;
   color: #888;
-  padding: 2rem;
+  padding: 1rem;
+  font-size: 0.8rem;
 }
 
 .metric-section {
-  margin-bottom: 1rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid #2a2a4a;
+  margin-bottom: 0.4rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid #232342;
 }
 
 .metric-section:last-child {
@@ -1219,28 +1492,39 @@ function getShotClass(shotType) {
 }
 
 .metric-section h4 {
-  margin: 0 0 0.75rem;
-  color: #888;
-  font-size: 0.8rem;
+  margin: 0 0 0.3rem;
+  color: #666;
+  font-size: 0.65rem;
   text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .metric-row {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 0.5rem;
+  gap: 0.4rem;
+  margin-bottom: 0.2rem;
 }
 
 .metric-label {
   color: #888;
-  font-size: 0.85rem;
-  min-width: 70px;
+  font-size: 0.72rem;
+  min-width: 52px;
 }
 
 .metric-value {
   color: #eee;
-  font-size: 0.9rem;
+  font-size: 0.75rem;
+}
+
+.metric-value.mono {
+  font-family: monospace;
+  font-size: 0.72rem;
+}
+
+.metric-value .dim {
+  color: #666;
+  font-size: 0.7rem;
 }
 
 .metric-value.direction {
@@ -1256,18 +1540,19 @@ function getShotClass(shotType) {
   flex: 1;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.3rem;
 }
 
 .metric-bar-container .metric-value {
-  min-width: 50px;
+  min-width: 36px;
   text-align: right;
+  font-size: 0.7rem;
 }
 
 .metric-bar {
-  height: 8px;
+  height: 5px;
   background: linear-gradient(90deg, #4ecca3 0%, #3db892 100%);
-  border-radius: 4px;
+  border-radius: 3px;
   min-width: 2px;
   transition: width 0.2s;
 }
@@ -1279,21 +1564,21 @@ function getShotClass(shotType) {
 .classification-display {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  margin-bottom: 0.75rem;
+  gap: 0.5rem;
+  margin-bottom: 0.3rem;
 }
 
 .shot-badge {
-  padding: 0.5rem 1rem;
-  border-radius: 20px;
+  padding: 0.25rem 0.6rem;
+  border-radius: 12px;
   font-weight: bold;
   text-transform: capitalize;
-  font-size: 1rem;
+  font-size: 0.75rem;
 }
 
 .shot-badge.small {
-  padding: 0.25rem 0.75rem;
-  font-size: 0.85rem;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.7rem;
 }
 
 .shot-smash { background: rgba(231, 76, 60, 0.3); color: #e74c3c; }
@@ -1309,60 +1594,73 @@ function getShotClass(shotType) {
 .shot-unknown { background: rgba(99, 110, 114, 0.3); color: #636e72; }
 
 .confidence {
-  font-size: 1.5rem;
+  font-size: 1rem;
   font-weight: bold;
   color: #4ecca3;
 }
 
 .reclassify-section {
   background: rgba(78, 204, 163, 0.1);
-  border-radius: 8px;
-  padding: 0.75rem;
-  margin-top: 0.5rem;
+  border-radius: 6px;
+  padding: 0.4rem;
+  margin-top: 0.25rem;
 }
 
 .reclassify-comparison {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.4rem;
   flex-wrap: wrap;
 }
 
 .reclassify-comparison .label {
   color: #888;
-  font-size: 0.8rem;
-  margin-right: 0.25rem;
+  font-size: 0.68rem;
+  margin-right: 0.15rem;
 }
 
 .arrow {
   color: #4ecca3;
-  font-size: 1.2rem;
+  font-size: 0.9rem;
 }
 
 .changed-badge {
   display: inline-block;
-  margin-top: 0.5rem;
-  padding: 0.25rem 0.5rem;
+  margin-top: 0.25rem;
+  padding: 0.15rem 0.35rem;
   background: rgba(241, 196, 15, 0.2);
   color: #f1c40f;
-  border-radius: 4px;
-  font-size: 0.75rem;
+  border-radius: 3px;
+  font-size: 0.65rem;
   font-weight: bold;
+}
+
+.shuttle-hit-badge {
+  display: inline-block;
+  margin-top: 0.2rem;
+  padding: 0.15rem 0.4rem;
+  background: rgba(231, 76, 60, 0.3);
+  color: #e74c3c;
+  border-radius: 3px;
+  font-size: 0.65rem;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .condition-badges {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
+  gap: 0.3rem;
+  margin-bottom: 0.3rem;
 }
 
 .condition-badge {
-  padding: 0.25rem 0.5rem;
+  padding: 0.15rem 0.35rem;
   background: rgba(100, 100, 100, 0.2);
   color: #666;
-  border-radius: 4px;
-  font-size: 0.7rem;
+  border-radius: 3px;
+  font-size: 0.65rem;
   text-transform: uppercase;
   transition: all 0.2s;
 }
@@ -1375,13 +1673,13 @@ function getShotClass(shotType) {
 
 .classification-reason {
   background: #1a1a2e;
-  border-radius: 4px;
-  padding: 0.5rem;
-  margin-top: 0.5rem;
+  border-radius: 3px;
+  padding: 0.25rem 0.35rem;
+  margin-top: 0.25rem;
 }
 
 .reason-text {
-  font-size: 0.7rem;
+  font-size: 0.6rem;
   color: #888;
   font-family: monospace;
   word-break: break-all;

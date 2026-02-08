@@ -30,6 +30,9 @@ venv/
 *.db
 *.sqlite3
 
+# Model weights
+weights/
+
 # Uploads
 uploads/
 

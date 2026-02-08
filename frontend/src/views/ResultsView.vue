@@ -28,6 +28,15 @@
           <h3>Avg Confidence</h3>
           <div class="value">{{ formatPercent(report.summary?.avg_confidence) }}</div>
         </div>
+        <div v-if="shuttleAvailable" class="card">
+          <h3>Shuttle Detection</h3>
+          <div class="value">{{ formatPercent(report.shuttle_tracking?.summary?.detection_rate) }}</div>
+          <div class="sub-value">{{ report.shuttle_tracking?.summary?.detected_frames || 0 }} / {{ report.shuttle_tracking?.summary?.total_frames || 0 }} frames</div>
+        </div>
+        <div v-if="shuttleAvailable" class="card">
+          <h3>Shuttle Hits</h3>
+          <div class="value">{{ report.summary?.shuttle_hits_detected || 0 }}</div>
+        </div>
       </div>
 
       <!-- Shot Distribution Chart -->
@@ -42,6 +51,22 @@
       <div class="section">
         <h2>Movement Heatmap</h2>
         <HeatmapGallery :job-id="jobId" />
+      </div>
+
+      <!-- Shot Timeline with Shuttle Speed -->
+      <div v-if="report.shot_timeline?.length" class="section">
+        <h2>Shot Timeline</h2>
+        <div class="timeline-list">
+          <div v-for="(shot, idx) in report.shot_timeline" :key="idx" class="timeline-entry">
+            <span class="timeline-time">{{ formatTime(shot.time) }}</span>
+            <span :class="['timeline-shot', `shot-${shot.shot}`]">{{ shot.shot?.replace('_', ' ') }}</span>
+            <span class="timeline-confidence">{{ (shot.confidence * 100).toFixed(0) }}%</span>
+            <span v-if="shot.shuttle_speed_px_per_sec" class="timeline-speed">
+              {{ Math.round(shot.shuttle_speed_px_per_sec) }} px/s
+            </span>
+            <span v-if="shot.shuttle_hit_matched" class="timeline-hit-badge">HIT</span>
+          </div>
+        </div>
       </div>
 
       <!-- Rally Timeline -->
@@ -87,6 +112,10 @@ const loading = ref(true)
 const error = ref('')
 const report = ref(null)
 const downloading = ref(false)
+
+const shuttleAvailable = computed(() => {
+  return report.value?.shuttle_tracking?.available === true
+})
 
 const chartData = computed(() => {
   if (!report.value?.shot_distribution) return null
@@ -164,6 +193,13 @@ function formatPercent(value) {
   return (value * 100).toFixed(1) + '%'
 }
 
+function formatTime(seconds) {
+  if (seconds === undefined || seconds === null) return '-'
+  const m = Math.floor(seconds / 60)
+  const s = (seconds % 60).toFixed(1)
+  return `${m}:${s.padStart(4, '0')}`
+}
+
 async function downloadVideo() {
   downloading.value = true
   try {
@@ -226,7 +262,7 @@ h1 {
 
 .summary-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 1rem;
   margin-bottom: 2rem;
 }
@@ -251,6 +287,12 @@ h1 {
   font-weight: bold;
 }
 
+.card .sub-value {
+  color: #666;
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+}
+
 .section {
   background: #16213e;
   border-radius: 12px;
@@ -266,6 +308,61 @@ h1 {
 
 .chart-container {
   height: 300px;
+}
+
+/* Shot Timeline */
+.timeline-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.timeline-entry {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #1a1a3e;
+}
+
+.timeline-time {
+  color: #888;
+  font-size: 0.85rem;
+  min-width: 60px;
+  font-family: monospace;
+}
+
+.timeline-shot {
+  font-weight: bold;
+  font-size: 0.9rem;
+  text-transform: capitalize;
+  min-width: 80px;
+}
+
+.shot-smash { color: #e74c3c; }
+.shot-clear { color: #2ecc71; }
+.shot-drop_shot { color: #f39c12; }
+.shot-net_shot { color: #3498db; }
+.shot-drive { color: #9b59b6; }
+.shot-lift { color: #1abc9c; }
+
+.timeline-confidence {
+  color: #666;
+  font-size: 0.8rem;
+}
+
+.timeline-speed {
+  color: #f39c12;
+  font-size: 0.8rem;
+  font-family: monospace;
+}
+
+.timeline-hit-badge {
+  background: #e74c3c;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: bold;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
 }
 
 .btn-download {

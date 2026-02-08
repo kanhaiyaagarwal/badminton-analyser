@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 from v2_court_bounded_analyzer import CourtBoundedAnalyzer, CourtBoundary
 from heatmap_visualizer import HeatmapVisualizer
+from api.services.shuttle_service import ShuttleService
 
 
 class AnalyzerService:
@@ -26,34 +27,21 @@ class AnalyzerService:
     UNSUPPORTED_CODECS = ['av1', 'av01', 'vp9', 'vp09']
 
     SPEED_PRESETS = {
-        "turbo": {
-            "process_every_n_frames": 4,
-            "processing_width": 320,
-            "model_complexity": 0,
-            "skip_static_frames": True,
-            "skip_video_output": True  # Biggest speedup!
-        },
         "fast": {
-            "process_every_n_frames": 3,
             "processing_width": 480,
             "model_complexity": 0,
-            "skip_static_frames": True,
-            "skip_video_output": False
+            "skip_video_output": False,
         },
         "balanced": {
-            "process_every_n_frames": 2,
             "processing_width": 640,
             "model_complexity": 1,
-            "skip_static_frames": True,
-            "skip_video_output": False
+            "skip_video_output": False,
         },
         "accurate": {
-            "process_every_n_frames": 1,
             "processing_width": 960,
             "model_complexity": 1,
-            "skip_static_frames": False,
-            "skip_video_output": False
-        }
+            "skip_video_output": False,
+        },
     }
 
     @staticmethod
@@ -465,18 +453,31 @@ class AnalyzerService:
         video_fps = cap.get(cv2.CAP_PROP_FPS) if cap.isOpened() else 30.0
         cap.release()
 
-        # Calculate effective FPS (accounts for frame skipping)
-        effective_fps = video_fps / preset["process_every_n_frames"]
-        logger.info(f"Video FPS: {video_fps:.1f}, effective FPS: {effective_fps:.1f} (every {preset['process_every_n_frames']} frames)")
+        # No frame skipping — both models process every frame
+        effective_fps = video_fps
+        logger.info(f"Video FPS: {video_fps:.1f}, effective FPS: {effective_fps:.1f} (every frame)")
+
+        # Initialize shuttle tracker if available
+        shuttle_tracker = None
+        if ShuttleService.is_available():
+            logger.info("Shuttle tracking available — initializing TrackNetV2")
+            shuttle_tracker = ShuttleService.create_tracker()
+            if shuttle_tracker:
+                logger.info("ShuttleTracker initialized successfully")
+            else:
+                logger.warning("ShuttleTracker initialization failed, continuing without")
+        else:
+            logger.info("Shuttle tracking not available (missing torch or weights)")
 
         # Prepare analyzer kwargs with optional thresholds
         analyzer_kwargs = {
             "court_boundary": court,
-            "process_every_n_frames": preset["process_every_n_frames"],
+            "process_every_n_frames": 1,  # No frame skipping
             "processing_width": preset["processing_width"],
             "model_complexity": preset["model_complexity"],
-            "skip_static_frames": preset["skip_static_frames"],
+            "skip_static_frames": False,  # No frame skipping
             "effective_fps": effective_fps,
+            "shuttle_tracker": shuttle_tracker,
         }
 
         # Add custom thresholds if provided
@@ -503,7 +504,7 @@ class AnalyzerService:
         # Output paths
         video_name = Path(video_path).stem
 
-        # Skip video output for turbo mode (major speedup)
+        # Skip video output if preset requests it
         skip_video = preset.get("skip_video_output", False)
         annotated_video_path = None if skip_video else str(output_dir / f"analyzed_{video_name}.mp4")
 

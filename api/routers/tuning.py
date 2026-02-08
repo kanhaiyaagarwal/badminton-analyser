@@ -37,6 +37,7 @@ from ..models.tuning import (
 from ..services.tuning_service import (
     TuningService,
     load_frame_data,
+    enrich_frame_data,
     reclassify_shots,
     extract_velocity_thresholds,
 )
@@ -55,6 +56,7 @@ def _load_job_frame_data(job) -> Optional[dict]:
     """Load frame data for a job from local storage or S3.
 
     Returns the frame data dict or None if not found.
+    Automatically enriches old-format data that's missing velocity/classification fields.
     """
     frame_data = None
     settings = get_settings()
@@ -68,7 +70,7 @@ def _load_job_frame_data(job) -> Optional[dict]:
             frame_data = load_frame_data(str(frame_data_files[0]))
             if frame_data:
                 logger.info(f"Loaded frame data from local: {frame_data_files[0]}")
-                return frame_data
+                return enrich_frame_data(frame_data)
 
     # If not found locally, try S3
     from ..services.storage_service import get_storage_service
@@ -93,7 +95,7 @@ def _load_job_frame_data(job) -> Optional[dict]:
                     if data:
                         frame_data = json.loads(data.decode('utf-8'))
                         logger.info(f"Loaded frame data from S3: {test_key}")
-                        return frame_data
+                        return enrich_frame_data(frame_data)
                 except Exception:
                     continue
 
@@ -108,7 +110,7 @@ def _load_job_frame_data(job) -> Optional[dict]:
                     data = storage.outputs.load(obj['Key'])
                     frame_data = json.loads(data.decode('utf-8'))
                     logger.info(f"Loaded frame data from S3: {obj['Key']}")
-                    return frame_data
+                    return enrich_frame_data(frame_data)
 
         except Exception as e:
             logger.warning(f"Failed to load frame data from S3: {e}")
