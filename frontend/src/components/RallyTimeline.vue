@@ -15,7 +15,7 @@
           <div class="rally-info">
             <span class="rally-id">Rally {{ rally.rally_id }}</span>
             <span class="rally-stats">
-              {{ rally.shot_count }} shots | {{ rally.duration.toFixed(1) }}s
+              {{ rally.hit_count ?? rally.shot_count }} hits | {{ (rally.rally_duration ?? rally.duration).toFixed(1) }}s
             </span>
           </div>
           <div class="rally-preview">

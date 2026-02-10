@@ -598,6 +598,15 @@ class ShotClassifier:
                     if r_start <= h["timestamp"] <= r_end
                 ]
                 rally["hit_count"] = len(rally_hits)
+                # Tighter duration based on first-to-last hit
+                if len(rally_hits) >= 2:
+                    rally["rally_duration"] = round(
+                        rally_hits[-1]["timestamp"] - rally_hits[0]["timestamp"], 2
+                    )
+                elif len(rally_hits) == 1:
+                    rally["rally_duration"] = 0.0
+                else:
+                    rally["rally_duration"] = rally["duration"]
 
         # Build timeline
         shot_timeline = []
