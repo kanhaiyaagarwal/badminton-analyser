@@ -1446,6 +1446,7 @@ class CourtBoundedAnalyzer:
         raw_frame_data = []
         shuttle_frame_buffer = []  # 3-frame sliding window for TrackNetV2
         frame_number = 0
+        last_known_transform = None  # Carry forward court_transform for frames without player
 
         try:
             while True:
@@ -1464,6 +1465,7 @@ class CourtBoundedAnalyzer:
                     "pose_state": None,
                     "foot_position": None,
                     "shuttle": None,
+                    "court_transform": None,
                 }
 
                 # --- Pose detection (every frame) ---
@@ -1475,9 +1477,23 @@ class CourtBoundedAnalyzer:
                     frame_data["pose_state"] = self._extract_pose_state(pose_landmarks, timestamp)
                     frame_data["foot_position"] = self._extract_foot_position(pose_landmarks)
 
+                    # Store court crop transform for hit-centric classification
+                    if hasattr(self, '_last_transform') and self._last_transform:
+                        frame_data["court_transform"] = {
+                            'x1': self._last_transform['x1'],
+                            'y1': self._last_transform['y1'],
+                            'court_w': self._last_transform['court_w'],
+                            'court_h': self._last_transform['court_h'],
+                        }
+                        last_known_transform = frame_data["court_transform"]
+
                     # Accumulate foot position for heatmap
                     self.player_detected_frames += 1
                     self._accumulate_foot_position(pose_landmarks, frame_number, timestamp)
+
+                # Carry forward court_transform for frames without player detection
+                if not frame_data["player_detected"] and last_known_transform:
+                    frame_data["court_transform"] = last_known_transform
 
                 self.total_frames_processed += 1
 
@@ -1560,6 +1576,8 @@ class CourtBoundedAnalyzer:
                 hit_gate_min=getattr(self, 'hit_gate_min', 0.03),
                 hit_wrist_bonus=getattr(self, 'hit_wrist_bonus', 0.10),
                 hit_wrist_window=getattr(self, 'hit_wrist_window', 8),
+                attribution_window=getattr(self, 'attribution_window', 15),
+                window_thresholds=getattr(self, 'window_thresholds', None),
             )
             classified = classifier.classify_all(raw_frame_data, fps)
         else:
@@ -1623,6 +1641,7 @@ class CourtBoundedAnalyzer:
                         "hit_gate_min": getattr(self, 'hit_gate_min', 0.03),
                         "hit_wrist_bonus": getattr(self, 'hit_wrist_bonus', 0.10),
                         "hit_wrist_window": getattr(self, 'hit_wrist_window', 8),
+                        "attribution_window": getattr(self, 'attribution_window', 15),
                     },
                     "cooldown_seconds": self.shot_cooldown_seconds,
                     "frames": tuning_frames
@@ -1973,6 +1992,21 @@ class CourtBoundedAnalyzer:
                     "cooldown_active": cooldown_active,
                 }
 
+        # When hit-centric classification was used, REPLACE all per-frame
+        # classifications with only the hit-centric results.  This prevents
+        # legacy per-frame detections from leaking onto the seek bar.
+        hit_centric_shots = classified.get("shots", [])
+        if any(s.get("shuttle_hit_matched") for s in hit_centric_shots):
+            per_frame_classification = {}
+            for shot in hit_centric_shots:
+                fn = shot["frame"]
+                per_frame_classification[fn] = {
+                    "swing_type": shot.get("swing_type", "none"),
+                    "shot_type": shot["shot_type"],
+                    "confidence": shot["confidence"],
+                    "cooldown_active": False,
+                }
+
         P = self.POSITION_THRESHOLDS
         tuning = []
         for i, fd in enumerate(raw_frame_data):
@@ -2049,6 +2083,22 @@ class CourtBoundedAnalyzer:
                 entry["shuttle_y"] = shuttle.get("y") if visible else None
                 entry["shuttle_confidence"] = shuttle.get("confidence")
                 entry["shuttle_visible"] = visible
+
+            # Court transform for hit-centric reclassification
+            ct = fd.get("court_transform")
+            if ct:
+                entry["court_transform_x1"] = ct.get("x1")
+                entry["court_transform_y1"] = ct.get("y1")
+                entry["court_transform_w"] = ct.get("court_w")
+                entry["court_transform_h"] = ct.get("court_h")
+
+            # Player bbox
+            bbox = fd.get("player_bbox")
+            if bbox:
+                entry["player_bbox_x1"] = bbox[0]
+                entry["player_bbox_y1"] = bbox[1]
+                entry["player_bbox_x2"] = bbox[2]
+                entry["player_bbox_y2"] = bbox[3]
 
             tuning.append(entry)
 

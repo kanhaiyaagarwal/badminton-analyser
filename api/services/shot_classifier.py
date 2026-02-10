@@ -432,10 +432,22 @@ class ShotClassifier:
         'arm_extension_min': 0.15,
     }
 
+    DEFAULT_WINDOW_THRESHOLDS = {
+        'overhead_offset_window': 0.03,  # wrist-above-shoulder offset for window
+        'overhead_pct_min': 0.15,        # min % overhead frames for smash/clear/drop
+        'net_height_max': 0.18,          # max avg_wrist_y for net shot
+        'net_body_max': 0.25,            # max avg_hip_y for net shot (body low = lunging)
+        'lift_hip_min': 0.42,            # avg_hip_y above this → lift (deep crouch)
+        'lift_hip_secondary': 0.35,      # secondary hip threshold (with gap + wrist checks)
+        'lift_gap_max': 0.08,            # max wrist-hip gap for secondary lift
+        'lift_wrist_min': 0.28,          # min avg_wrist_y for secondary lift
+    }
+
     def __init__(
         self,
         velocity_thresholds: Optional[Dict[str, float]] = None,
         position_thresholds: Optional[Dict[str, float]] = None,
+        window_thresholds: Optional[Dict[str, float]] = None,
         shot_cooldown_seconds: float = 0.4,
         effective_fps: float = 30.0,
         rally_gap_seconds: float = 3.0,
@@ -450,6 +462,8 @@ class ShotClassifier:
         hit_gate_min: float = 0.03,
         hit_wrist_bonus: float = 0.10,
         hit_wrist_window: int = 8,
+        # Hit-centric: how many frames to look back from each hit
+        attribution_window: int = 15,
         # Legacy params accepted for backwards compatibility
         shuttle_hit_window: int = 30,
         shuttle_hit_direction_pct: float = 80.0,
@@ -458,6 +472,7 @@ class ShotClassifier:
     ):
         self.T = {**self.DEFAULT_VELOCITY_THRESHOLDS, **(velocity_thresholds or {})}
         self.P = {**self.DEFAULT_POSITION_THRESHOLDS, **(position_thresholds or {})}
+        self.W = {**self.DEFAULT_WINDOW_THRESHOLDS, **(window_thresholds or {})}
         self.shot_cooldown_seconds = shot_cooldown_seconds
         self.effective_fps = effective_fps
         self.rally_gap_seconds = rally_gap_seconds
@@ -472,6 +487,8 @@ class ShotClassifier:
         self.hit_gate_min = hit_gate_min
         self.hit_wrist_bonus = hit_wrist_bonus
         self.hit_wrist_window = hit_wrist_window
+        # Hit-centric lookback
+        self.attribution_window = attribution_window
 
     def classify_all(self, raw_frame_data: List[dict], fps: float) -> dict:
         """
@@ -494,66 +511,76 @@ class ShotClassifier:
         # Phase 1: Compute velocities from pose state history
         velocity_data = self._compute_velocities(raw_frame_data)
 
-        # Phase 2: Classify each frame (swing -> shot)
-        shots = []
-        last_shot_timestamp = -999.0
-        session_stats: Dict[str, int] = {}
-
-        for i, frame in enumerate(raw_frame_data):
-            if not frame.get("player_detected"):
-                continue
-
-            vel_info = velocity_data[i] if i < len(velocity_data) else {}
-            if not vel_info:
-                continue
-
-            pose_state = frame.get("pose_state")
-            if not pose_state:
-                continue
-
-            # Classify swing type
-            swing_type = self._classify_swing(
-                vel_info["wrist_velocity"],
-                vel_info["wrist_direction"],
-                pose_state,
-                vel_info.get("wrist_dy_per_sec", 0),
-                vel_info.get("pose_history_window", []),
-            )
-
-            # Classify shot from swing
-            shot_type, confidence = self._classify_shot(swing_type, vel_info["wrist_velocity"])
-
-            # Apply cooldown
-            timestamp = frame["timestamp"]
-            if shot_type in self.ACTUAL_SHOTS and confidence > 0.5:
-                if timestamp - last_shot_timestamp < self.shot_cooldown_seconds:
-                    shot_type = 'follow_through'
-                    confidence = 0.3
-                else:
-                    last_shot_timestamp = timestamp
-
-            if shot_type in self.ACTUAL_SHOTS and confidence > 0.5:
-                session_stats[shot_type] = session_stats.get(shot_type, 0) + 1
-                shots.append({
-                    "frame": frame["frame_number"],
-                    "timestamp": timestamp,
-                    "shot_type": shot_type,
-                    "confidence": round(confidence, 3),
-                    "swing_type": swing_type,
-                    "wrist_velocity": round(vel_info["wrist_velocity"], 3),
-                })
-
         # Inject wrist_velocity into raw frames for shuttle hit co-detection
         for i, frame in enumerate(raw_frame_data):
             vel_info = velocity_data[i] if i < len(velocity_data) else {}
             if vel_info and "wrist_velocity" in vel_info:
                 frame["wrist_velocity"] = vel_info["wrist_velocity"]
 
-        # Phase 3: Detect shuttle hits (arc direction changes)
+        # Phase 2: Detect shuttle hits (arc direction changes)
         shuttle_hits = self._detect_shuttle_hits(raw_frame_data, fps)
 
-        # Phase 4: Match shots with shuttle hits
-        enriched_shots = self._match_shots_with_shuttle_hits(shots, shuttle_hits)
+        # Phase 3: Choose classification path
+        has_shuttle = len(shuttle_hits) > 0
+
+        if has_shuttle:
+            # Hit-centric: for each shuttle hit, look back at player movement
+            enriched_shots = self._classify_hits_centric(
+                raw_frame_data, shuttle_hits, velocity_data, fps
+            )
+            session_stats: Dict[str, int] = {}
+            for s in enriched_shots:
+                st = s["shot_type"]
+                if st in self.ACTUAL_SHOTS:
+                    session_stats[st] = session_stats.get(st, 0) + 1
+        else:
+            # Legacy: per-frame classify + match
+            shots = []
+            last_shot_timestamp = -999.0
+            session_stats = {}
+
+            for i, frame in enumerate(raw_frame_data):
+                if not frame.get("player_detected"):
+                    continue
+
+                vel_info = velocity_data[i] if i < len(velocity_data) else {}
+                if not vel_info:
+                    continue
+
+                pose_state = frame.get("pose_state")
+                if not pose_state:
+                    continue
+
+                swing_type = self._classify_swing(
+                    vel_info["wrist_velocity"],
+                    vel_info["wrist_direction"],
+                    pose_state,
+                    vel_info.get("wrist_dy_per_sec", 0),
+                    vel_info.get("pose_history_window", []),
+                )
+
+                shot_type, confidence = self._classify_shot(swing_type, vel_info["wrist_velocity"])
+
+                timestamp = frame["timestamp"]
+                if shot_type in self.ACTUAL_SHOTS and confidence > 0.5:
+                    if timestamp - last_shot_timestamp < self.shot_cooldown_seconds:
+                        shot_type = 'follow_through'
+                        confidence = 0.3
+                    else:
+                        last_shot_timestamp = timestamp
+
+                if shot_type in self.ACTUAL_SHOTS and confidence > 0.5:
+                    session_stats[shot_type] = session_stats.get(shot_type, 0) + 1
+                    shots.append({
+                        "frame": frame["frame_number"],
+                        "timestamp": timestamp,
+                        "shot_type": shot_type,
+                        "confidence": round(confidence, 3),
+                        "swing_type": swing_type,
+                        "wrist_velocity": round(vel_info["wrist_velocity"], 3),
+                    })
+
+            enriched_shots = self._match_shots_with_shuttle_hits(shots, shuttle_hits)
 
         # Phase 5: Build rallies
         # Use shuttle-based rally detection when shuttle data is available,
@@ -948,6 +975,158 @@ class ShotClassifier:
             enriched.append(enriched_shot)
 
         return enriched
+
+    # ------------------------------------------------------------------
+    # Hit-centric shot classification
+    # ------------------------------------------------------------------
+
+    def _classify_hits_centric(
+        self,
+        raw_frame_data: List[dict],
+        shuttle_hits: List[dict],
+        velocity_data: List[dict],
+        fps: float,
+    ) -> List[dict]:
+        """Hit-centric shot classification using sliding window features.
+
+        For each shuttle hit, collect pose data over the preceding
+        ``attribution_window`` frames and compute aggregate features
+        (avg wrist/shoulder/hip positions, overhead %, peak velocity).
+        Classification uses these window-level features rather than a
+        single peak-velocity frame, which is more robust to frame-to-frame
+        noise.
+
+        Decision order: net_shot → smash → clear → drop → lift → drive.
+
+        Returns list of shot dicts compatible with existing format.
+        """
+        # Build frame_number → index lookup
+        frame_lookup: Dict[int, int] = {}
+        for i, fd in enumerate(raw_frame_data):
+            frame_lookup[fd.get("frame_number", i)] = i
+
+        lookback = self.attribution_window
+        T = self.T
+        W = self.W  # window classification thresholds
+        shots: List[dict] = []
+
+        for hit in shuttle_hits:
+            hit_frame = hit["frame"]
+            hit_ts = hit["timestamp"]
+            hit_idx = frame_lookup.get(hit_frame)
+            if hit_idx is None:
+                continue
+
+            lo = max(0, hit_idx - lookback)
+
+            # Collect window features from pose data
+            wrist_ys: List[float] = []
+            shoulder_ys: List[float] = []
+            hip_ys: List[float] = []
+            velocities: List[float] = []
+
+            for i in range(lo, hit_idx + 1):
+                fd = raw_frame_data[i]
+                vel_info = velocity_data[i] if i < len(velocity_data) else {}
+                velocities.append(vel_info.get("wrist_velocity", 0.0))
+
+                if fd.get("player_detected") and fd.get("pose_state"):
+                    ps = fd["pose_state"]
+                    wrist_ys.append(ps["wrist"][1])
+                    shoulder_ys.append(ps["shoulder"][1])
+                    hip_ys.append(ps["hip_center"][1])
+
+            n_pose = len(wrist_ys)
+            max_vel = max(velocities) if velocities else 0.0
+
+            # Activity gate: skip hits where the player's wrist was
+            # barely moving — likely an opponent shot, not ours.
+            if max_vel < T["movement"]:
+                continue
+
+            if n_pose == 0:
+                # No pose data in window — default to drive
+                shots.append({
+                    "frame": hit_frame,
+                    "timestamp": hit_ts,
+                    "shot_type": "drive",
+                    "confidence": 0.3,
+                    "swing_type": "window_no_pose",
+                    "wrist_velocity": round(max_vel, 3),
+                    "shuttle_speed_px_per_sec": hit.get("speed_px_per_sec"),
+                    "shuttle_hit_matched": True,
+                })
+                continue
+
+            avg_wy = sum(wrist_ys) / n_pose
+            avg_sy = sum(shoulder_ys) / n_pose
+            avg_hy = sum(hip_ys) / n_pose
+
+            # Overhead: % of frames with wrist above shoulder (small offset)
+            overhead_off = W["overhead_offset_window"]
+            pct_overhead = sum(
+                1 for wy, sy in zip(wrist_ys, shoulder_ys)
+                if wy < sy - overhead_off
+            ) / n_pose
+
+            # Wrist-hip gap (positive = wrist above hip)
+            wrist_hip_gap = avg_hy - avg_wy
+
+            # --- Classification (order matters) ---
+
+            # 1. NET SHOT: wrist very high on screen AND body low (lunging)
+            if avg_wy < W["net_height_max"] and avg_hy < W["net_body_max"]:
+                shot_type = "net_shot"
+                confidence = min(0.80, 0.5 + max_vel * 0.05)
+
+            # 2. SMASH: overhead + high velocity
+            elif pct_overhead > W["overhead_pct_min"] and max_vel > T["smash_vs_clear"]:
+                shot_type = "smash"
+                confidence = min(0.95, 0.7 + (max_vel - T["smash_vs_clear"]) * 0.05)
+
+            # 3. CLEAR: overhead + moderate velocity
+            elif pct_overhead > W["overhead_pct_min"] and max_vel > T["gentle_overhead"]:
+                shot_type = "clear"
+                confidence = min(0.85, 0.6 + (max_vel - T["gentle_overhead"]) * 0.1)
+
+            # 4. DROP: overhead + low velocity
+            elif pct_overhead > W["overhead_pct_min"] and max_vel > T.get("drop_min", 0.8):
+                shot_type = "drop_shot"
+                confidence = min(0.80, 0.5 + max_vel * 0.1)
+
+            # 5. LIFT: body low (crouching) OR wrist near hip level
+            elif (
+                avg_hy > W["lift_hip_min"]
+                or (
+                    avg_hy > W["lift_hip_secondary"]
+                    and wrist_hip_gap < W["lift_gap_max"]
+                    and avg_wy > W["lift_wrist_min"]
+                )
+            ):
+                shot_type = "lift"
+                confidence = min(0.75, 0.4 + max_vel * 0.08) if max_vel > 0.8 else 0.4
+
+            # 6. DRIVE: default mid-court shot
+            else:
+                shot_type = "drive"
+                confidence = (
+                    min(0.75, 0.5 + (max_vel - T["drive"]) * 0.1)
+                    if max_vel > T["drive"]
+                    else 0.4
+                )
+
+            shots.append({
+                "frame": hit_frame,
+                "timestamp": hit_ts,
+                "shot_type": shot_type,
+                "confidence": round(confidence, 3),
+                "swing_type": f"window_{shot_type}",
+                "wrist_velocity": round(max_vel, 3),
+                "shuttle_speed_px_per_sec": hit.get("speed_px_per_sec"),
+                "shuttle_hit_matched": True,
+            })
+
+        return shots
 
     # ------------------------------------------------------------------
     # Rally building

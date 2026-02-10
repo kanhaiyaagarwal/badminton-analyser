@@ -368,6 +368,82 @@ def get_default_badminton_thresholds() -> Dict[str, Any]:
                 "description": "Max movement (as fraction) to be considered still"
             }
         },
+        "shot_attribution": {
+            "attribution_window": {
+                "value": 15,
+                "min": 3,
+                "max": 30,
+                "step": 1,
+                "label": "Lookback Window",
+                "description": "Frames to look back from each shuttle hit for sliding window features"
+            }
+        },
+        "window_classification": {
+            "overhead_offset_window": {
+                "value": 0.03,
+                "min": 0.0,
+                "max": 0.10,
+                "step": 0.01,
+                "label": "Overhead Offset (Window)",
+                "description": "Wrist-above-shoulder offset for window overhead detection"
+            },
+            "overhead_pct_min": {
+                "value": 0.15,
+                "min": 0.05,
+                "max": 0.50,
+                "step": 0.05,
+                "label": "Overhead % Min",
+                "description": "Min % of window frames with overhead wrist for smash/clear/drop"
+            },
+            "net_height_max": {
+                "value": 0.18,
+                "min": 0.05,
+                "max": 0.30,
+                "step": 0.01,
+                "label": "Net Height Max",
+                "description": "Max avg wrist Y for net shot (lower = stricter, 0=top of court)"
+            },
+            "net_body_max": {
+                "value": 0.25,
+                "min": 0.15,
+                "max": 0.50,
+                "step": 0.01,
+                "label": "Net Body Max",
+                "description": "Max avg hip Y for net shot (body must be lunging low)"
+            },
+            "lift_hip_min": {
+                "value": 0.42,
+                "min": 0.30,
+                "max": 0.60,
+                "step": 0.01,
+                "label": "Lift Hip Min",
+                "description": "Avg hip Y above this → lift (deep crouch)"
+            },
+            "lift_hip_secondary": {
+                "value": 0.35,
+                "min": 0.25,
+                "max": 0.50,
+                "step": 0.01,
+                "label": "Lift Hip Secondary",
+                "description": "Secondary hip threshold (requires gap + wrist checks)"
+            },
+            "lift_gap_max": {
+                "value": 0.08,
+                "min": 0.02,
+                "max": 0.20,
+                "step": 0.01,
+                "label": "Lift Gap Max",
+                "description": "Max wrist-hip gap for secondary lift detection"
+            },
+            "lift_wrist_min": {
+                "value": 0.28,
+                "min": 0.15,
+                "max": 0.50,
+                "step": 0.01,
+                "label": "Lift Wrist Min",
+                "description": "Min avg wrist Y for secondary lift (prevents drives being called lifts)"
+            }
+        },
         "shuttle_hit": {
             "hit_disp_window": {
                 "value": 15,
@@ -493,6 +569,29 @@ def get_badminton_activity_schema() -> Dict[str, Any]:
                 "thresholds": [
                     {"key": "shuttle_gap_frames", "label": "Shuttle Gap Window", "min": 3, "max": 300, "step": 1, "default": 90, "description": "Frame window to check shuttle absence"},
                     {"key": "shuttle_gap_miss_pct", "label": "Shuttle Miss %", "min": 50, "max": 100, "step": 5, "default": 80, "unit": "%", "description": "% of frames without shuttle to trigger rally break"}
+                ]
+            },
+            {
+                "key": "shot_attribution",
+                "label": "Shot Classification",
+                "description": "Hit-centric: classify shot type by looking at player movement before each shuttle hit",
+                "thresholds": [
+                    {"key": "attribution_window", "label": "Lookback Window", "min": 3, "max": 30, "step": 1, "default": 15, "description": "Frames to look back from each hit for sliding window features"}
+                ]
+            },
+            {
+                "key": "window_classification",
+                "label": "Window Shot Classification",
+                "description": "Sliding window thresholds for shot type classification based on body position averages",
+                "thresholds": [
+                    {"key": "overhead_offset_window", "label": "Overhead Offset", "min": 0.0, "max": 0.10, "step": 0.01, "default": 0.03, "description": "Wrist-above-shoulder offset for overhead detection"},
+                    {"key": "overhead_pct_min", "label": "Overhead % Min", "min": 0.05, "max": 0.50, "step": 0.05, "default": 0.15, "description": "Min % overhead frames for smash/clear/drop"},
+                    {"key": "net_height_max", "label": "Net Height Max", "min": 0.05, "max": 0.30, "step": 0.01, "default": 0.18, "description": "Max avg wrist Y for net shot"},
+                    {"key": "net_body_max", "label": "Net Body Max", "min": 0.15, "max": 0.50, "step": 0.01, "default": 0.25, "description": "Max avg hip Y for net shot"},
+                    {"key": "lift_hip_min", "label": "Lift Hip Min", "min": 0.30, "max": 0.60, "step": 0.01, "default": 0.42, "description": "Avg hip Y above this = lift (deep crouch)"},
+                    {"key": "lift_hip_secondary", "label": "Lift Hip Secondary", "min": 0.25, "max": 0.50, "step": 0.01, "default": 0.35, "description": "Secondary hip threshold with gap+wrist checks"},
+                    {"key": "lift_gap_max", "label": "Lift Gap Max", "min": 0.02, "max": 0.20, "step": 0.01, "default": 0.08, "description": "Max wrist-hip gap for secondary lift"},
+                    {"key": "lift_wrist_min", "label": "Lift Wrist Min", "min": 0.15, "max": 0.50, "step": 0.01, "default": 0.28, "description": "Min avg wrist Y for secondary lift"}
                 ]
             },
             {

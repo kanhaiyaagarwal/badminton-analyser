@@ -118,6 +118,20 @@
                 <span v-if="isNearCurrentFrame(hit.index)" class="manual-hit-tooltip">Manual</span>
               </div>
             </template>
+            <!-- Manual shot label markers -->
+            <template v-if="manualShotLabelMarkers.length > 0">
+              <div
+                v-for="label in manualShotLabelMarkers"
+                :key="'label-' + label.index"
+                class="shot-label-marker"
+                :class="[getShotMarkerClass(label.type), { 'at-position': isNearCurrentFrame(label.index) }]"
+                :style="{ left: getMarkerPosition(label.index) + '%' }"
+                :title="`Manual: ${formatShotType(label.type)} @ ${formatTime(label.timestamp)}`"
+                @click="goToFrameIndex(label.index)"
+              >
+                <span v-if="isNearCurrentFrame(label.index)" class="shot-label">{{ formatShotType(label.type) }}</span>
+              </div>
+            </template>
             <!-- Shot markers (filtered) -->
             <div
               v-for="shot in filteredShotFrames"
@@ -152,6 +166,22 @@
         >
           {{ manualHitFrameIndices.has(localFrame) ? 'Unmark Hit' : 'Mark Hit' }}
         </button>
+        <!-- Shot type label dropdown (always visible) -->
+        <select
+          :value="manualShotLabels.get(localFrame) || ''"
+          @change="setManualShotLabel(localFrame, $event.target.value)"
+          class="shot-label-select"
+          title="Label shot type (S)"
+        >
+          <option value="">-- Label --</option>
+          <option value="smash">Smash</option>
+          <option value="clear">Clear</option>
+          <option value="drop_shot">Drop</option>
+          <option value="net_shot">Net</option>
+          <option value="drive">Drive</option>
+          <option value="lift">Lift</option>
+          <option value="opponent_hit">Opponent</option>
+        </select>
         <button @click="downloadRawData" class="action-btn download-btn" title="Download all frame data as JSON">
           Download Data
         </button>
@@ -222,6 +252,13 @@
         >
           <span class="toggle-dot manual-hit-dot"></span>
           Manual Hits ({{ manualHitCount }})
+        </div>
+        <div
+          v-if="manualShotLabelMarkers.length > 0"
+          class="overlay-toggle active"
+        >
+          <span class="toggle-dot" style="background: #4ecca3; border: 1px solid #fff;"></span>
+          Shot Labels ({{ manualShotLabelMarkers.length }})
         </div>
       </div>
 
@@ -412,6 +449,27 @@
                 </div>
               </template>
             </div>
+
+            <!-- Shot label info (when on a hit frame) -->
+            <div v-if="isCurrentFrameHit" class="metric-section">
+              <h4>Hit Classification</h4>
+              <div v-if="currentFrameData.shot_type && currentFrameData.shuttle_hit_matched" class="metric-row">
+                <span class="metric-label">Auto:</span>
+                <span :class="['shot-badge small', getShotClass(currentFrameData.shot_type)]">
+                  {{ formatShotType(currentFrameData.shot_type) }}
+                </span>
+              </div>
+              <div v-if="currentFrameData.swing_type" class="metric-row">
+                <span class="metric-label">Swing:</span>
+                <span class="metric-value">{{ currentFrameData.swing_type }}</span>
+              </div>
+              <div v-if="manualShotLabels.has(localFrame)" class="metric-row">
+                <span class="metric-label">Label:</span>
+                <span :class="['shot-badge small', getShotClass(manualShotLabels.get(localFrame))]">
+                  {{ formatShotType(manualShotLabels.get(localFrame)) }}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </template>
@@ -422,6 +480,7 @@
       <span>← / → : Navigate frames</span>
       <span>Home / End : Jump to start/end</span>
       <span>H : Mark/unmark hit</span>
+      <span>S : Focus shot label</span>
     </div>
   </div>
 </template>
@@ -492,6 +551,7 @@ const showRallyMarkers = ref(true)
 const showHitMarkers = ref(true)
 const manualHitFrameIndices = ref(new Set())
 const showManualHitMarkers = ref(true)
+const manualShotLabels = ref(new Map())  // frameIndex → shot_type string
 
 const hasShuttleData = computed(() => {
   return props.frames.some(f => f.shuttle_visible !== undefined)
@@ -809,6 +869,34 @@ const manualHitMarkers = computed(() => {
 })
 const manualHitCount = computed(() => manualHitMarkers.value.length)
 
+// Whether current frame is a detected or manual hit
+const isCurrentFrameHit = computed(() => {
+  return shuttleHitFrameIndices.value.has(localFrame.value) ||
+    manualHitFrameIndices.value.has(localFrame.value)
+})
+
+// Manual shot label markers for the seek bar timeline
+const manualShotLabelMarkers = computed(() => {
+  return Array.from(manualShotLabels.value.entries())
+    .filter(([idx]) => props.frames[idx])
+    .map(([idx, type]) => ({
+      index: idx,
+      type,
+      timestamp: props.frames[idx].timestamp || 0
+    }))
+    .sort((a, b) => a.index - b.index)
+})
+
+function setManualShotLabel(frameIndex, shotType) {
+  const newMap = new Map(manualShotLabels.value)
+  if (shotType) {
+    newMap.set(frameIndex, shotType)
+  } else {
+    newMap.delete(frameIndex)
+  }
+  manualShotLabels.value = newMap
+}
+
 // Draw shuttle visibility strip on canvas
 function drawShuttleStrip() {
   const canvas = shuttleStripCanvas.value
@@ -1027,13 +1115,16 @@ const allShotFrames = computed(() => {
       type: frame.shot_type,
       timestamp: frame.timestamp,
       confidence: frame.confidence || 0,
-      cooldown: frame.cooldown_active || false
+      cooldown: frame.cooldown_active || false,
+      isHit: frame.shuttle_is_hit || false
     }))
     .filter(f =>
       ACTUAL_SHOTS.includes(f.type) &&
       !f.cooldown &&
-      f.confidence > 0.5 &&
-      !gapFrameIndices.value.has(f.index)
+      !gapFrameIndices.value.has(f.index) &&
+      // Hit-centric shots (at shuttle hit frames) bypass confidence gate
+      // since shuttle hit NMS already prevents duplicates
+      (f.isHit || f.confidence > 0.5)
     )
 })
 
@@ -1308,6 +1399,16 @@ function downloadRawData() {
       frame_indices: Array.from(manualHitFrameIndices.value).sort((a, b) => a - b),
       count: manualHitFrameIndices.value.size
     },
+    manual_shot_labels: Object.fromEntries(
+      Array.from(manualShotLabels.value.entries())
+        .sort(([a], [b]) => a - b)
+        .map(([idx, type]) => [idx, {
+          frame_index: idx,
+          frame_number: props.frames[idx]?.frame_number,
+          timestamp: props.frames[idx]?.timestamp,
+          shot_type: type
+        }])
+    ),
     rally_end_frames: rallyEndFrames.value.map(r => ({
       frame_index: r.index, timestamp: r.timestamp, rally_number: r.rallyNumber
     })),
@@ -1375,6 +1476,13 @@ function handleKeydown(event) {
   } else if (event.key === 'h' || event.key === 'H') {
     event.preventDefault()
     toggleManualHit()
+  } else if (event.key === 's' || event.key === 'S') {
+    // Focus the shot label dropdown if on a hit frame
+    if (isCurrentFrameHit.value) {
+      event.preventDefault()
+      const select = document.querySelector('.shot-label-select')
+      if (select) select.focus()
+    }
   }
 }
 
@@ -2333,4 +2441,56 @@ function getShotClass(shotType) {
   border-color: #4ecca3;
   color: #4ecca3;
 }
+
+/* Shot label dropdown */
+/* Manual shot label markers on seek bar — like shot markers but with white border */
+.shot-label-marker {
+  position: absolute;
+  top: -5px;
+  width: 8px;
+  height: 18px;
+  border-radius: 2px;
+  transform: translateX(-50%);
+  cursor: pointer;
+  pointer-events: auto;
+  opacity: 0.95;
+  transition: transform 0.15s, opacity 0.15s, box-shadow 0.15s;
+  z-index: 6;
+  border: 1.5px solid rgba(255, 255, 255, 0.8);
+}
+
+.shot-label-marker:hover {
+  transform: translateX(-50%) scaleY(1.2);
+  opacity: 1;
+  z-index: 10;
+}
+
+.shot-label-marker.at-position {
+  transform: translateX(-50%) scaleY(1.4);
+  opacity: 1;
+  z-index: 15;
+  box-shadow: 0 0 8px currentColor;
+}
+
+.shot-label-select {
+  padding: 0.25rem 0.4rem;
+  background: #2a2a4a;
+  border: 1px solid #3a3a5a;
+  border-radius: 6px;
+  color: #ccc;
+  font-size: 0.72rem;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.shot-label-select:focus {
+  border-color: #4ecca3;
+}
+
+.shot-label-select option {
+  background: #1a1a2e;
+  color: #ccc;
+}
+
 </style>
