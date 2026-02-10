@@ -656,12 +656,8 @@ def enrich_frame_data(frame_data: Dict[str, Any]) -> Dict[str, Any]:
     # Phase 3: Shuttle per-frame enrichment (velocity, speed, direction, hit detection)
     if needs_shuttle_enrichment:
         prev_shuttle_frame = None
-        prev_sdx = None
-        prev_sdy = None
-        min_speed_for_hit = 50.0  # px/sec threshold for hit detection
-        hit_frames = set()
 
-        # First pass: compute shuttle velocity/speed/direction and detect hits
+        # First pass: compute shuttle velocity/speed/direction
         for frame in frames:
             sx = frame.get("shuttle_x")
             sy = frame.get("shuttle_y")
@@ -680,7 +676,6 @@ def enrich_frame_data(frame_data: Dict[str, Any]) -> Dict[str, Any]:
             sdy = None
             speed = None
             direction = None
-            is_hit = False
 
             if prev_shuttle_frame is not None:
                 dt = ts - prev_shuttle_frame.get("timestamp", 0)
@@ -691,31 +686,52 @@ def enrich_frame_data(frame_data: Dict[str, Any]) -> Dict[str, Any]:
                     sdy = (sy - py) / dt
                     speed = round(math.sqrt(sdx * sdx + sdy * sdy), 1)
 
-                    # Direction label
                     if abs(sdy) > abs(sdx):
                         direction = "up" if sdy < 0 else "down"
                     else:
                         direction = "right" if sdx > 0 else "left"
 
-                    # Hit detection: direction reversal with significant speed
-                    if prev_sdx is not None:
-                        h_rev = (prev_sdx * sdx < 0) and (abs(sdx) > min_speed_for_hit or abs(prev_sdx) > min_speed_for_hit)
-                        v_rev = (prev_sdy * sdy < 0) and (abs(sdy) > min_speed_for_hit * 1.5)
-                        if h_rev or v_rev:
-                            is_hit = True
-                            hit_frames.add(frame.get("frame_number"))
-
-                    prev_sdx = sdx
-                    prev_sdy = sdy
-
             frame["shuttle_speed"] = speed
             frame["shuttle_dx"] = round(sdx, 1) if sdx is not None else None
             frame["shuttle_dy"] = round(sdy, 1) if sdy is not None else None
             frame["shuttle_direction"] = direction
-            frame["shuttle_is_hit"] = is_hit
-            prev_shuttle_frame = frame
+            frame["shuttle_is_hit"] = False
+            if visible:
+                prev_shuttle_frame = frame
 
-        logger.info(f"Shuttle enrichment: {len(hit_frames)} hits detected")
+        # Second pass: multi-signal hit detection
+        from api.services.shot_classifier import detect_shuttle_hits_windowed_tuning
+
+        # Read hit params from frame_data thresholds if available
+        stored_thresholds = frame_data.get("thresholds_used", {})
+        disp_window = int(stored_thresholds.get("hit_disp_window", 15))
+        spd_window = int(stored_thresholds.get("hit_speed_window", 8))
+        brk_window = int(stored_thresholds.get("hit_break_window", 12))
+        hit_threshold_val = float(stored_thresholds.get("hit_threshold", 0.15))
+        hit_cooldown = int(stored_thresholds.get("hit_cooldown", 25))
+        norm_pct = int(stored_thresholds.get("hit_norm_percentile", 90))
+        gate_min = float(stored_thresholds.get("hit_gate_min", 0.03))
+        wrist_bonus = float(stored_thresholds.get("hit_wrist_bonus", 0.10))
+        wrist_window = int(stored_thresholds.get("hit_wrist_window", 8))
+
+        shuttle_hits = detect_shuttle_hits_windowed_tuning(
+            frames, fps,
+            disp_window=disp_window,
+            speed_window=spd_window,
+            break_window=brk_window,
+            hit_threshold=hit_threshold_val,
+            cooldown_frames=hit_cooldown,
+            norm_percentile=norm_pct,
+            gate_min=gate_min,
+            wrist_bonus=wrist_bonus,
+            wrist_window=wrist_window,
+        )
+        hit_frame_set = {h["frame"] for h in shuttle_hits}
+        for frame in frames:
+            if frame.get("frame_number") in hit_frame_set:
+                frame["shuttle_is_hit"] = True
+
+        logger.info(f"Shuttle enrichment: {len(hit_frame_set)} hits detected (windowed)")
 
     # Phase 4: Shuttle-based rally detection + shot suppression in gap zones
     if has_shuttle:

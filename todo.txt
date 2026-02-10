@@ -1,22 +1,55 @@
 todo: 
 p0
-3. multiple player how to detect
-7. allow recording on local device, if mobile then mobile, if laptop then laptop locally
+
+* measure top smash power 
+* measure min reaction time
+
+
+1. now measure shot speed, 
+2. should be goingg away from player when hit and should be coming to player when about to hit, the arc should define a shot
+3. shuttle not visible implies rally break
+
 8. pinch and zoom of camera when selecting court.
-6. move badminton to 1 section, 
+
+
+do a better job at shots defination. 
 
 p1: 
+limit the amount of video processed , seconds 
+, live stream per user, mantain credit for each user, 
+each minute is 1 credit, wheather live streaming or video upload processing,
+ dont allow upload video with more then 10 minutes of video 
+ > upload processing perminute should be function of quality, like fast should be very cheap ,
+  like 0.5credits per minute, medium 1credit perminute, and balances to be 1.5credit minute, and advanced 2credit perminite 
+  all these should be configurable which can be changed by the admin, 
+  live stream should be 1 credit perminute. 
 
-1. left to right max velocity (score)[median score]
-2. front to back max velocity (score)[median score]
+
+admin should have a way to increment credits for each users
+  when user signs in , he get 200 credit free (again configurable)
+also when credit runs out, that should be handled accross
+
+
 
 
 p2
 5. payment integrations (p2)
 5. enable google login for mail verification
+3. multiple player how to detect : mediapipe doesnt do this well
+1. left to right max velocity (score)[median score]
+2. front to back max velocity (score)[median score]
+
+
+
 Done:
 
-
+   s3 function of upload is now working
+   cancellation of workflow aswell
 3. Deploy on aws 
 4. referral and whitelist
 7. otp flow for email
+7. everything to s3  allow recording on local device, if mobile then mobile, if laptop then laptop locally, 
+1. mobile annotation issue:
+
+annotation of live stream to show hand , 
+body and legs in different color similar to what happens in case of video upload

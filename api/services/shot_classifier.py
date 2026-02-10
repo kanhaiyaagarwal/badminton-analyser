@@ -15,6 +15,398 @@ from typing import Any, Dict, List, Optional, Tuple
 logger = logging.getLogger(__name__)
 
 
+def detect_shuttle_hits_windowed(
+    raw_frames: List[dict],
+    fps: float,
+    disp_window: int = 15,
+    speed_window: int = 8,
+    break_window: int = 12,
+    hit_threshold: float = 0.15,
+    cooldown_frames: int = 25,
+    norm_percentile: int = 90,
+    gate_min: float = 0.03,
+    wrist_bonus: float = 0.10,
+    wrist_window: int = 8,
+    # Legacy params accepted but ignored for backwards compatibility
+    window: int = 30,
+    direction_pct: float = 80.0,
+    min_speed: float = 80.0,
+) -> List[dict]:
+    """Detect shuttle hits using multi-signal trajectory analysis.
+
+    Combines three shuttle trajectory signals with optional wrist velocity
+    bonus:
+      A) Large-window displacement cosine (trajectory reversal)  — weight 0.30
+      B) Speed ratio (abrupt speed change)                       — weight 0.40
+      C) Trajectory break (prediction error from fitted path)    — weight 0.30
+      D) Wrist velocity bonus (when pose data available)
+
+    Signal gating: frames where fewer than 2 of the 3 shuttle signals
+    are active (above gate_min) are suppressed to reduce false positives.
+
+    Args:
+        raw_frames: Per-frame data with shuttle x/y/visible and optional
+            wrist_velocity.
+        fps: Video FPS.
+        disp_window: Frame window for displacement cosine signal.
+        speed_window: Frame window for speed ratio signal.
+        break_window: Frame window for trajectory break signal.
+        hit_threshold: Combined score threshold.
+        cooldown_frames: NMS cooldown between hits (frames).
+        norm_percentile: Percentile for signal normalization (e.g. 90 or 95).
+        gate_min: Minimum normalized signal value to count as "active"
+            for the ≥2-signal gating rule. 0 disables gating.
+        wrist_bonus: Weight for wrist velocity bonus signal. 0 disables.
+        wrist_window: Half-window for wrist velocity max pooling (frames).
+
+    Returns:
+        List of hit dicts compatible with _match_shots_with_shuttle_hits().
+    """
+    import numpy as np
+
+    n = len(raw_frames)
+    if n == 0:
+        return []
+
+    # --- Step 0: Build clean position arrays ---
+    raw_x = np.full(n, np.nan)
+    raw_y = np.full(n, np.nan)
+    has_pos = np.zeros(n, dtype=bool)
+
+    for i, frame in enumerate(raw_frames):
+        shuttle = frame.get("shuttle")
+        if shuttle and shuttle.get("visible") and shuttle.get("x") is not None:
+            raw_x[i] = shuttle["x"]
+            raw_y[i] = shuttle["y"]
+            has_pos[i] = True
+
+    # Interpolate gaps up to 5 frames
+    interp_x = raw_x.copy()
+    interp_y = raw_y.copy()
+    valid = has_pos.copy()
+    MAX_GAP = 5
+    gap_start = -1
+    for i in range(n):
+        if has_pos[i]:
+            if gap_start >= 0 and gap_start > 0 and has_pos[gap_start - 1]:
+                gap_len = i - gap_start
+                if gap_len <= MAX_GAP:
+                    prev_i = gap_start - 1
+                    for g in range(gap_start, i):
+                        t = (g - prev_i) / (i - prev_i)
+                        interp_x[g] = raw_x[prev_i] + t * (raw_x[i] - raw_x[prev_i])
+                        interp_y[g] = raw_y[prev_i] + t * (raw_y[i] - raw_y[prev_i])
+                        valid[g] = True
+            gap_start = -1
+        else:
+            if gap_start < 0:
+                gap_start = i
+
+    # Median-smooth with window=3
+    smooth_x = np.full(n, np.nan)
+    smooth_y = np.full(n, np.nan)
+    for i in range(n):
+        if not valid[i]:
+            continue
+        x_vals = []
+        y_vals = []
+        for d in range(-1, 2):
+            j = i + d
+            if 0 <= j < n and valid[j]:
+                x_vals.append(interp_x[j])
+                y_vals.append(interp_y[j])
+        x_vals.sort()
+        y_vals.sort()
+        mid = len(x_vals) // 2
+        smooth_x[i] = x_vals[mid]
+        smooth_y[i] = y_vals[mid]
+
+    # Compute velocity: v[i] = (pos[i] - pos[i-2]) / 2
+    vx = np.zeros(n)
+    vy = np.zeros(n)
+    speed = np.zeros(n)
+    for i in range(2, n):
+        if not valid[i] or not valid[i - 2]:
+            continue
+        vx[i] = (smooth_x[i] - smooth_x[i - 2]) / 2.0
+        vy[i] = (smooth_y[i] - smooth_y[i - 2]) / 2.0
+        speed[i] = math.sqrt(vx[i] ** 2 + vy[i] ** 2)
+
+    # --- Step 1: Signal A — Large-window net displacement cosine ---
+    signal_a = np.zeros(n)
+    min_span = max(1, disp_window // 3)
+    for i in range(n):
+        # Before window: first/last valid in [i-disp_window, i]
+        b_first = b_last = -1
+        for j in range(max(0, i - disp_window), i + 1):
+            if valid[j]:
+                if b_first < 0:
+                    b_first = j
+                b_last = j
+        # After window: first/last valid in [i, i+disp_window]
+        a_first = a_last = -1
+        for j in range(i, min(n, i + disp_window + 1)):
+            if valid[j]:
+                if a_first < 0:
+                    a_first = j
+                a_last = j
+
+        if b_first < 0 or a_first < 0:
+            continue
+        if (b_last - b_first) < min_span or (a_last - a_first) < min_span:
+            continue
+
+        b_dx = smooth_x[b_last] - smooth_x[b_first]
+        b_dy = smooth_y[b_last] - smooth_y[b_first]
+        a_dx = smooth_x[a_last] - smooth_x[a_first]
+        a_dy = smooth_y[a_last] - smooth_y[a_first]
+
+        b_mag = math.sqrt(b_dx ** 2 + b_dy ** 2)
+        a_mag = math.sqrt(a_dx ** 2 + a_dy ** 2)
+        if b_mag < 1e-6 or a_mag < 1e-6:
+            continue
+
+        cos_sim = (b_dx * a_dx + b_dy * a_dy) / (b_mag * a_mag)
+        signal_a[i] = max(0.0, -cos_sim)
+
+    # --- Step 2: Signal B — Speed ratio ---
+    signal_b = np.zeros(n)
+    for i in range(n):
+        before_sum = before_cnt = 0.0
+        for j in range(max(0, i - speed_window), i + 1):
+            if speed[j] > 0:
+                before_sum += speed[j]
+                before_cnt += 1
+        after_sum = after_cnt = 0.0
+        for j in range(i + 1, min(n, i + speed_window + 1)):
+            if speed[j] > 0:
+                after_sum += speed[j]
+                after_cnt += 1
+        if before_cnt == 0 or after_cnt == 0:
+            continue
+        before_avg = before_sum / before_cnt
+        after_avg = after_sum / after_cnt
+        if before_avg < 1e-6 or after_avg < 1e-6:
+            continue
+        ratio = max(after_avg / before_avg, before_avg / after_avg)
+        signal_b[i] = ratio - 1.0
+
+    # --- Step 3: Signal C — Trajectory break / prediction error ---
+    signal_c = np.zeros(n)
+    K = 5  # prediction horizon
+    for i in range(break_window, n - K):
+        # Collect positions in [i-break_window, i]
+        ts = []
+        xs = []
+        ys = []
+        for j in range(i - break_window, i + 1):
+            if valid[j]:
+                ts.append(float(j))
+                xs.append(smooth_x[j])
+                ys.append(smooth_y[j])
+        if len(ts) < 3:
+            continue
+
+        t_arr = np.array(ts)
+        x_arr = np.array(xs)
+        y_arr = np.array(ys)
+
+        # Fit linear x(t): x = a*t + b
+        try:
+            x_coeffs = np.polyfit(t_arr, x_arr, 1)  # [a, b]
+        except (np.linalg.LinAlgError, ValueError):
+            continue
+
+        # Fit quadratic y(t): y = a*t^2 + b*t + c
+        try:
+            y_coeffs = np.polyfit(t_arr, y_arr, 2)  # [a, b, c]
+        except (np.linalg.LinAlgError, ValueError):
+            continue
+
+        # Predict positions at [i+1 ... i+K] and compute avg error
+        err_sum = 0.0
+        err_cnt = 0
+        for k in range(1, K + 1):
+            t = float(i + k)
+            if i + k >= n or not valid[i + k]:
+                continue
+            pred_x = x_coeffs[0] * t + x_coeffs[1]
+            pred_y = y_coeffs[0] * t * t + y_coeffs[1] * t + y_coeffs[2]
+            dx = smooth_x[i + k] - pred_x
+            dy = smooth_y[i + k] - pred_y
+            err_sum += math.sqrt(dx ** 2 + dy ** 2)
+            err_cnt += 1
+        if err_cnt > 0:
+            signal_c[i] = err_sum / err_cnt
+
+    # --- Step 4: Normalize and combine ---
+    def _normalize(arr: np.ndarray, pct: int) -> np.ndarray:
+        pos = arr[arr > 0]
+        if len(pos) == 0:
+            return np.zeros_like(arr)
+        pval = float(np.percentile(pos, pct))
+        if pval < 1e-12:
+            return np.zeros_like(arr)
+        return np.clip(arr / pval, 0.0, 1.0)
+
+    norm_a = _normalize(signal_a, norm_percentile)
+    norm_b = _normalize(signal_b, norm_percentile)
+    norm_c = _normalize(signal_c, norm_percentile)
+
+    combined = 0.30 * norm_a + 0.40 * norm_b + 0.30 * norm_c
+
+    # Signal gating: require ≥2 of 3 shuttle signals to be active
+    if gate_min > 0:
+        for i in range(n):
+            active = (
+                (1 if norm_a[i] > gate_min else 0) +
+                (1 if norm_b[i] > gate_min else 0) +
+                (1 if norm_c[i] > gate_min else 0)
+            )
+            if active < 2:
+                combined[i] = 0.0
+
+    # Wrist velocity bonus: boost combined score near wrist spikes
+    if wrist_bonus > 0:
+        wrist_vel = np.zeros(n)
+        for i, frame in enumerate(raw_frames):
+            wv = frame.get("wrist_velocity")
+            if wv is not None and wv > 0:
+                wrist_vel[i] = wv
+        if np.any(wrist_vel > 0):
+            norm_wv = _normalize(wrist_vel, 95)
+            # Max-pool over ±wrist_window to account for timing offset
+            wv_pooled = np.zeros(n)
+            for i in range(n):
+                lo = max(0, i - wrist_window)
+                hi = min(n, i + wrist_window + 1)
+                wv_pooled[i] = norm_wv[lo:hi].max()
+            combined = combined + wrist_bonus * wv_pooled
+
+    # --- Step 5: Peak detection with NMS ---
+    candidates = []
+    for i in range(n):
+        if combined[i] >= hit_threshold:
+            candidates.append((i, float(combined[i])))
+    # Sort by score descending
+    candidates.sort(key=lambda c: -c[1])
+
+    suppressed = set()
+    hits_indices: List[Tuple[int, float]] = []
+    for idx, score in candidates:
+        if idx in suppressed:
+            continue
+        hits_indices.append((idx, score))
+        for j in range(max(0, idx - cooldown_frames), min(n, idx + cooldown_frames + 1)):
+            suppressed.add(j)
+
+    # Build output in frame order
+    hits_indices.sort(key=lambda h: h[0])
+
+    result: List[dict] = []
+    for idx, score in hits_indices:
+        frame = raw_frames[idx]
+        shuttle = frame.get("shuttle") or {}
+        speed_after = _compute_shuttle_speed_from_frames(
+            raw_frames, frame.get("frame_number", idx), fps
+        )
+        result.append({
+            "frame": frame.get("frame_number", idx),
+            "timestamp": frame.get("timestamp", 0),
+            "hit_position": {
+                "x": shuttle.get("x"),
+                "y": shuttle.get("y"),
+            },
+            "speed_px_per_sec": round(speed_after, 1) if speed_after else None,
+            "direction_before": None,
+            "direction_after": None,
+            "confidence": round(score, 3),
+            "reversal_type": "multi_signal",
+        })
+
+    return result
+
+
+def _compute_shuttle_speed_from_frames(
+    raw_frames: List[dict], hit_frame: int, fps: float, n_frames: int = 10
+) -> Optional[float]:
+    """Compute avg shuttle speed (px/sec) over next n detected frames after a hit."""
+    after_hit = [
+        f for f in raw_frames
+        if f.get("frame_number", 0) > hit_frame
+        and f.get("shuttle") and f["shuttle"].get("visible")
+    ][:n_frames]
+
+    if len(after_hit) < 2:
+        return None
+
+    speeds = []
+    for i in range(1, len(after_hit)):
+        dt = after_hit[i]["timestamp"] - after_hit[i - 1]["timestamp"]
+        if dt <= 0:
+            continue
+        dx = after_hit[i]["shuttle"]["x"] - after_hit[i - 1]["shuttle"]["x"]
+        dy = after_hit[i]["shuttle"]["y"] - after_hit[i - 1]["shuttle"]["y"]
+        speed = math.sqrt(dx ** 2 + dy ** 2) / dt
+        speeds.append(speed)
+
+    return sum(speeds) / len(speeds) if speeds else None
+
+
+def detect_shuttle_hits_windowed_tuning(
+    frames: List[dict],
+    fps: float,
+    disp_window: int = 15,
+    speed_window: int = 8,
+    break_window: int = 12,
+    hit_threshold: float = 0.15,
+    cooldown_frames: int = 25,
+    norm_percentile: int = 90,
+    gate_min: float = 0.03,
+    wrist_bonus: float = 0.10,
+    wrist_window: int = 8,
+    # Legacy params accepted for backwards compatibility
+    window: int = 30,
+    direction_pct: float = 80.0,
+    min_speed: float = 80.0,
+) -> List[dict]:
+    """Multi-signal hit detection for tuning-format frames (flat shuttle_x/y/visible).
+
+    Converts flat frame format to raw_frames format and delegates to
+    detect_shuttle_hits_windowed().
+    """
+    raw_frames = []
+    for f in frames:
+        visible = f.get("shuttle_visible", False)
+        entry: dict = {
+            "frame_number": f.get("frame_number", 0),
+            "timestamp": f.get("timestamp", 0),
+            "shuttle": {
+                "x": f.get("shuttle_x"),
+                "y": f.get("shuttle_y"),
+                "visible": visible,
+            } if visible and f.get("shuttle_x") is not None else None,
+        }
+        # Pass through wrist velocity for co-detection bonus
+        wv = f.get("wrist_velocity")
+        if wv is not None:
+            entry["wrist_velocity"] = wv
+        raw_frames.append(entry)
+
+    return detect_shuttle_hits_windowed(
+        raw_frames, fps,
+        disp_window=disp_window,
+        speed_window=speed_window,
+        break_window=break_window,
+        hit_threshold=hit_threshold,
+        cooldown_frames=cooldown_frames,
+        norm_percentile=norm_percentile,
+        gate_min=gate_min,
+        wrist_bonus=wrist_bonus,
+        wrist_window=wrist_window,
+    )
+
+
 class ShotClassifier:
     """Classifies shots using accumulated pose + shuttle raw data."""
 
@@ -49,6 +441,20 @@ class ShotClassifier:
         rally_gap_seconds: float = 3.0,
         shuttle_gap_frames: int = 90,
         shuttle_gap_miss_pct: float = 80.0,
+        hit_disp_window: int = 15,
+        hit_speed_window: int = 8,
+        hit_break_window: int = 12,
+        hit_threshold: float = 0.15,
+        hit_cooldown: int = 25,
+        hit_norm_percentile: int = 90,
+        hit_gate_min: float = 0.03,
+        hit_wrist_bonus: float = 0.10,
+        hit_wrist_window: int = 8,
+        # Legacy params accepted for backwards compatibility
+        shuttle_hit_window: int = 30,
+        shuttle_hit_direction_pct: float = 80.0,
+        shuttle_hit_cooldown: int = 15,
+        shuttle_hit_min_speed: float = 80.0,
     ):
         self.T = {**self.DEFAULT_VELOCITY_THRESHOLDS, **(velocity_thresholds or {})}
         self.P = {**self.DEFAULT_POSITION_THRESHOLDS, **(position_thresholds or {})}
@@ -57,6 +463,15 @@ class ShotClassifier:
         self.rally_gap_seconds = rally_gap_seconds
         self.shuttle_gap_frames = shuttle_gap_frames
         self.shuttle_gap_miss_pct = shuttle_gap_miss_pct
+        self.hit_disp_window = hit_disp_window
+        self.hit_speed_window = hit_speed_window
+        self.hit_break_window = hit_break_window
+        self.hit_threshold = hit_threshold
+        self.hit_cooldown = hit_cooldown
+        self.hit_norm_percentile = hit_norm_percentile
+        self.hit_gate_min = hit_gate_min
+        self.hit_wrist_bonus = hit_wrist_bonus
+        self.hit_wrist_window = hit_wrist_window
 
     def classify_all(self, raw_frame_data: List[dict], fps: float) -> dict:
         """
@@ -128,6 +543,12 @@ class ShotClassifier:
                     "wrist_velocity": round(vel_info["wrist_velocity"], 3),
                 })
 
+        # Inject wrist_velocity into raw frames for shuttle hit co-detection
+        for i, frame in enumerate(raw_frame_data):
+            vel_info = velocity_data[i] if i < len(velocity_data) else {}
+            if vel_info and "wrist_velocity" in vel_info:
+                frame["wrist_velocity"] = vel_info["wrist_velocity"]
+
         # Phase 3: Detect shuttle hits (arc direction changes)
         shuttle_hits = self._detect_shuttle_hits(raw_frame_data, fps)
 
@@ -160,7 +581,7 @@ class ShotClassifier:
                 if s["frame"] not in gap_frame_set
             ]
 
-        # Phase 7: Enrich shuttle rallies with shot data
+        # Phase 7: Enrich shuttle rallies with shot + hit data
         if has_shuttle and rallies:
             for rally in rallies:
                 r_start = rally["start_time"]
@@ -171,6 +592,12 @@ class ShotClassifier:
                 ]
                 rally["shots"] = rally_shots
                 rally["shot_count"] = len(rally_shots)
+                # Associate shuttle hits (actual exchanges) with rally
+                rally_hits = [
+                    h for h in shuttle_hits
+                    if r_start <= h["timestamp"] <= r_end
+                ]
+                rally["hit_count"] = len(rally_hits)
 
         # Build timeline
         shot_timeline = []
@@ -431,58 +858,24 @@ class ShotClassifier:
     # ------------------------------------------------------------------
 
     def _detect_shuttle_hits(self, raw_frames: List[dict], fps: float) -> List[dict]:
-        """Detect shuttle hit points from direction changes in shuttle trajectory.
+        """Detect shuttle hit points using multi-signal trajectory analysis.
 
-        A "hit" is detected when the shuttle's horizontal or vertical velocity
-        reverses direction with significant magnitude.
+        Combines displacement cosine, speed ratio, and trajectory break signals
+        with optional wrist velocity bonus to identify frames where the shuttle
+        was hit.
         """
-        hits: List[dict] = []
-        prev_visible_frame = None
-        prev_dx = None
-        prev_dy = None
-
-        min_speed_for_hit = 50.0  # minimum px/sec to consider a direction change as a hit
-
-        for frame in raw_frames:
-            shuttle = frame.get("shuttle")
-            if not shuttle or not shuttle.get("visible"):
-                continue
-
-            if prev_visible_frame is None:
-                prev_visible_frame = frame
-                continue
-
-            prev_shuttle = prev_visible_frame["shuttle"]
-            dt = frame["timestamp"] - prev_visible_frame["timestamp"]
-            if dt <= 0:
-                prev_visible_frame = frame
-                continue
-
-            dx = (shuttle["x"] - prev_shuttle["x"]) / dt  # px/sec
-            dy = (shuttle["y"] - prev_shuttle["y"]) / dt
-
-            if prev_dx is not None:
-                # Check horizontal direction reversal
-                h_reversal = (prev_dx * dx < 0) and (abs(dx) > min_speed_for_hit or abs(prev_dx) > min_speed_for_hit)
-                # Check vertical direction reversal with significant magnitude
-                v_reversal = (prev_dy * dy < 0) and (abs(dy) > min_speed_for_hit * 1.5)
-
-                if h_reversal or v_reversal:
-                    speed_after = self._compute_shuttle_speed(raw_frames, frame["frame_number"], fps)
-                    hits.append({
-                        "frame": frame["frame_number"],
-                        "timestamp": frame["timestamp"],
-                        "hit_position": {"x": shuttle["x"], "y": shuttle["y"]},
-                        "speed_px_per_sec": round(speed_after, 1) if speed_after else None,
-                        "direction_before": {"dx": round(prev_dx, 1), "dy": round(prev_dy, 1)},
-                        "direction_after": {"dx": round(dx, 1), "dy": round(dy, 1)},
-                    })
-
-            prev_dx = dx
-            prev_dy = dy
-            prev_visible_frame = frame
-
-        return hits
+        return detect_shuttle_hits_windowed(
+            raw_frames, fps,
+            disp_window=self.hit_disp_window,
+            speed_window=self.hit_speed_window,
+            break_window=self.hit_break_window,
+            hit_threshold=self.hit_threshold,
+            cooldown_frames=self.hit_cooldown,
+            norm_percentile=self.hit_norm_percentile,
+            gate_min=self.hit_gate_min,
+            wrist_bonus=self.hit_wrist_bonus,
+            wrist_window=self.hit_wrist_window,
+        )
 
     def _compute_shuttle_speed(
         self, raw_frames: List[dict], hit_frame: int, fps: float, n_frames: int = 10

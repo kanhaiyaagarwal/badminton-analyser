@@ -84,6 +84,7 @@
             :videoUrl="videoUrl"
             :jobId="selectedJobId"
             :rallyThresholds="rallyThresholds"
+            :hitThresholds="hitThresholds"
             @frameChange="handleFrameChange"
           />
           <div v-else-if="!loadingFrameData" class="empty-viewer">
@@ -292,6 +293,15 @@ const hasChanges = computed(() => {
 const rallyThresholds = computed(() => ({
   shuttle_gap_frames: currentThresholds.value.shuttle_gap_frames ?? 90,
   shuttle_gap_miss_pct: currentThresholds.value.shuttle_gap_miss_pct ?? 80
+}))
+
+// Hit detection thresholds for FrameViewer
+const hitThresholds = computed(() => ({
+  hit_disp_window: currentThresholds.value.hit_disp_window ?? 30,
+  hit_speed_window: currentThresholds.value.hit_speed_window ?? 8,
+  hit_break_window: currentThresholds.value.hit_break_window ?? 8,
+  hit_threshold: currentThresholds.value.hit_threshold ?? 0.15,
+  hit_cooldown: currentThresholds.value.hit_cooldown ?? 25
 }))
 
 onMounted(async () => {
@@ -528,6 +538,12 @@ function extractFlatThresholds(thresholds) {
   // Extract rally
   const rally = thresholds.rally || {}
   for (const [key, val] of Object.entries(rally)) {
+    flat[key] = typeof val === 'object' ? val.value : val
+  }
+
+  // Extract shuttle_hit
+  const shuttleHit = thresholds.shuttle_hit || {}
+  for (const [key, val] of Object.entries(shuttleHit)) {
     flat[key] = typeof val === 'object' ? val.value : val
   }
 

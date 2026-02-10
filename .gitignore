@@ -45,5 +45,8 @@ uploads/
 *.pem
 badminton-analyzer-key.pem
 
+# POC experiments
+poc/
+
 # macOS
 .DS_Store

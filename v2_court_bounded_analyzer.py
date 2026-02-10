@@ -17,7 +17,7 @@ import json
 import sys
 import math
 from pathlib import Path
-from collections import defaultdict
+from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from typing import List, Dict, Tuple, Optional, Any
 from datetime import datetime
@@ -1110,6 +1110,38 @@ class CourtBoundedAnalyzer:
         cv2.putText(frame, label, (x + 10, y - 10),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
 
+    # Color palette for shuttle trail segments between hits
+    HIT_TRAIL_COLORS = [
+        (0, 255, 0),     # Green
+        (0, 165, 255),   # Orange
+        (255, 0, 255),   # Magenta
+        (255, 255, 0),   # Cyan
+        (0, 0, 255),     # Red
+        (255, 0, 0),     # Blue
+        (0, 255, 255),   # Yellow
+        (255, 100, 255), # Pink
+    ]
+
+    def draw_shuttle_trail(self, frame: np.ndarray, shuttle_trail: deque) -> None:
+        """Draw rolling shuttle trajectory with color cycling between hits."""
+        if len(shuttle_trail) < 2:
+            return
+
+        points = list(shuttle_trail)
+        for i in range(1, len(points)):
+            x1, y1 = points[i - 1][0], points[i - 1][1]
+            x2, y2 = points[i][0], points[i][1]
+
+            # Fade: older segments are more transparent
+            alpha = 0.3 + 0.7 * (i / len(points))
+
+            color_idx = points[i][2]
+            base_color = self.HIT_TRAIL_COLORS[color_idx % len(self.HIT_TRAIL_COLORS)]
+            color = tuple(int(c * alpha) for c in base_color)
+
+            thickness = max(1, int(2 * alpha))
+            cv2.line(frame, (x1, y1), (x2, y2), color, thickness)
+
     def draw_body_part_labels(self, frame: np.ndarray, pose_landmarks) -> None:
         """Draw labels for each detected body part"""
         h, w = frame.shape[:2]
@@ -1519,6 +1551,15 @@ class CourtBoundedAnalyzer:
                 effective_fps=self.effective_fps,
                 shuttle_gap_frames=getattr(self, 'shuttle_gap_frames', 90),
                 shuttle_gap_miss_pct=getattr(self, 'shuttle_gap_miss_pct', 80.0),
+                hit_disp_window=getattr(self, 'hit_disp_window', 15),
+                hit_speed_window=getattr(self, 'hit_speed_window', 8),
+                hit_break_window=getattr(self, 'hit_break_window', 12),
+                hit_threshold=getattr(self, 'hit_threshold', 0.15),
+                hit_cooldown=getattr(self, 'hit_cooldown', 25),
+                hit_norm_percentile=getattr(self, 'hit_norm_percentile', 90),
+                hit_gate_min=getattr(self, 'hit_gate_min', 0.03),
+                hit_wrist_bonus=getattr(self, 'hit_wrist_bonus', 0.10),
+                hit_wrist_window=getattr(self, 'hit_wrist_window', 8),
             )
             classified = classifier.classify_all(raw_frame_data, fps)
         else:
@@ -1571,7 +1612,18 @@ class CourtBoundedAnalyzer:
                         "width": width,
                         "height": height
                     },
-                    "thresholds_used": self.VELOCITY_THRESHOLDS.copy(),
+                    "thresholds_used": {
+                        **self.VELOCITY_THRESHOLDS.copy(),
+                        "hit_disp_window": getattr(self, 'hit_disp_window', 15),
+                        "hit_speed_window": getattr(self, 'hit_speed_window', 8),
+                        "hit_break_window": getattr(self, 'hit_break_window', 12),
+                        "hit_threshold": getattr(self, 'hit_threshold', 0.15),
+                        "hit_cooldown": getattr(self, 'hit_cooldown', 25),
+                        "hit_norm_percentile": getattr(self, 'hit_norm_percentile', 90),
+                        "hit_gate_min": getattr(self, 'hit_gate_min', 0.03),
+                        "hit_wrist_bonus": getattr(self, 'hit_wrist_bonus', 0.10),
+                        "hit_wrist_window": getattr(self, 'hit_wrist_window', 8),
+                    },
                     "cooldown_seconds": self.shot_cooldown_seconds,
                     "frames": tuning_frames
                 }
@@ -1671,6 +1723,17 @@ class CourtBoundedAnalyzer:
         for hit in classified.get("shuttle_hits", []):
             hit_by_frame[hit["frame"]] = hit
 
+        # Rolling shuttle trajectory (2-second window)
+        trajectory_window = int(fps * 2)
+        shuttle_trail = deque(maxlen=trajectory_window)
+
+        # Outlier jump filter
+        max_jump_per_frame = math.hypot(width, height) * 0.2  # 20% of diagonal
+        last_trail_frame = None
+
+        # Color index for shuttle trail — increments on each hit
+        hit_color_idx = 0
+
         frame_number = 0
         try:
             while True:
@@ -1699,9 +1762,27 @@ class CourtBoundedAnalyzer:
                     self.draw_skeleton(frame, pose_landmarks, pose_color)
                     self.draw_body_part_labels(frame, pose_landmarks)
 
-                # Draw shuttle marker
+                # Build shuttle trail entry
                 shuttle_data = frame_data.get("shuttle")
+                if shuttle_data and shuttle_data.get("visible"):
+                    sx, sy = shuttle_data["x"], shuttle_data["y"]
+
+                    # Outlier filter: clear trail on impossible jump
+                    if shuttle_trail and last_trail_frame is not None:
+                        gap = max(1, frame_number - last_trail_frame)
+                        if math.hypot(sx - shuttle_trail[-1][0], sy - shuttle_trail[-1][1]) > max_jump_per_frame * gap:
+                            shuttle_trail.clear()
+
+                    # Advance color on hit frames (before appending so the new segment gets the new color)
+                    if frame_number in hit_by_frame:
+                        hit_color_idx += 1
+
+                    shuttle_trail.append((sx, sy, hit_color_idx, None))
+                    last_trail_frame = frame_number
+
+                # Draw shuttle marker and trajectory trail
                 self.draw_shuttle_marker(frame, shuttle_data)
+                self.draw_shuttle_trail(frame, shuttle_trail)
 
                 # Draw shot label (persists for ~1 second)
                 if current_shot_display and shot_display_frames < max_display_frames:

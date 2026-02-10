@@ -367,6 +367,80 @@ def get_default_badminton_thresholds() -> Dict[str, Any]:
                 "label": "Stillness Threshold",
                 "description": "Max movement (as fraction) to be considered still"
             }
+        },
+        "shuttle_hit": {
+            "hit_disp_window": {
+                "value": 15,
+                "min": 5,
+                "max": 60,
+                "step": 1,
+                "label": "Displacement Window",
+                "description": "Window for net displacement cosine signal (frames)"
+            },
+            "hit_speed_window": {
+                "value": 8,
+                "min": 3,
+                "max": 20,
+                "step": 1,
+                "label": "Speed Window",
+                "description": "Window for speed ratio signal (frames)"
+            },
+            "hit_break_window": {
+                "value": 12,
+                "min": 3,
+                "max": 20,
+                "step": 1,
+                "label": "Break Window",
+                "description": "Window for trajectory break signal (frames)"
+            },
+            "hit_threshold": {
+                "value": 0.15,
+                "min": 0.05,
+                "max": 0.5,
+                "step": 0.01,
+                "label": "Hit Threshold",
+                "description": "Combined score threshold for hit detection"
+            },
+            "hit_cooldown": {
+                "value": 25,
+                "min": 5,
+                "max": 60,
+                "step": 1,
+                "label": "Hit Cooldown",
+                "description": "Min frames between distinct shuttle hits (NMS)"
+            },
+            "hit_norm_percentile": {
+                "value": 90,
+                "min": 80,
+                "max": 99,
+                "step": 1,
+                "label": "Normalization Percentile",
+                "description": "Percentile for signal normalization (lower = more sensitive)"
+            },
+            "hit_gate_min": {
+                "value": 0.03,
+                "min": 0.0,
+                "max": 0.2,
+                "step": 0.01,
+                "label": "Gate Minimum",
+                "description": "Min signal value to count as active; requires 2+ active signals (0=off)"
+            },
+            "hit_wrist_bonus": {
+                "value": 0.10,
+                "min": 0.0,
+                "max": 0.3,
+                "step": 0.01,
+                "label": "Wrist Velocity Bonus",
+                "description": "Weight for wrist velocity co-detection boost (0=disabled)"
+            },
+            "hit_wrist_window": {
+                "value": 8,
+                "min": 3,
+                "max": 15,
+                "step": 1,
+                "label": "Wrist Window",
+                "description": "Half-window for wrist velocity max pooling (frames)"
+            }
         }
     }
 
@@ -419,6 +493,18 @@ def get_badminton_activity_schema() -> Dict[str, Any]:
                 "thresholds": [
                     {"key": "shuttle_gap_frames", "label": "Shuttle Gap Window", "min": 3, "max": 300, "step": 1, "default": 90, "description": "Frame window to check shuttle absence"},
                     {"key": "shuttle_gap_miss_pct", "label": "Shuttle Miss %", "min": 50, "max": 100, "step": 5, "default": 80, "unit": "%", "description": "% of frames without shuttle to trigger rally break"}
+                ]
+            },
+            {
+                "key": "shuttle_hit",
+                "label": "Shuttle Hit Detection",
+                "description": "Multi-signal trajectory analysis for detecting shuttle hit events",
+                "thresholds": [
+                    {"key": "hit_disp_window", "label": "Displacement Window", "min": 10, "max": 60, "step": 1, "default": 30, "description": "Large window for net displacement cosine signal (frames)"},
+                    {"key": "hit_speed_window", "label": "Speed Window", "min": 3, "max": 20, "step": 1, "default": 8, "description": "Window for speed ratio signal (frames)"},
+                    {"key": "hit_break_window", "label": "Break Window", "min": 3, "max": 20, "step": 1, "default": 8, "description": "Window for trajectory break signal (frames)"},
+                    {"key": "hit_threshold", "label": "Hit Threshold", "min": 0.05, "max": 0.5, "step": 0.01, "default": 0.15, "description": "Combined score threshold for hit detection"},
+                    {"key": "hit_cooldown", "label": "Hit Cooldown", "min": 5, "max": 60, "step": 1, "default": 25, "description": "Min frames between distinct shuttle hits (NMS)"}
                 ]
             }
         ]

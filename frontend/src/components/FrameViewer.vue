@@ -63,6 +63,19 @@
           ></div>
           <!-- Shot markers on timeline -->
           <div class="shot-markers">
+            <!-- Gap zone overlays -->
+            <template v-if="showRallyMarkers">
+              <div
+                v-for="(gz, idx) in shuttleGapZones"
+                :key="'gap-' + idx"
+                class="gap-zone-overlay"
+                :style="{
+                  left: (getMarkerPosition(gz.startIdx) + 0.1 * (getMarkerPosition(gz.endIdx) - getMarkerPosition(gz.startIdx))) + '%',
+                  width: (0.8 * (getMarkerPosition(gz.endIdx) - getMarkerPosition(gz.startIdx))) + '%'
+                }"
+                :title="`Gap zone: ${formatTime(frames[gz.startIdx]?.timestamp)} - ${formatTime(frames[gz.endIdx]?.timestamp)}`"
+              ></div>
+            </template>
             <!-- Rally end markers -->
             <template v-if="showRallyMarkers">
               <div
@@ -75,6 +88,34 @@
                 @click="goToFrameIndex(rallyEnd.index)"
               >
                 <span v-if="isNearCurrentFrame(rallyEnd.index)" class="rally-end-tooltip">Rally {{ rallyEnd.rallyNumber }} End</span>
+              </div>
+            </template>
+            <!-- Shuttle hit markers -->
+            <template v-if="showHitMarkers">
+              <div
+                v-for="hit in shuttleHitMarkers"
+                :key="'hit-' + hit.index"
+                class="hit-marker"
+                :class="{ 'at-position': isNearCurrentFrame(hit.index) }"
+                :style="{ left: getMarkerPosition(hit.index) + '%' }"
+                :title="`Shuttle Hit @ ${formatTime(hit.timestamp)}`"
+                @click="goToFrameIndex(hit.index)"
+              >
+                <span v-if="isNearCurrentFrame(hit.index)" class="hit-tooltip">Hit</span>
+              </div>
+            </template>
+            <!-- Manual hit markers -->
+            <template v-if="showManualHitMarkers">
+              <div
+                v-for="hit in manualHitMarkers"
+                :key="'manual-hit-' + hit.index"
+                class="manual-hit-marker"
+                :class="{ 'at-position': isNearCurrentFrame(hit.index) }"
+                :style="{ left: getMarkerPosition(hit.index) + '%' }"
+                :title="`Manual Hit @ ${formatTime(hit.timestamp)} (click to remove)`"
+                @click="removeManualHit(hit.index)"
+              >
+                <span v-if="isNearCurrentFrame(hit.index)" class="manual-hit-tooltip">Manual</span>
               </div>
             </template>
             <!-- Shot markers (filtered) -->
@@ -103,6 +144,18 @@
       <button @click="goToEnd" :disabled="currentFrame >= frames.length - 1" class="nav-btn">
         &gt;|
       </button>
+      <div class="action-buttons">
+        <button
+          @click="toggleManualHit"
+          :class="['action-btn', 'mark-hit-btn', { active: manualHitFrameIndices.has(localFrame) }]"
+          :title="manualHitFrameIndices.has(localFrame) ? 'Remove manual hit (H)' : 'Mark as hit (H)'"
+        >
+          {{ manualHitFrameIndices.has(localFrame) ? 'Unmark Hit' : 'Mark Hit' }}
+        </button>
+        <button @click="downloadRawData" class="action-btn download-btn" title="Download all frame data as JSON">
+          Download Data
+        </button>
+      </div>
     </div>
 
     <!-- Shot Filter & Summary -->
@@ -151,6 +204,24 @@
         >
           <span class="toggle-dot rally-dot"></span>
           Rally Breaks ({{ rallyEndFrames.length }})
+        </div>
+        <div
+          v-if="hasShuttleData && shuttleHitCount > 0"
+          class="overlay-toggle"
+          :class="{ active: showHitMarkers }"
+          @click="showHitMarkers = !showHitMarkers"
+        >
+          <span class="toggle-dot hit-dot"></span>
+          Shuttle Hits ({{ shuttleHitCount }})
+        </div>
+        <div
+          v-if="manualHitCount > 0"
+          class="overlay-toggle"
+          :class="{ active: showManualHitMarkers }"
+          @click="showManualHitMarkers = !showManualHitMarkers"
+        >
+          <span class="toggle-dot manual-hit-dot"></span>
+          Manual Hits ({{ manualHitCount }})
         </div>
       </div>
 
@@ -350,6 +421,7 @@
     <div class="shortcuts-help">
       <span>← / → : Navigate frames</span>
       <span>Home / End : Jump to start/end</span>
+      <span>H : Mark/unmark hit</span>
     </div>
   </div>
 </template>
@@ -388,6 +460,16 @@ const props = defineProps({
       shuttle_gap_frames: 90,
       shuttle_gap_miss_pct: 80
     })
+  },
+  hitThresholds: {
+    type: Object,
+    default: () => ({
+      hit_disp_window: 30,
+      hit_speed_window: 8,
+      hit_break_window: 8,
+      hit_threshold: 0.15,
+      hit_cooldown: 25
+    })
   }
 })
 
@@ -407,6 +489,9 @@ const videoError = ref('')
 const shuttleStripCanvas = ref(null)
 const showShuttleStrip = ref(true)
 const showRallyMarkers = ref(true)
+const showHitMarkers = ref(true)
+const manualHitFrameIndices = ref(new Set())
+const showManualHitMarkers = ref(true)
 
 const hasShuttleData = computed(() => {
   return props.frames.some(f => f.shuttle_visible !== undefined)
@@ -423,6 +508,306 @@ const shuttleStats = computed(() => {
   }
   return { detected, total }
 })
+
+// Client-side multi-signal shuttle hit detection
+const shuttleHitFrameIndices = computed(() => {
+  const n = props.frames.length
+  if (n === 0) return new Set()
+
+  const dispW = props.hitThresholds?.hit_disp_window ?? 30
+  const spdW = props.hitThresholds?.hit_speed_window ?? 8
+  const brkW = props.hitThresholds?.hit_break_window ?? 8
+  const threshold = props.hitThresholds?.hit_threshold ?? 0.15
+  const cooldown = props.hitThresholds?.hit_cooldown ?? 25
+
+  // --- Step 0: Build clean position arrays ---
+  // Extract raw positions (frame index → {x, y} or null)
+  const rawX = new Float64Array(n)
+  const rawY = new Float64Array(n)
+  const hasPos = new Uint8Array(n)
+  for (let i = 0; i < n; i++) {
+    const f = props.frames[i]
+    if (f.shuttle_visible && f.shuttle_x != null && f.shuttle_y != null) {
+      rawX[i] = f.shuttle_x
+      rawY[i] = f.shuttle_y
+      hasPos[i] = 1
+    }
+  }
+
+  // Interpolate gaps up to 5 frames
+  const interpX = Float64Array.from(rawX)
+  const interpY = Float64Array.from(rawY)
+  const valid = Uint8Array.from(hasPos)
+  const MAX_GAP = 5
+  let gapStart = -1
+  for (let i = 0; i < n; i++) {
+    if (hasPos[i]) {
+      if (gapStart >= 0 && gapStart > 0 && hasPos[gapStart - 1]) {
+        const gapLen = i - gapStart
+        if (gapLen <= MAX_GAP) {
+          const prevI = gapStart - 1
+          for (let g = gapStart; g < i; g++) {
+            const t = (g - prevI) / (i - prevI)
+            interpX[g] = rawX[prevI] + t * (rawX[i] - rawX[prevI])
+            interpY[g] = rawY[prevI] + t * (rawY[i] - rawY[prevI])
+            valid[g] = 1
+          }
+        }
+      }
+      gapStart = -1
+    } else {
+      if (gapStart < 0) gapStart = i
+    }
+  }
+
+  // Median-smooth with window=3
+  const smoothX = new Float64Array(n)
+  const smoothY = new Float64Array(n)
+  for (let i = 0; i < n; i++) {
+    if (!valid[i]) continue
+    // Collect up to 3 valid neighbors centered on i
+    const xVals = [], yVals = []
+    for (let d = -1; d <= 1; d++) {
+      const j = i + d
+      if (j >= 0 && j < n && valid[j]) {
+        xVals.push(interpX[j])
+        yVals.push(interpY[j])
+      }
+    }
+    xVals.sort((a, b) => a - b)
+    yVals.sort((a, b) => a - b)
+    const mid = Math.floor(xVals.length / 2)
+    smoothX[i] = xVals[mid]
+    smoothY[i] = yVals[mid]
+  }
+
+  // Compute velocity from smoothed positions: vx[i] = (x[i] - x[i-2]) / 2
+  const vx = new Float64Array(n)
+  const vy = new Float64Array(n)
+  const speed = new Float64Array(n)
+  for (let i = 2; i < n; i++) {
+    if (!valid[i] || !valid[i - 2]) continue
+    vx[i] = (smoothX[i] - smoothX[i - 2]) / 2
+    vy[i] = (smoothY[i] - smoothY[i - 2]) / 2
+    speed[i] = Math.sqrt(vx[i] * vx[i] + vy[i] * vy[i])
+  }
+
+  // --- Step 1: Signal A — Large-window net displacement cosine ---
+  const signalA = new Float64Array(n)
+  for (let i = 0; i < n; i++) {
+    // Find first/last valid in [i-dispW, i] (before window)
+    let bFirst = -1, bLast = -1
+    for (let j = Math.max(0, i - dispW); j <= i; j++) {
+      if (valid[j]) {
+        if (bFirst < 0) bFirst = j
+        bLast = j
+      }
+    }
+    // Find first/last valid in [i, i+dispW] (after window)
+    let aFirst = -1, aLast = -1
+    for (let j = i; j <= Math.min(n - 1, i + dispW); j++) {
+      if (valid[j]) {
+        if (aFirst < 0) aFirst = j
+        aLast = j
+      }
+    }
+    const minSpan = Math.max(1, Math.floor(dispW / 3))
+    if (bFirst < 0 || bLast < 0 || aFirst < 0 || aLast < 0) continue
+    if ((bLast - bFirst) < minSpan || (aLast - aFirst) < minSpan) continue
+
+    const bDx = smoothX[bLast] - smoothX[bFirst]
+    const bDy = smoothY[bLast] - smoothY[bFirst]
+    const aDx = smoothX[aLast] - smoothX[aFirst]
+    const aDy = smoothY[aLast] - smoothY[aFirst]
+
+    const bMag = Math.sqrt(bDx * bDx + bDy * bDy)
+    const aMag = Math.sqrt(aDx * aDx + aDy * aDy)
+    if (bMag < 1e-6 || aMag < 1e-6) continue
+
+    const cosSim = (bDx * aDx + bDy * aDy) / (bMag * aMag)
+    signalA[i] = Math.max(0, -cosSim)
+  }
+
+  // --- Step 2: Signal B — Speed ratio ---
+  const signalB = new Float64Array(n)
+  for (let i = 0; i < n; i++) {
+    let beforeSum = 0, beforeCnt = 0
+    for (let j = Math.max(0, i - spdW); j <= i; j++) {
+      if (speed[j] > 0) { beforeSum += speed[j]; beforeCnt++ }
+    }
+    let afterSum = 0, afterCnt = 0
+    for (let j = i + 1; j <= Math.min(n - 1, i + spdW); j++) {
+      if (speed[j] > 0) { afterSum += speed[j]; afterCnt++ }
+    }
+    if (beforeCnt === 0 || afterCnt === 0) continue
+    const beforeAvg = beforeSum / beforeCnt
+    const afterAvg = afterSum / afterCnt
+    if (beforeAvg < 1e-6 || afterAvg < 1e-6) continue
+    const ratio = afterAvg > beforeAvg ? afterAvg / beforeAvg : beforeAvg / afterAvg
+    signalB[i] = ratio - 1
+  }
+
+  // --- Step 3: Signal C — Trajectory break / prediction error ---
+  const signalC = new Float64Array(n)
+  const K = 5 // prediction horizon
+  for (let i = brkW; i < n - K; i++) {
+    // Collect positions in [i-brkW, i]
+    const ts = [], xs = [], ys = []
+    for (let j = i - brkW; j <= i; j++) {
+      if (valid[j]) {
+        ts.push(j)
+        xs.push(smoothX[j])
+        ys.push(smoothY[j])
+      }
+    }
+    if (ts.length < 3) continue
+
+    // Fit linear x(t): x = a*t + b using least squares
+    let sumT = 0, sumT2 = 0, sumX = 0, sumTX = 0
+    for (let k = 0; k < ts.length; k++) {
+      const t = ts[k]
+      sumT += t; sumT2 += t * t; sumX += xs[k]; sumTX += t * xs[k]
+    }
+    const nPts = ts.length
+    const detX = nPts * sumT2 - sumT * sumT
+    if (Math.abs(detX) < 1e-12) continue
+    const aX = (nPts * sumTX - sumT * sumX) / detX
+    const bX = (sumX - aX * sumT) / nPts
+
+    // Fit quadratic y(t): y = a*t^2 + b*t + c using least squares
+    let sT = 0, sT2 = 0, sT3 = 0, sT4 = 0, sY = 0, sTY = 0, sT2Y = 0
+    for (let k = 0; k < ts.length; k++) {
+      const t = ts[k]
+      const t2 = t * t
+      sT += t; sT2 += t2; sT3 += t * t2; sT4 += t2 * t2
+      sY += ys[k]; sTY += t * ys[k]; sT2Y += t2 * ys[k]
+    }
+    // Solve 3x3 system: [n sT sT2; sT sT2 sT3; sT2 sT3 sT4] * [c b a] = [sY sTY sT2Y]
+    const M = [
+      [nPts, sT, sT2],
+      [sT, sT2, sT3],
+      [sT2, sT3, sT4]
+    ]
+    const rhs = [sY, sTY, sT2Y]
+    // Gaussian elimination
+    const aug = M.map((row, ri) => [...row, rhs[ri]])
+    let singular = false
+    for (let col = 0; col < 3; col++) {
+      // Partial pivoting
+      let maxRow = col
+      for (let row = col + 1; row < 3; row++) {
+        if (Math.abs(aug[row][col]) > Math.abs(aug[maxRow][col])) maxRow = row
+      }
+      [aug[col], aug[maxRow]] = [aug[maxRow], aug[col]]
+      if (Math.abs(aug[col][col]) < 1e-12) { singular = true; break }
+      for (let row = col + 1; row < 3; row++) {
+        const factor = aug[row][col] / aug[col][col]
+        for (let c = col; c < 4; c++) aug[row][c] -= factor * aug[col][c]
+      }
+    }
+    if (singular) continue
+    // Back-substitute
+    const sol = [0, 0, 0]
+    for (let row = 2; row >= 0; row--) {
+      let s = aug[row][3]
+      for (let col = row + 1; col < 3; col++) s -= aug[row][col] * sol[col]
+      sol[row] = s / aug[row][row]
+    }
+    const cY = sol[0], bY = sol[1], aY = sol[2]
+
+    // Predict positions at [i+1 ... i+K] and compute avg error
+    let errSum = 0, errCnt = 0
+    for (let k = 1; k <= K; k++) {
+      const t = i + k
+      if (t >= n || !valid[t]) continue
+      const predX = aX * t + bX
+      const predY = aY * t * t + bY * t + cY
+      const dx = smoothX[t] - predX
+      const dy = smoothY[t] - predY
+      errSum += Math.sqrt(dx * dx + dy * dy)
+      errCnt++
+    }
+    if (errCnt > 0) signalC[i] = errSum / errCnt
+  }
+
+  // --- Step 4: Normalize and combine ---
+  // 95th-percentile normalization
+  function normalize95(arr) {
+    const vals = []
+    for (let i = 0; i < arr.length; i++) {
+      if (arr[i] > 0) vals.push(arr[i])
+    }
+    if (vals.length === 0) return new Float64Array(arr.length)
+    vals.sort((a, b) => a - b)
+    const p95 = vals[Math.min(vals.length - 1, Math.floor(vals.length * 0.95))]
+    if (p95 < 1e-12) return new Float64Array(arr.length)
+    const out = new Float64Array(arr.length)
+    for (let i = 0; i < arr.length; i++) {
+      out[i] = Math.min(1, arr[i] / p95)
+    }
+    return out
+  }
+
+  const normA = normalize95(signalA)
+  const normB = normalize95(signalB)
+  const normC = normalize95(signalC)
+
+  // Weighted sum: 0.45 * displacement + 0.30 * speed + 0.25 * break
+  const combined = new Float64Array(n)
+  for (let i = 0; i < n; i++) {
+    combined[i] = 0.45 * normA[i] + 0.30 * normB[i] + 0.25 * normC[i]
+  }
+
+  // --- Step 5: Peak detection with NMS ---
+  const gapSet = gapFrameIndices.value
+  // Collect candidates above threshold
+  const candidates = []
+  for (let i = 0; i < n; i++) {
+    if (combined[i] >= threshold && !gapSet.has(i)) {
+      candidates.push({ idx: i, score: combined[i] })
+    }
+  }
+  // Sort by score descending
+  candidates.sort((a, b) => b.score - a.score)
+
+  // NMS with cooldown
+  const result = new Set()
+  const suppressed = new Uint8Array(n)
+  for (const c of candidates) {
+    if (suppressed[c.idx]) continue
+    result.add(c.idx)
+    // Suppress neighbors within cooldown
+    for (let j = Math.max(0, c.idx - cooldown); j <= Math.min(n - 1, c.idx + cooldown); j++) {
+      suppressed[j] = 1
+    }
+  }
+
+  return result
+})
+
+const shuttleHitMarkers = computed(() => {
+  const gapSet = gapFrameIndices.value
+  const result = []
+  for (const idx of shuttleHitFrameIndices.value) {
+    if (gapSet.has(idx)) continue
+    const f = props.frames[idx]
+    if (f) {
+      result.push({ index: idx, timestamp: f.timestamp || 0 })
+    }
+  }
+  result.sort((a, b) => a.index - b.index)
+  return result
+})
+
+const shuttleHitCount = computed(() => shuttleHitMarkers.value.length)
+
+const manualHitMarkers = computed(() => {
+  return Array.from(manualHitFrameIndices.value)
+    .filter(idx => props.frames[idx])
+    .map(idx => ({ index: idx, timestamp: props.frames[idx].timestamp || 0 }))
+    .sort((a, b) => a.index - b.index)
+})
+const manualHitCount = computed(() => manualHitMarkers.value.length)
 
 // Draw shuttle visibility strip on canvas
 function drawShuttleStrip() {
@@ -475,6 +860,45 @@ function drawShuttleStrip() {
       }
     }
     ctx.fillRect(px, 0, 1, height)
+  }
+
+  // Draw hit markers as small yellow triangles (skip gap zones)
+  if (showHitMarkers.value) {
+    const hitSet = shuttleHitFrameIndices.value
+    if (hitSet.size > 0) {
+      ctx.fillStyle = '#ffd700'
+      ctx.strokeStyle = '#b8960f'
+      ctx.lineWidth = 0.5
+      for (const idx of hitSet) {
+        if (gapSet.has(idx)) continue
+        const px = Math.round((idx / n) * width)
+        // Small downward-pointing triangle
+        ctx.beginPath()
+        ctx.moveTo(px - 3, 0)
+        ctx.lineTo(px + 3, 0)
+        ctx.lineTo(px, height)
+        ctx.closePath()
+        ctx.fill()
+        ctx.stroke()
+      }
+    }
+  }
+
+  // Draw manual hit markers as cyan upward triangles
+  if (showManualHitMarkers.value && manualHitFrameIndices.value.size > 0) {
+    ctx.fillStyle = '#00e5ff'
+    ctx.strokeStyle = '#0097a7'
+    ctx.lineWidth = 0.5
+    for (const idx of manualHitFrameIndices.value) {
+      const px = Math.round((idx / n) * width)
+      ctx.beginPath()
+      ctx.moveTo(px - 3, height)
+      ctx.lineTo(px + 3, height)
+      ctx.lineTo(px, 0)
+      ctx.closePath()
+      ctx.fill()
+      ctx.stroke()
+    }
   }
 }
 
@@ -856,6 +1280,68 @@ function goToFrameIndex(index) {
   syncVideoToFrame()
 }
 
+function toggleManualHit() {
+  const idx = localFrame.value
+  const newSet = new Set(manualHitFrameIndices.value)
+  if (newSet.has(idx)) newSet.delete(idx)
+  else newSet.add(idx)
+  manualHitFrameIndices.value = newSet
+}
+
+function removeManualHit(index) {
+  const newSet = new Set(manualHitFrameIndices.value)
+  newSet.delete(index)
+  manualHitFrameIndices.value = newSet
+}
+
+function downloadRawData() {
+  const exportData = {
+    export_timestamp: new Date().toISOString(),
+    job_id: props.jobId,
+    video_info: props.videoInfo,
+    total_frames: props.frames.length,
+    auto_detected_hits: {
+      frame_indices: Array.from(shuttleHitFrameIndices.value).sort((a, b) => a - b),
+      count: shuttleHitFrameIndices.value.size
+    },
+    manual_hits: {
+      frame_indices: Array.from(manualHitFrameIndices.value).sort((a, b) => a - b),
+      count: manualHitFrameIndices.value.size
+    },
+    rally_end_frames: rallyEndFrames.value.map(r => ({
+      frame_index: r.index, timestamp: r.timestamp, rally_number: r.rallyNumber
+    })),
+    shot_detections: allShotFrames.value.map(s => ({
+      frame_index: s.index, type: s.type, timestamp: s.timestamp, confidence: s.confidence
+    })),
+    shuttle_detections: props.frames
+      .map((f, i) => ({ ...f, _index: i }))
+      .filter(f => f.shuttle_visible)
+      .map(f => ({
+        frame_index: f._index,
+        timestamp: f.timestamp,
+        x: f.shuttle_x,
+        y: f.shuttle_y,
+        confidence: f.shuttle_confidence,
+        speed: f.shuttle_speed,
+        dx: f.shuttle_dx,
+        dy: f.shuttle_dy,
+        direction: f.shuttle_direction,
+        is_hit: f.shuttle_is_hit || false
+      })),
+    frames: props.frames
+  }
+  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `frame_data_${props.jobId || 'export'}_${Date.now()}.json`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
 function getMarkerPosition(index) {
   if (props.frames.length <= 1) return 0
   return (index / (props.frames.length - 1)) * 100
@@ -886,6 +1372,9 @@ function handleKeydown(event) {
   } else if (event.key === 'End') {
     event.preventDefault()
     goToEnd()
+  } else if (event.key === 'h' || event.key === 'H') {
+    event.preventDefault()
+    toggleManualHit()
   }
 }
 
@@ -898,6 +1387,10 @@ onMounted(() => {
 watch(() => props.frames, () => nextTick(drawShuttleStrip), { deep: false })
 watch(showShuttleStrip, (v) => { if (v) nextTick(drawShuttleStrip) })
 watch(() => props.rallyThresholds, () => nextTick(drawShuttleStrip), { deep: true })
+watch(() => props.hitThresholds, () => nextTick(drawShuttleStrip), { deep: true })
+watch(showHitMarkers, () => nextTick(drawShuttleStrip))
+watch(manualHitFrameIndices, () => nextTick(drawShuttleStrip))
+watch(showManualHitMarkers, () => nextTick(drawShuttleStrip))
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown)
@@ -1165,6 +1658,17 @@ function getShotClass(shotType) {
 .marker-default { background: #888; color: #888; }
 .marker-rally-end { background: #fff; color: #fff; }
 
+/* Gap zone overlays on seek bar */
+.gap-zone-overlay {
+  position: absolute;
+  top: -6px;
+  height: 20px;
+  background: rgba(231, 76, 60, 0.15);
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 1;
+}
+
 /* Rally end markers - simple vertical dashed lines */
 .rally-end-marker {
   position: absolute;
@@ -1204,6 +1708,51 @@ function getShotClass(shotType) {
   border-radius: 4px;
   margin-bottom: 4px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Shuttle hit markers on seek bar — gold diamonds */
+.hit-marker {
+  position: absolute;
+  top: -2px;
+  width: 8px;
+  height: 8px;
+  background: #ffd700;
+  transform: translateX(-50%) rotate(45deg);
+  cursor: pointer;
+  pointer-events: auto;
+  opacity: 0.85;
+  z-index: 4;
+  transition: transform 0.15s, opacity 0.15s, box-shadow 0.15s;
+}
+
+.hit-marker:hover {
+  transform: translateX(-50%) rotate(45deg) scale(1.3);
+  opacity: 1;
+  z-index: 10;
+  box-shadow: 0 0 6px #ffd700;
+}
+
+.hit-marker.at-position {
+  transform: translateX(-50%) rotate(45deg) scale(1.5);
+  opacity: 1;
+  z-index: 15;
+  box-shadow: 0 0 10px #ffd700;
+}
+
+.hit-tooltip {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%) rotate(-45deg);
+  font-size: 9px;
+  font-weight: bold;
+  color: #1a1a2e;
+  white-space: nowrap;
+  background: #ffd700;
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin-bottom: 6px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
 /* Shuttle visibility strip below timeline */
@@ -1269,6 +1818,11 @@ function getShotClass(shotType) {
   width: 2px;
   height: 10px;
   border-radius: 0;
+}
+
+.toggle-dot.hit-dot {
+  background: #ffd700;
+  clip-path: polygon(50% 100%, 0 0, 100% 0);
 }
 
 .shot-summary-section {
@@ -1691,5 +2245,92 @@ function getShotClass(shotType) {
   justify-content: center;
   color: #666;
   font-size: 0.75rem;
+}
+
+/* Manual hit markers on seek bar — cyan circles */
+.manual-hit-marker {
+  position: absolute;
+  top: -1px;
+  width: 10px;
+  height: 10px;
+  background: #00e5ff;
+  border-radius: 50%;
+  transform: translateX(-50%);
+  cursor: pointer;
+  pointer-events: auto;
+  opacity: 0.85;
+  z-index: 4;
+  transition: transform 0.15s, opacity 0.15s, box-shadow 0.15s;
+}
+
+.manual-hit-marker:hover {
+  transform: translateX(-50%) scale(1.3);
+  opacity: 1;
+  z-index: 10;
+  box-shadow: 0 0 6px #00e5ff;
+}
+
+.manual-hit-marker.at-position {
+  transform: translateX(-50%) scale(1.5);
+  opacity: 1;
+  z-index: 15;
+  box-shadow: 0 0 10px #00e5ff;
+}
+
+.manual-hit-tooltip {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9px;
+  font-weight: bold;
+  color: #1a1a2e;
+  white-space: nowrap;
+  background: #00e5ff;
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin-bottom: 6px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.toggle-dot.manual-hit-dot {
+  background: #00e5ff;
+  border-radius: 50%;
+}
+
+/* Action buttons (Mark Hit / Download Data) */
+.action-buttons {
+  display: flex;
+  gap: 0.4rem;
+  margin-left: 0.5rem;
+}
+
+.action-btn {
+  padding: 0.3rem 0.7rem;
+  background: #2a2a4a;
+  border: 1px solid #3a3a5a;
+  border-radius: 6px;
+  color: #ccc;
+  font-size: 0.72rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.action-btn:hover {
+  background: #3a3a5a;
+  border-color: #4a4a6a;
+}
+
+.mark-hit-btn.active {
+  background: rgba(0, 229, 255, 0.2);
+  border-color: #00e5ff;
+  color: #00e5ff;
+}
+
+.download-btn:hover {
+  background: rgba(78, 204, 163, 0.2);
+  border-color: #4ecca3;
+  color: #4ecca3;
 }
 </style>
