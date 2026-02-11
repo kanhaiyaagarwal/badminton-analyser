@@ -24,6 +24,12 @@
                 Video
               </button>
               <button
+                :class="['tab', { active: sourceMode === 'stream' }]"
+                @click="sourceMode = 'stream'"
+              >
+                Stream Session
+              </button>
+              <button
                 :class="['tab', { active: sourceMode === 'live' }]"
                 @click="sourceMode = 'live'"
               >
@@ -44,6 +50,21 @@
               </div>
               <div v-if="frameDataError" class="error-message">{{ frameDataError }}</div>
               <div v-if="loadingFrameData" class="loading">Loading video & frame data...</div>
+            </div>
+
+            <!-- Stream Session Source -->
+            <div v-if="sourceMode === 'stream'" class="source-content">
+              <div class="form-group-inline">
+                <label>Session:</label>
+                <select v-model="selectedStreamSessionId" @change="loadStreamSessionFrameData">
+                  <option value="">-- Select a stream session --</option>
+                  <option v-for="s in endedStreamSessions" :key="s.id" :value="s.id">
+                    Session #{{ s.id }} — {{ s.total_shots ?? 0 }} shots ({{ formatDate(s.ended_at || s.created_at) }})
+                  </option>
+                </select>
+              </div>
+              <div v-if="frameDataError" class="error-message">{{ frameDataError }}</div>
+              <div v-if="loadingFrameData" class="loading">Loading stream frame data...</div>
             </div>
 
             <!-- Live Stream Source -->
@@ -242,6 +263,13 @@ import api from '../api/client'
 import ThresholdSliders from '../components/ThresholdSliders.vue'
 import FrameViewer from '../components/FrameViewer.vue'
 
+const props = defineProps({
+  streamSessionId: {
+    type: Number,
+    default: null,
+  },
+})
+
 const authStore = useAuthStore()
 const isAdmin = computed(() => authStore.user?.is_admin)
 
@@ -249,6 +277,10 @@ const isAdmin = computed(() => authStore.user?.is_admin)
 const sourceMode = ref('video')
 const selectedJobId = ref('')
 const completedJobs = ref([])
+
+// Stream sessions (ended, with frame data)
+const endedStreamSessions = ref([])
+const selectedStreamSessionId = ref('')
 
 // Live stream
 const liveSessions = ref([])
@@ -306,11 +338,21 @@ const hitThresholds = computed(() => ({
 
 onMounted(async () => {
   if (isAdmin.value) {
-    await Promise.all([
-      loadJobs(),
-      loadPresets(),
-      loadSchema()
-    ])
+    const tasks = [loadJobs(), loadPresets(), loadSchema()]
+
+    // If opened from stream results, auto-switch to stream tab and load
+    if (props.streamSessionId) {
+      tasks.push(loadStreamSessions())
+      sourceMode.value = 'stream'
+    }
+
+    await Promise.all(tasks)
+
+    // After sessions are loaded, auto-select the target session
+    if (props.streamSessionId) {
+      selectedStreamSessionId.value = props.streamSessionId
+      await loadStreamSessionFrameData()
+    }
   }
 })
 
@@ -318,6 +360,8 @@ onMounted(async () => {
 watch(sourceMode, async (newMode) => {
   if (newMode === 'live') {
     await loadLiveSessions()
+  } else if (newMode === 'stream' && endedStreamSessions.value.length === 0) {
+    await loadStreamSessions()
   }
 })
 
@@ -330,6 +374,66 @@ async function loadJobs() {
   } catch (err) {
     console.error('Failed to load jobs:', err)
   }
+}
+
+async function loadStreamSessions() {
+  try {
+    const response = await api.get('/api/v1/stream/sessions', {
+      params: { status_filter: 'ended', limit: 100 }
+    })
+    const sessions = response.data.sessions || []
+    endedStreamSessions.value = sessions.filter(s => s.has_frame_data)
+  } catch (err) {
+    console.error('Failed to load stream sessions:', err)
+    endedStreamSessions.value = []
+  }
+}
+
+async function loadStreamSessionFrameData() {
+  if (!selectedStreamSessionId.value) {
+    frameData.value = null
+    videoUrl.value = null
+    return
+  }
+
+  loadingFrameData.value = true
+  frameDataError.value = ''
+
+  if (videoUrl.value && videoUrl.value.startsWith('blob:')) {
+    URL.revokeObjectURL(videoUrl.value)
+    videoUrl.value = null
+  }
+
+  try {
+    const response = await api.get(`/api/v1/stream/${selectedStreamSessionId.value}/frame-data`)
+    frameData.value = response.data
+    currentFrameIndex.value = 0
+    reclassifyResults.value = null
+
+    // Load annotated video
+    try {
+      const videoResponse = await api.get(`/api/v1/stream/${selectedStreamSessionId.value}/annotated-video`, {
+        responseType: 'blob'
+      })
+      videoUrl.value = URL.createObjectURL(videoResponse.data)
+    } catch (videoErr) {
+      console.warn('Failed to load annotated video:', videoErr)
+      videoUrl.value = null
+    }
+  } catch (err) {
+    console.error('Failed to load stream frame data:', err)
+    frameDataError.value = err.response?.data?.detail || 'Failed to load frame data for this stream session.'
+    frameData.value = null
+    videoUrl.value = null
+  } finally {
+    loadingFrameData.value = false
+  }
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return ''
+  const d = new Date(dateStr)
+  return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
 async function loadLiveSessions() {

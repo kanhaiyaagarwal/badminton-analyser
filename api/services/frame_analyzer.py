@@ -163,7 +163,8 @@ class FrameAnalyzer:
         effective_fps: float = 30.0,
         velocity_thresholds: Optional[Dict[str, float]] = None,
         position_thresholds: Optional[Dict[str, float]] = None,
-        shot_cooldown_seconds: float = 0.4
+        shot_cooldown_seconds: float = 0.4,
+        static_image_mode: bool = False
     ):
         """
         Initialize frame analyzer.
@@ -178,6 +179,7 @@ class FrameAnalyzer:
             velocity_thresholds: Optional custom velocity thresholds (uses defaults if None)
             position_thresholds: Optional custom position thresholds (uses defaults if None)
             shot_cooldown_seconds: Cooldown period after detecting a shot
+            static_image_mode: If True, run full detection every frame (better for low FPS)
         """
         self.court = court_boundary
         self.processing_width = processing_width
@@ -198,7 +200,7 @@ class FrameAnalyzer:
         # Initialize MediaPipe pose
         self.mp_pose = mp.solutions.pose
         self.pose = self.mp_pose.Pose(
-            static_image_mode=False,
+            static_image_mode=static_image_mode,
             model_complexity=model_complexity,
             enable_segmentation=False,
             min_detection_confidence=min_detection_confidence,
@@ -209,6 +211,7 @@ class FrameAnalyzer:
         # Movement tracking history (stores {pose_state, timestamp})
         self.pose_history: List[dict] = []
         self._last_transform: Optional[dict] = None
+        self._frame_log_counter: int = 0
 
         # Shot cooldown mechanism
         self.last_shot_timestamp: float = -999.0
@@ -217,7 +220,7 @@ class FrameAnalyzer:
         # Coaching tips database
         self.coaching_db = self._setup_coaching_database()
 
-        logger.info(f"FrameAnalyzer initialized: width={processing_width}, complexity={model_complexity}, fps={effective_fps}")
+        logger.info(f"FrameAnalyzer initialized: width={processing_width}, complexity={model_complexity}, fps={effective_fps}, static_mode={static_image_mode}")
 
     def _setup_coaching_database(self) -> dict:
         """Setup coaching tips for each shot type."""
@@ -389,6 +392,9 @@ class FrameAnalyzer:
         results = self.pose.process(frame_rgb)
 
         if not results.pose_landmarks:
+            if self._frame_log_counter % 30 == 0:
+                logger.debug(f"No pose landmarks found in frame")
+            self._frame_log_counter += 1
             return None, None
 
         landmarks = results.pose_landmarks.landmark
@@ -402,6 +408,9 @@ class FrameAnalyzer:
 
         # Check if player center is inside court
         if not self.court.is_point_inside((center_x, center_y)):
+            if self._frame_log_counter % 30 == 0:
+                logger.debug(f"Pose rejected: hip center ({center_x},{center_y}) outside court boundary")
+            self._frame_log_counter += 1
             return None, None
 
         # Calculate player bounding box
@@ -420,6 +429,9 @@ class FrameAnalyzer:
 
         # Verify bbox is inside court
         if not self.court.is_bbox_inside(player_bbox, threshold=0.3):
+            if self._frame_log_counter % 30 == 0:
+                logger.debug(f"Pose rejected: bbox {player_bbox} outside court (threshold=0.3)")
+            self._frame_log_counter += 1
             return None, None
 
         # Store transform info for coordinate mapping

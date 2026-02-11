@@ -21,6 +21,12 @@ const routes = [
     meta: { guest: true }
   },
   {
+    path: '/hub',
+    name: 'FeatureHub',
+    component: () => import('../views/FeatureHubView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/dashboard',
     name: 'Dashboard',
     component: () => import('../views/DashboardView.vue'),
@@ -57,6 +63,37 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/stream/:sessionId/tuning',
+    name: 'StreamTuning',
+    component: () => import('../views/TuningView.vue'),
+    meta: { requiresAuth: true },
+    props: route => ({ streamSessionId: parseInt(route.params.sessionId) })
+  },
+  {
+    path: '/challenges',
+    name: 'ChallengeSelector',
+    component: () => import('../views/ChallengeSelectorView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/challenges/:type',
+    name: 'ChallengeSession',
+    component: () => import('../views/ChallengeSessionView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/challenges/results/:sessionId',
+    name: 'ChallengeResults',
+    component: () => import('../views/ChallengeResultsView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/workout',
+    name: 'Workout',
+    component: () => import('../views/WorkoutView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/admin',
     name: 'Admin',
     component: () => import('../views/AdminView.vue'),
@@ -81,10 +118,10 @@ router.beforeEach((to, from, next) => {
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     next('/login')
   } else if (to.meta.guest && authStore.isAuthenticated && to.name !== 'Landing') {
-    // Redirect authenticated users from login/signup to dashboard, but allow landing page
-    next('/dashboard')
+    // Redirect authenticated users from login/signup to hub
+    next('/hub')
   } else if (to.meta.requiresAdmin && !authStore.user?.is_admin) {
-    next('/dashboard')
+    next('/hub')
   } else {
     next()
   }

@@ -206,6 +206,99 @@
         </table>
       </div>
 
+      <!-- Challenges Tab -->
+      <div v-if="activeTab === 'challenges'" class="tab-content">
+        <!-- Sessions Browser -->
+        <div class="section-header">
+          <h2>Challenge Sessions</h2>
+          <select v-model="challengeTypeFilter" @change="loadChallengeSessions">
+            <option value="">All Types</option>
+            <option value="plank">Plank</option>
+            <option value="squat">Squat</option>
+            <option value="pushup">Pushup</option>
+          </select>
+        </div>
+
+        <div v-if="loadingSessions" class="loading">Loading...</div>
+
+        <table v-else class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>User</th>
+              <th>Type</th>
+              <th>Score</th>
+              <th>Duration</th>
+              <th>Date</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="s in challengeSessions" :key="s.id">
+              <td>{{ s.id }}</td>
+              <td>{{ s.username }}</td>
+              <td>{{ s.challenge_type }}</td>
+              <td>{{ s.score }}</td>
+              <td>{{ s.duration_seconds.toFixed(1) }}s</td>
+              <td>{{ formatDate(s.created_at) }}</td>
+              <td>
+                <span :class="['status', s.status === 'ended' ? 'active' : 'pending']">
+                  {{ s.status }}
+                </span>
+              </td>
+              <td class="actions">
+                <button
+                  v-if="s.has_pose_data"
+                  @click="downloadPoseData(s.id)"
+                  class="btn-small btn-success"
+                >
+                  Download Pose Data
+                </button>
+                <span v-else class="no-data">No pose data</span>
+              </td>
+            </tr>
+            <tr v-if="challengeSessions.length === 0">
+              <td colspan="8" class="empty">No challenge sessions found</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Tolerance Config -->
+        <h2 class="config-heading">Tolerance Config</h2>
+
+        <div v-if="loadingConfig" class="loading">Loading...</div>
+
+        <div v-else class="config-grid">
+          <div v-for="(cfg, ctype) in challengeConfig" :key="ctype" class="config-card">
+            <h3>{{ ctype }}</h3>
+            <div v-for="(val, key) in cfg.thresholds" :key="key" class="config-field">
+              <label>{{ formatThresholdLabel(key) }}</label>
+              <input
+                type="number"
+                v-model.number="cfg.thresholds[key]"
+                step="1"
+              />
+            </div>
+            <div class="config-actions">
+              <button @click="saveChallengeConfig(ctype)" class="btn-primary btn-sm">
+                Save
+              </button>
+              <button
+                v-if="cfg.is_custom"
+                @click="resetChallengeConfig(ctype)"
+                class="btn-small"
+              >
+                Reset to Default
+              </button>
+            </div>
+            <div v-if="cfg.updated_at" class="config-meta">
+              Updated: {{ formatDate(cfg.updated_at) }}
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Create Code Modal -->
       <div v-if="showCreateCode" class="modal-overlay" @click="showCreateCode = false">
         <div class="modal-content" @click.stop>
@@ -271,7 +364,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import api from '../api/client'
 
@@ -283,7 +376,8 @@ const tabs = [
   { id: 'codes', label: 'Invite Codes' },
   { id: 'whitelist', label: 'Whitelist' },
   { id: 'waitlist', label: 'Waitlist' },
-  { id: 'users', label: 'Users' }
+  { id: 'users', label: 'Users' },
+  { id: 'challenges', label: 'Challenges' }
 ]
 const activeTab = ref('codes')
 
@@ -312,9 +406,23 @@ const waitlistFilter = ref('')
 const users = ref([])
 const loadingUsers = ref(false)
 
+// Challenges
+const challengeSessions = ref([])
+const loadingSessions = ref(false)
+const challengeTypeFilter = ref('')
+const challengeConfig = ref({})
+const loadingConfig = ref(false)
+
 onMounted(async () => {
   if (isAdmin.value) {
     await Promise.all([loadCodes(), loadWhitelist(), loadWaitlist(), loadUsers()])
+  }
+})
+
+watch(activeTab, (tab) => {
+  if (tab === 'challenges' && challengeSessions.value.length === 0) {
+    loadChallengeSessions()
+    loadChallengeConfig()
   }
 })
 
@@ -463,6 +571,73 @@ async function toggleAdmin(user) {
   } catch (err) {
     console.error('Failed to toggle admin:', err)
   }
+}
+
+// ---------- Challenges ----------
+
+async function loadChallengeSessions() {
+  loadingSessions.value = true
+  try {
+    const params = challengeTypeFilter.value ? { challenge_type: challengeTypeFilter.value } : {}
+    const response = await api.get('/api/v1/challenges/admin/sessions', { params })
+    challengeSessions.value = response.data
+  } catch (err) {
+    console.error('Failed to load challenge sessions:', err)
+  } finally {
+    loadingSessions.value = false
+  }
+}
+
+async function loadChallengeConfig() {
+  loadingConfig.value = true
+  try {
+    const response = await api.get('/api/v1/challenges/admin/config')
+    challengeConfig.value = response.data
+  } catch (err) {
+    console.error('Failed to load challenge config:', err)
+  } finally {
+    loadingConfig.value = false
+  }
+}
+
+async function saveChallengeConfig(ctype) {
+  try {
+    await api.put(`/api/v1/challenges/admin/config/${ctype}`, {
+      thresholds: challengeConfig.value[ctype].thresholds
+    })
+    await loadChallengeConfig()
+  } catch (err) {
+    console.error('Failed to save challenge config:', err)
+  }
+}
+
+async function resetChallengeConfig(ctype) {
+  if (!confirm(`Reset ${ctype} thresholds to defaults?`)) return
+  try {
+    await api.post(`/api/v1/challenges/admin/config/${ctype}/reset`)
+    await loadChallengeConfig()
+  } catch (err) {
+    console.error('Failed to reset challenge config:', err)
+  }
+}
+
+async function downloadPoseData(sessionId) {
+  try {
+    const response = await api.get(`/api/v1/challenges/admin/sessions/${sessionId}/pose-data`)
+    const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `pose_data_${sessionId}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch (err) {
+    console.error('Failed to download pose data:', err)
+  }
+}
+
+function formatThresholdLabel(key) {
+  return key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) + ' (\u00b0)'
 }
 
 function formatDate(dateStr) {
@@ -775,5 +950,71 @@ select {
   color: #888;
   font-size: 0.9rem;
   margin-bottom: 1rem;
+}
+
+.no-data {
+  color: #555;
+  font-size: 0.8rem;
+}
+
+.config-heading {
+  color: #eee;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+}
+
+.config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.config-card {
+  background: #1a1a2e;
+  border-radius: 10px;
+  padding: 1.25rem;
+}
+
+.config-card h3 {
+  color: #4ecca3;
+  margin: 0 0 1rem 0;
+  text-transform: capitalize;
+}
+
+.config-field {
+  margin-bottom: 0.75rem;
+}
+
+.config-field label {
+  display: block;
+  color: #888;
+  font-size: 0.8rem;
+  margin-bottom: 0.25rem;
+}
+
+.config-field input {
+  width: 100%;
+  padding: 0.5rem;
+  background: #16213e;
+  border: 1px solid #2a2a4a;
+  border-radius: 6px;
+  color: #eee;
+}
+
+.config-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.btn-sm {
+  padding: 0.4rem 1rem;
+  font-size: 0.85rem;
+}
+
+.config-meta {
+  color: #555;
+  font-size: 0.75rem;
+  margin-top: 0.5rem;
 }
 </style>

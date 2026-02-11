@@ -112,13 +112,13 @@ const selectedCamera = ref('')
 const cameraReady = ref(false)
 const cameraError = ref('')
 const streaming = ref(false)
-const selectedFps = ref(10)
+const selectedFps = ref(30)
 
 const fpsOptions = [
   { fps: 5, label: '5 FPS', quality: 0.6, desc: 'Low bandwidth' },
-  { fps: 10, label: '10 FPS', quality: 0.7, desc: 'Recommended' },
+  { fps: 10, label: '10 FPS', quality: 0.7, desc: 'Basic' },
   { fps: 15, label: '15 FPS', quality: 0.8, desc: 'Better accuracy' },
-  { fps: 30, label: '30 FPS', quality: 0.85, desc: 'Best quality' }
+  { fps: 30, label: '30 FPS', quality: 0.85, desc: 'Recommended' }
 ]
 
 let mediaStream = null

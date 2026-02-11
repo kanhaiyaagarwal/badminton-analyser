@@ -43,6 +43,36 @@
           <label>Session Title (optional)</label>
           <input v-model="sessionTitle" type="text" placeholder="My Practice Session" />
         </div>
+
+        <!-- Mode Selector -->
+        <div class="mode-selector">
+          <label class="mode-label">Analysis Mode</label>
+          <div class="mode-cards">
+            <div
+              class="mode-card"
+              :class="{ active: streamMode === 'basic' }"
+              @click="streamMode = 'basic'"
+            >
+              <div class="mode-card-header">
+                <span class="mode-icon">&#9889;</span>
+                <h4>Real-Time</h4>
+              </div>
+              <p>Instant skeleton overlay, shot detection, movement heatmap. Results per frame.</p>
+            </div>
+            <div
+              class="mode-card"
+              :class="{ active: streamMode === 'advanced' }"
+              @click="streamMode = 'advanced'"
+            >
+              <div class="mode-card-header">
+                <span class="mode-icon">&#127919;</span>
+                <h4>Advanced</h4>
+              </div>
+              <p>Shuttle tracking + accurate shot classification. Results update periodically. Always records.</p>
+            </div>
+          </div>
+        </div>
+
         <button @click="createSession" :disabled="creating" class="btn-primary">
           {{ creating ? 'Creating...' : 'Create Session' }}
         </button>
@@ -149,8 +179,8 @@
       </div>
     </div>
 
-    <!-- Step 3: Live Streaming -->
-    <div v-else-if="step === 'streaming'" class="streaming-section">
+    <!-- Step 3: Live Streaming (Basic Mode) -->
+    <div v-else-if="step === 'streaming' && streamMode === 'basic'" class="streaming-section">
       <div class="stream-layout">
         <div class="stream-main">
           <CameraCapture
@@ -167,21 +197,18 @@
 
           <!-- Stream Controls Bar -->
           <div class="stream-controls-bar">
-            <!-- Session Info -->
             <div class="session-info-bar">
               <span class="info-label">Session #{{ sessionId }}</span>
               <span class="frames-label">{{ liveStats.framesProcessed }} frames</span>
             </div>
 
             <div class="controls-right">
-              <!-- Annotation Toggle -->
               <label class="toggle-control">
                 <input type="checkbox" v-model="showAnnotations" />
                 <span class="toggle-slider"></span>
                 <span class="toggle-text">Skeleton</span>
               </label>
 
-              <!-- Recording Status -->
               <div v-if="isRecording" class="recording-status">
                 <span class="recording-dot"></span>
                 <span class="recording-time">{{ formatRecordingTime(recordingDuration) }}</span>
@@ -205,7 +232,6 @@
             </button>
           </div>
 
-          <!-- Recording Info -->
           <div v-if="hasRecording" class="recording-info">
             <svg class="info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
@@ -231,6 +257,90 @@
       </div>
     </div>
 
+    <!-- Step 3: Live Streaming (Advanced Mode) -->
+    <div v-else-if="step === 'streaming' && streamMode === 'advanced'" class="streaming-section">
+      <div class="advanced-layout">
+        <div class="advanced-main">
+          <CameraCapture
+            ref="streamCamera"
+            :court-overlay="courtBoundary"
+            :show-annotations="false"
+            :auto-start="true"
+            @frame="handleFrame"
+            @stream-start="handleStreamStart"
+            @stream-stop="handleStreamStop"
+            @error="handleError"
+          />
+
+          <!-- Advanced Controls Bar -->
+          <div class="stream-controls-bar">
+            <div class="session-info-bar">
+              <span class="info-label">Session #{{ sessionId }}</span>
+              <span class="mode-badge">ADVANCED</span>
+              <span class="recording-dot"></span>
+              <span class="recording-time">Recording</span>
+            </div>
+            <div class="controls-right">
+              <span class="frames-label">{{ advancedStatus.framesBuffered }} frames buffered</span>
+            </div>
+          </div>
+
+          <!-- Seek Bar -->
+          <div class="seek-bar-container">
+            <div class="seek-bar">
+              <div class="seek-processed" :style="{ width: processedPct + '%' }"></div>
+              <div class="seek-buffered" :style="{ width: bufferedPct + '%' }"></div>
+            </div>
+            <div class="seek-labels">
+              <span>{{ formatTime(advancedStatus.secondsProcessed) }} processed</span>
+              <span>{{ formatTime(advancedStatus.secondsBuffered) }} buffered</span>
+            </div>
+          </div>
+
+          <div class="stream-actions">
+            <button @click="endSession" class="btn-end" :disabled="finalizingInProgress">
+              {{ finalizingInProgress ? 'Finalizing...' : 'End Session' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Advanced Sidebar: accumulated results -->
+        <div class="advanced-sidebar">
+          <div class="advanced-results-card">
+            <h3>Analysis Results</h3>
+            <p v-if="!advancedResults.summary || !advancedResults.summary.total_shots" class="hint">
+              Results will appear after the first processing cycle...
+            </p>
+            <div v-else class="advanced-stats">
+              <div class="stat-row">
+                <span class="stat-label">Shots</span>
+                <span class="stat-value">{{ advancedResults.summary.total_shots || 0 }}</span>
+              </div>
+              <div class="stat-row">
+                <span class="stat-label">Rallies</span>
+                <span class="stat-value">{{ advancedResults.summary.total_rallies || 0 }}</span>
+              </div>
+              <div class="stat-row">
+                <span class="stat-label">Shuttle Hits</span>
+                <span class="stat-value">{{ advancedResults.summary.shuttle_hits || advancedResults.shuttle_hits?.length || 0 }}</span>
+              </div>
+            </div>
+
+            <div v-if="advancedResults.shot_distribution && Object.keys(advancedResults.shot_distribution).length" class="shot-distribution">
+              <h4>Shot Distribution</h4>
+              <div v-for="(count, type) in advancedResults.shot_distribution" :key="type" class="dist-row">
+                <span class="dist-type">{{ formatShotType(type) }}</span>
+                <div class="dist-bar-bg">
+                  <div class="dist-bar" :style="{ width: getDistPct(count) + '%' }"></div>
+                </div>
+                <span class="dist-count">{{ count }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Session Ended / Results -->
     <div v-else-if="step === 'ended'" class="results-section">
       <div class="section-card">
@@ -252,18 +362,99 @@
             </div>
           </div>
 
-          <div class="shot-breakdown">
+          <div class="shot-breakdown" v-if="finalReport.shot_distribution && Object.keys(finalReport.shot_distribution).length > 0">
             <h3>Shot Distribution</h3>
             <div v-for="(count, type) in finalReport.shot_distribution" :key="type" class="shot-row">
               <span class="shot-type">{{ formatShotType(type) }}</span>
               <span class="shot-count">{{ count }}</span>
             </div>
           </div>
+          <p v-else class="no-shots-msg">No shots were detected during this session.</p>
         </div>
 
-        <button @click="startNewSession" class="btn-primary">
-          Start New Session
-        </button>
+        <!-- Post-Analysis Section -->
+        <div class="post-analysis-section" v-if="analysisAvailable || analysisStatus !== 'none'">
+          <h3>Detailed Analysis</h3>
+
+          <!-- Not started -->
+          <div v-if="analysisStatus === 'pending'" class="analysis-pending">
+            <p class="analysis-desc">
+              Run the full analysis pipeline (hit detection, shot classification, rally building)
+              on your recorded stream for accurate results.
+            </p>
+            <button @click="triggerPostAnalysis" class="btn-primary" :disabled="analysisRunning">
+              Run Detailed Analysis
+            </button>
+          </div>
+
+          <!-- Running -->
+          <div v-else-if="analysisStatus === 'running'" class="analysis-running">
+            <p class="analysis-desc">Analysis in progress...</p>
+            <div class="progress-bar-container">
+              <div class="progress-bar" :style="{ width: analysisProgress + '%' }"></div>
+            </div>
+            <span class="progress-text">{{ analysisProgress }}%</span>
+          </div>
+
+          <!-- Complete -->
+          <div v-else-if="analysisStatus === 'complete'" class="analysis-complete">
+            <div class="post-analysis-stats" v-if="postAnalysisResults">
+              <div class="stat">
+                <span class="value">{{ postAnalysisResults.shots || 0 }}</span>
+                <span class="label">Shots (Accurate)</span>
+              </div>
+              <div class="stat">
+                <span class="value">{{ postAnalysisResults.rallies || 0 }}</span>
+                <span class="label">Rallies</span>
+              </div>
+              <div class="stat">
+                <span class="value">{{ postAnalysisResults.shuttle_hits || 0 }}</span>
+                <span class="label">Shuttle Hits</span>
+              </div>
+            </div>
+
+            <div class="analysis-actions">
+              <button @click="downloadAnnotatedVideo" class="btn-download" :disabled="downloading">
+                Download Annotated Video
+              </button>
+              <router-link
+                v-if="hasFrameData"
+                :to="`/stream/${sessionId}/tuning`"
+                class="btn-secondary"
+              >
+                Open in Frame Viewer
+              </router-link>
+            </div>
+          </div>
+
+          <!-- Failed -->
+          <div v-else-if="analysisStatus === 'failed'" class="analysis-failed">
+            <p class="analysis-desc error-text">Analysis failed. Please try again.</p>
+            <button @click="retryPostAnalysis" class="btn-secondary">
+              Retry Analysis
+            </button>
+          </div>
+        </div>
+
+        <!-- Recording Download -->
+        <div v-if="hasRecording" class="recording-download">
+          <p class="recording-desc">Your session recording is ready for download.</p>
+          <button @click="downloadRecording" class="btn-download" :disabled="downloading">
+            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+            </svg>
+            {{ downloading ? 'Downloading...' : 'Download Recording' }}
+          </button>
+        </div>
+
+        <div class="ended-actions">
+          <router-link :to="`/stream-results/${sessionId}`" class="btn-primary">
+            View Full Results
+          </router-link>
+          <button @click="startNewSession" class="btn-secondary">
+            Start New Session
+          </button>
+        </div>
       </div>
     </div>
 
@@ -324,9 +515,41 @@ let initialZoom = 1
 const isRecording = ref(false)
 const hasRecording = ref(false)
 const recordingDuration = ref(0)
+const downloading = ref(false)
 const showAnnotations = ref(true)
 const finalReport = ref(null)
 let recordingTimer = null
+
+// Session creation options
+const streamMode = ref('basic')
+const enableTuningData = ref(false)
+const enableShuttleTracking = ref(false)
+
+// Advanced mode state
+const advancedStatus = ref({
+  framesBuffered: 0,
+  secondsBuffered: 0,
+  framesProcessed: 0,
+  secondsProcessed: 0,
+  isProcessing: false,
+})
+const advancedResults = ref({
+  shots: [],
+  rallies: [],
+  shot_distribution: {},
+  shuttle_hits: [],
+  summary: {},
+})
+const finalizingInProgress = ref(false)
+
+// Post-analysis state
+const analysisAvailable = ref(false)
+const analysisStatus = ref('none')
+const analysisProgress = ref(0)
+const analysisRunning = ref(false)
+const postAnalysisResults = ref(null)
+const hasFrameData = ref(false)
+let analysisPoller = null
 
 // Live stats
 const liveStats = ref({
@@ -377,6 +600,7 @@ onUnmounted(() => {
     courtMediaStream.getTracks().forEach(track => track.stop())
   }
   stopRecordingTimer()
+  stopAnalysisPoller()
 })
 
 async function checkActiveSession() {
@@ -816,10 +1040,14 @@ async function createSession() {
   error.value = ''
 
   try {
+    const isAdvanced = streamMode.value === 'advanced'
     const response = await api.post('/api/v1/stream/create', {
-      title: sessionTitle.value || 'Live Session',
-      frame_rate: 10,
-      quality: 'medium'
+      title: sessionTitle.value || (isAdvanced ? 'Advanced Session' : 'Live Session'),
+      frame_rate: 30,
+      quality: 'medium',
+      stream_mode: streamMode.value,
+      enable_tuning_data: isAdvanced ? true : false,
+      enable_shuttle_tracking: isAdvanced
     })
 
     sessionId.value = response.data.session_id
@@ -967,8 +1195,50 @@ function handleWebSocketMessage(data) {
     } else if (liveStats.value.framesProcessed % 60 === 0) {
       console.log('No pose data in frame', liveStats.value.framesProcessed)
     }
+  } else if (data.type === 'frame_buffered') {
+    // Advanced mode: update buffer/processing status
+    advancedStatus.value.framesBuffered = data.frames_buffered || 0
+    advancedStatus.value.secondsBuffered = data.seconds_buffered || 0
+    advancedStatus.value.framesProcessed = data.frames_processed || 0
+    advancedStatus.value.secondsProcessed = data.seconds_processed || 0
+    advancedStatus.value.isProcessing = data.is_processing || false
+  } else if (data.type === 'chunk_results') {
+    // Advanced mode: updated classification results
+    advancedStatus.value.secondsProcessed = data.seconds_processed || 0
+    advancedStatus.value.secondsBuffered = data.seconds_buffered || 0
+    advancedStatus.value.framesProcessed = data.frames_processed || 0
+    advancedResults.value = {
+      shots: data.shots || [],
+      rallies: data.rallies || [],
+      shot_distribution: data.shot_distribution || {},
+      shuttle_hits: data.shuttle_hits || [],
+      summary: data.summary || {},
+    }
+  } else if (data.type === 'finalizing') {
+    finalizingInProgress.value = true
+    if (data.report) {
+      finalReport.value = data.report
+    }
   } else if (data.type === 'stream_ended') {
+    finalizingInProgress.value = false
     finalReport.value = data.report
+    analysisAvailable.value = !!data.analysis_available
+    if (data.analysis_status) {
+      // Advanced mode sends explicit status (complete/failed)
+      analysisStatus.value = data.analysis_status
+      if (data.analysis_status === 'complete' && data.report) {
+        postAnalysisResults.value = {
+          shots: data.report.total_shots,
+          distribution: data.report.shot_distribution,
+          rallies: data.report.total_rallies,
+          shuttle_hits: data.report.shuttle_hits,
+        }
+        hasFrameData.value = !!data.report.frame_data_path
+      }
+    } else if (data.analysis_available) {
+      // Basic mode: analysis data available but not yet run
+      analysisStatus.value = 'pending'
+    }
     step.value = 'ended'
   }
 }
@@ -1047,14 +1317,27 @@ function formatRecordingTime(seconds) {
 
 async function endSession() {
   try {
-    // Send end message via WebSocket
+    if (streamMode.value === 'advanced') {
+      // Advanced mode: only send WebSocket message.
+      // The WebSocket handler runs finalize and sends stream_ended when done.
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'end_stream' }))
+      }
+      // Don't close WS or navigate — wait for 'finalizing' and 'stream_ended' messages
+      return
+    }
+
+    // Basic mode: send WS message + call REST API
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'end_stream' }))
     }
 
-    // Also call API endpoint
     const response = await api.post(`/api/v1/stream/${sessionId.value}/end`)
     finalReport.value = response.data.report
+    if (response.data.analysis_available) {
+      analysisAvailable.value = true
+      analysisStatus.value = 'pending'
+    }
 
     if (ws) {
       ws.close()
@@ -1087,8 +1370,40 @@ function startNewSession() {
   hasRecording.value = false
   recordingDuration.value = 0
   showAnnotations.value = true
+  analysisAvailable.value = false
+  analysisStatus.value = 'none'
+  analysisProgress.value = 0
+  analysisRunning.value = false
+  postAnalysisResults.value = null
+  hasFrameData.value = false
+  finalizingInProgress.value = false
+  advancedStatus.value = { framesBuffered: 0, secondsBuffered: 0, framesProcessed: 0, secondsProcessed: 0, isProcessing: false }
+  advancedResults.value = { shots: [], rallies: [], shot_distribution: {}, shuttle_hits: [], summary: {} }
   stopRecordingTimer()
+  stopAnalysisPoller()
   step.value = 'setup'
+}
+
+// Advanced mode computed
+const processedPct = computed(() => {
+  const buffered = advancedStatus.value.secondsBuffered
+  if (buffered <= 0) return 0
+  return Math.min(100, (advancedStatus.value.secondsProcessed / buffered) * 100)
+})
+
+const bufferedPct = computed(() => 100) // Buffered is always the full bar
+
+function formatTime(seconds) {
+  if (!seconds || seconds <= 0) return '0:00'
+  const m = Math.floor(seconds / 60)
+  const s = Math.floor(seconds % 60)
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
+
+function getDistPct(count) {
+  const dist = advancedResults.value.shot_distribution || {}
+  const max = Math.max(1, ...Object.values(dist))
+  return (count / max) * 100
 }
 
 function formatShotType(type) {
@@ -1104,6 +1419,99 @@ function formatDuration(seconds) {
     return `${mins}m ${secs}s`
   }
   return `${secs}s`
+}
+
+async function triggerPostAnalysis() {
+  analysisRunning.value = true
+  try {
+    await api.post(`/api/v1/stream/${sessionId.value}/analyze`)
+    analysisStatus.value = 'running'
+    analysisProgress.value = 0
+    startAnalysisPoller()
+  } catch (e) {
+    error.value = e.response?.data?.detail || 'Failed to start analysis'
+    analysisRunning.value = false
+  }
+}
+
+function startAnalysisPoller() {
+  stopAnalysisPoller()
+  analysisPoller = setInterval(async () => {
+    try {
+      const response = await api.get(`/api/v1/stream/${sessionId.value}/analysis-status`)
+      const data = response.data
+      analysisStatus.value = data.analysis_status
+      analysisProgress.value = data.analysis_progress || 0
+
+      if (data.analysis_status === 'complete') {
+        postAnalysisResults.value = data.post_analysis
+        hasFrameData.value = data.has_frame_data
+        analysisRunning.value = false
+        stopAnalysisPoller()
+      } else if (data.analysis_status === 'failed') {
+        analysisRunning.value = false
+        stopAnalysisPoller()
+      }
+    } catch (e) {
+      console.error('Failed to poll analysis status:', e)
+    }
+  }, 2000)
+}
+
+function stopAnalysisPoller() {
+  if (analysisPoller) {
+    clearInterval(analysisPoller)
+    analysisPoller = null
+  }
+}
+
+async function retryPostAnalysis() {
+  analysisStatus.value = 'pending'
+  await triggerPostAnalysis()
+}
+
+async function downloadAnnotatedVideo() {
+  downloading.value = true
+  try {
+    const response = await api.get(`/api/v1/stream/${sessionId.value}/annotated-video`, {
+      responseType: 'blob'
+    })
+    const blob = new Blob([response.data], { type: 'video/mp4' })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `annotated_stream_${sessionId.value}.mp4`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+  } catch (err) {
+    error.value = err.response?.data?.detail || 'Failed to download annotated video'
+  } finally {
+    downloading.value = false
+  }
+}
+
+async function downloadRecording() {
+  downloading.value = true
+  try {
+    const response = await api.get(`/api/v1/stream/${sessionId.value}/recording`, {
+      responseType: 'blob'
+    })
+    const blob = new Blob([response.data], { type: 'video/mp4' })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `stream_recording_${sessionId.value}.mp4`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+  } catch (err) {
+    error.value = err.response?.data?.detail || 'Failed to download recording'
+  } finally {
+    downloading.value = false
+  }
 }
 </script>
 
@@ -1737,5 +2145,435 @@ h1 {
 
 .btn-fullframe:hover {
   background: #3db892 !important;
+}
+
+/* Ended screen styles */
+.no-shots-msg {
+  color: #888;
+  text-align: center;
+  padding: 1rem 0;
+}
+
+.recording-download {
+  margin: 1.5rem 0;
+  padding: 1.5rem;
+  background: #0f0f1a;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.recording-download .recording-desc {
+  color: #888;
+  margin-bottom: 1rem;
+}
+
+.btn-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #4ecca3;
+  color: #1a1a2e;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: bold;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background 0.2s;
+}
+
+.btn-download:hover:not(:disabled) {
+  background: #3db892;
+}
+
+.btn-download:disabled {
+  background: #888;
+  cursor: not-allowed;
+}
+
+.btn-download .btn-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.ended-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 1.5rem;
+}
+
+.ended-actions .btn-primary {
+  text-decoration: none;
+}
+
+/* Toggle options for session creation */
+.toggle-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: #0f0f1a;
+  border-radius: 8px;
+}
+
+.toggle-option {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+}
+
+.toggle-option input {
+  display: none;
+}
+
+.toggle-slider-sm {
+  width: 36px;
+  height: 20px;
+  background: #3a3a5a;
+  border-radius: 20px;
+  position: relative;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.toggle-slider-sm::before {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  background: white;
+  border-radius: 50%;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.2s;
+}
+
+.toggle-option input:checked + .toggle-slider-sm {
+  background: #4ecca3;
+}
+
+.toggle-option input:checked + .toggle-slider-sm::before {
+  transform: translateX(16px);
+}
+
+.toggle-option-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.toggle-option-label {
+  color: #eee;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.toggle-option-desc {
+  color: #666;
+  font-size: 0.8rem;
+}
+
+/* Post-analysis styles */
+.post-analysis-section {
+  margin: 1.5rem 0;
+  padding: 1.5rem;
+  background: #0f0f1a;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.post-analysis-section h3 {
+  color: #4ecca3;
+  margin: 0 0 1rem 0;
+  font-size: 1.1rem;
+}
+
+.analysis-desc {
+  color: #888;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.analysis-desc.error-text {
+  color: #e74c3c;
+}
+
+.progress-bar-container {
+  width: 100%;
+  height: 8px;
+  background: #3a3a5a;
+  border-radius: 4px;
+  margin: 1rem 0 0.5rem;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  background: #4ecca3;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.progress-text {
+  color: #4ecca3;
+  font-family: monospace;
+  font-size: 0.85rem;
+}
+
+.post-analysis-stats {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  margin-bottom: 1rem;
+}
+
+.analysis-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+.analysis-actions .btn-secondary {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Mode Selector */
+.mode-selector {
+  margin-bottom: 1.5rem;
+}
+
+.mode-label {
+  display: block;
+  color: #888;
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.mode-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.mode-card {
+  background: #0f0f1a;
+  border: 2px solid #3a3a5a;
+  border-radius: 10px;
+  padding: 1rem;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.mode-card:hover {
+  border-color: #4ecca3;
+}
+
+.mode-card.active {
+  border-color: #4ecca3;
+  background: rgba(78, 204, 163, 0.08);
+}
+
+.mode-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.mode-card-header h4 {
+  margin: 0;
+  color: #eee;
+  font-size: 1rem;
+}
+
+.mode-icon {
+  font-size: 1.2rem;
+}
+
+.mode-card p {
+  color: #888;
+  font-size: 0.8rem;
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* Advanced Layout */
+.advanced-layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 1rem;
+}
+
+@media (max-width: 900px) {
+  .advanced-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.advanced-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.mode-badge {
+  background: #4ecca3;
+  color: #1a1a2e;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: bold;
+  letter-spacing: 0.05em;
+}
+
+/* Seek Bar */
+.seek-bar-container {
+  background: #16213e;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+}
+
+.seek-bar {
+  position: relative;
+  height: 10px;
+  background: #3a3a5a;
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.seek-buffered {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: #2a3a5a;
+  border-radius: 5px;
+}
+
+.seek-processed {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: #4ecca3;
+  border-radius: 5px;
+  z-index: 1;
+  transition: width 0.5s ease;
+}
+
+.seek-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: #888;
+}
+
+.seek-labels span:first-child {
+  color: #4ecca3;
+}
+
+/* Advanced Sidebar */
+.advanced-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.advanced-results-card {
+  background: #16213e;
+  border-radius: 12px;
+  padding: 1.25rem;
+}
+
+.advanced-results-card h3 {
+  color: #4ecca3;
+  margin: 0 0 1rem 0;
+  font-size: 1rem;
+}
+
+.advanced-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #1a2a4a;
+}
+
+.stat-label {
+  color: #888;
+  font-size: 0.9rem;
+}
+
+.stat-value {
+  color: #eee;
+  font-size: 1.1rem;
+  font-weight: bold;
+  font-family: monospace;
+}
+
+.shot-distribution {
+  margin-top: 0.5rem;
+}
+
+.shot-distribution h4 {
+  color: #aaa;
+  margin: 0 0 0.5rem 0;
+  font-size: 0.85rem;
+}
+
+.dist-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.dist-type {
+  color: #ccc;
+  font-size: 0.8rem;
+  width: 70px;
+  flex-shrink: 0;
+}
+
+.dist-bar-bg {
+  flex: 1;
+  height: 6px;
+  background: #3a3a5a;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.dist-bar {
+  height: 100%;
+  background: #4ecca3;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.dist-count {
+  color: #aaa;
+  font-size: 0.8rem;
+  font-family: monospace;
+  width: 24px;
+  text-align: right;
+}
+
+@media (max-width: 600px) {
+  .mode-cards {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

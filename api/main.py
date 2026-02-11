@@ -1,7 +1,11 @@
 """FastAPI application entry point."""
 
+import json
+import base64
+import asyncio
 import logging
 from contextlib import asynccontextmanager
+from datetime import datetime
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,6 +21,8 @@ from .websocket.stream_handler import get_stream_connection_manager
 from .services.user_service import UserService
 from .services.job_manager import JobManager
 from .services.stream_service import get_stream_session_manager
+from .features.registry import build_registry
+from .core.streaming.session_manager import get_generic_session_manager
 
 # Configure logging
 logging.basicConfig(
@@ -26,6 +32,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 settings = get_settings()
+
+# Build feature registry (import-time — no side effects beyond logging)
+feature_registry = build_registry()
 
 
 @asynccontextmanager
@@ -48,6 +57,7 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down...")
     JobManager.get_instance().shutdown()
     get_stream_session_manager().close_all()
+    get_generic_session_manager().close_all()
 
 
 # Create FastAPI app
@@ -67,7 +77,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
+# Include existing routers (badminton — stays hardcoded for now)
 app.include_router(auth_router)
 app.include_router(analysis_router)
 app.include_router(court_router)
@@ -76,6 +86,9 @@ app.include_router(upload_router)
 app.include_router(stream_router)
 app.include_router(admin_router)
 app.include_router(tuning_router)
+
+# Include feature-registered routers (challenges, etc.)
+feature_registry.install_routers(app)
 
 
 @app.get("/")
@@ -93,6 +106,16 @@ async def health():
     """Health check endpoint."""
     return {"status": "healthy"}
 
+
+@app.get("/api/v1/features")
+async def list_features():
+    """Return available platform features."""
+    return feature_registry.list_features()
+
+
+# ---------------------------------------------------------------------------
+# WebSocket: job progress (unchanged)
+# ---------------------------------------------------------------------------
 
 @app.websocket("/ws/progress/{job_id}")
 async def websocket_progress(
@@ -142,6 +165,10 @@ async def websocket_progress(
         await ws_manager.disconnect(websocket, job_id)
 
 
+# ---------------------------------------------------------------------------
+# WebSocket: badminton live stream (unchanged)
+# ---------------------------------------------------------------------------
+
 @app.websocket("/ws/stream/{session_id}")
 async def websocket_stream(
     websocket: WebSocket,
@@ -177,6 +204,11 @@ async def websocket_stream(
             return
 
         court_boundary = session.court_boundary
+        stream_mode = session.stream_mode or "basic"
+        frame_rate = float(session.frame_rate or 30)
+        enable_tuning_data = bool(session.enable_tuning_data)
+        enable_shuttle_tracking = bool(session.enable_shuttle_tracking)
+        chunk_duration = session.chunk_duration or 60
     finally:
         db.close()
 
@@ -187,7 +219,18 @@ async def websocket_stream(
     # Get or create analyzer
     analyzer = session_manager.get_session(session_id)
     if not analyzer:
-        analyzer = session_manager.create_session(session_id, court_boundary)
+        from .config import get_settings
+        settings = get_settings()
+        output_dir = str(settings.output_path / str(token_data.user_id) / f"stream_{session_id}")
+        analyzer = session_manager.create_session(
+            session_id, court_boundary,
+            frame_rate=frame_rate,
+            enable_tuning_data=enable_tuning_data,
+            enable_shuttle_tracking=enable_shuttle_tracking,
+            output_dir=output_dir,
+            stream_mode=stream_mode,
+            chunk_duration=chunk_duration,
+        )
 
     # Connect as streamer (this accepts the websocket internally)
     if not await stream_manager.connect_streamer(websocket, session_id):
@@ -242,6 +285,127 @@ async def websocket_stream_viewer(
     except Exception as e:
         logger.error(f"Viewer WebSocket error for session {session_id}: {e}")
         stream_manager.disconnect_viewer(websocket, session_id)
+
+
+# ---------------------------------------------------------------------------
+# WebSocket: challenge sessions (new — feature-aware)
+# ---------------------------------------------------------------------------
+
+@app.websocket("/ws/challenge/{session_id}")
+async def websocket_challenge(
+    websocket: WebSocket,
+    session_id: int,
+    token: str = Query(...)
+):
+    """
+    WebSocket for challenge sessions (plank/squat/pushup).
+
+    Protocol (same as badminton stream):
+      Client sends: { "type": "frame", "data": "<base64 jpeg>", "timestamp": <float> }
+      Server replies: { "type": "challenge_update", ... }
+      Client sends: { "type": "end_session" } to finish.
+    """
+    # Validate token
+    token_data = UserService.decode_token(token)
+    if token_data is None or token_data.user_id is None:
+        await websocket.accept()
+        await websocket.close(code=4001, reason="Invalid or expired token")
+        return
+
+    # Verify session belongs to user
+    db = SessionLocal()
+    try:
+        from .features.challenges.db_models.challenge import ChallengeSession, ChallengeStatus
+        session = db.query(ChallengeSession).filter(
+            ChallengeSession.id == session_id,
+            ChallengeSession.user_id == token_data.user_id,
+        ).first()
+
+        if not session:
+            await websocket.accept()
+            await websocket.close(code=4004, reason="Session not found")
+            return
+
+        if session.status == ChallengeStatus.ENDED:
+            await websocket.accept()
+            await websocket.close(code=4000, reason="Session already ended")
+            return
+    finally:
+        db.close()
+
+    # Get analyzer from generic session manager
+    gsm = get_generic_session_manager()
+    analyzer = gsm.get_session(session_id)
+
+    if not analyzer:
+        await websocket.accept()
+        await websocket.close(code=4004, reason="No analyzer for this session — create session first via REST")
+        return
+
+    await websocket.accept()
+
+    # Mark session as active
+    db = SessionLocal()
+    try:
+        from .features.challenges.db_models.challenge import ChallengeSession, ChallengeStatus
+        session = db.query(ChallengeSession).filter(ChallengeSession.id == session_id).first()
+        if session:
+            session.status = ChallengeStatus.ACTIVE
+            db.commit()
+    finally:
+        db.close()
+
+    try:
+        while True:
+            try:
+                raw_message = await asyncio.wait_for(
+                    websocket.receive_text(),
+                    timeout=60.0,
+                )
+            except asyncio.TimeoutError:
+                try:
+                    await websocket.send_json({"type": "ping"})
+                    continue
+                except Exception:
+                    break
+
+            if raw_message == "ping":
+                await websocket.send_json({"type": "pong"})
+                continue
+
+            try:
+                message = json.loads(raw_message)
+            except json.JSONDecodeError:
+                continue
+
+            msg_type = message.get("type")
+
+            if msg_type == "frame":
+                frame_b64 = message.get("data", "")
+                timestamp = message.get("timestamp", 0.0)
+                if not frame_b64:
+                    continue
+
+                frame_data = base64.b64decode(frame_b64)
+
+                loop = asyncio.get_event_loop()
+                result = await loop.run_in_executor(
+                    None, analyzer.process_frame, frame_data, timestamp
+                )
+                await websocket.send_json(result)
+
+            elif msg_type == "end_session":
+                report = analyzer.get_final_report()
+                await websocket.send_json({"type": "session_ended", "report": report})
+                break
+
+            elif msg_type == "ping":
+                await websocket.send_json({"type": "pong"})
+
+    except WebSocketDisconnect:
+        logger.info(f"Challenge session {session_id}: WebSocket disconnected")
+    except Exception as e:
+        logger.error(f"Challenge session {session_id}: Error: {e}")
 
 
 if __name__ == "__main__":

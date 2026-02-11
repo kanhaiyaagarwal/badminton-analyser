@@ -33,13 +33,17 @@
           <h3>Total Shots</h3>
           <div class="value">{{ report.summary?.total_shots || 0 }}</div>
         </div>
-        <div class="card">
-          <h3>Frame Rate</h3>
-          <div class="value">{{ report.summary?.frame_rate || 10 }} FPS</div>
+        <div class="card" v-if="report.post_analysis?.rallies">
+          <h3>Rallies</h3>
+          <div class="value">{{ report.post_analysis.rallies }}</div>
+        </div>
+        <div class="card" v-if="report.post_analysis?.shuttle_hits">
+          <h3>Shuttle Hits</h3>
+          <div class="value">{{ report.post_analysis.shuttle_hits }}</div>
         </div>
         <div class="card">
-          <h3>Quality</h3>
-          <div class="value quality">{{ formatQuality(report.summary?.quality) }}</div>
+          <h3>Duration</h3>
+          <div class="value">{{ formatDuration(report.summary?.session_duration) }}</div>
         </div>
       </div>
 
@@ -126,18 +130,69 @@
         </div>
       </div>
 
-      <!-- Recording Download -->
-      <div class="section" v-if="report.has_recording">
-        <h2>Session Recording</h2>
-        <p class="recording-desc">
-          Download the video recording captured during your live session.
-        </p>
-        <button @click="downloadRecording" class="btn-download" :disabled="downloading">
-          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-          </svg>
-          {{ downloading ? 'Downloading...' : 'Download Recording' }}
-        </button>
+      <!-- Post-Analysis Results -->
+      <div class="section" v-if="report.post_analysis">
+        <h2>Detailed Analysis</h2>
+        <div class="post-analysis-stats">
+          <div class="pa-stat">
+            <span class="pa-value">{{ report.post_analysis.shots || 0 }}</span>
+            <span class="pa-label">Shots (Accurate)</span>
+          </div>
+          <div class="pa-stat">
+            <span class="pa-value">{{ report.post_analysis.rallies || 0 }}</span>
+            <span class="pa-label">Rallies</span>
+          </div>
+          <div class="pa-stat">
+            <span class="pa-value">{{ report.post_analysis.shuttle_hits || 0 }}</span>
+            <span class="pa-label">Shuttle Hits</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Rally Breakdown -->
+      <div class="section" v-if="rallyData && rallyData.length > 0">
+        <h2>Rally Breakdown</h2>
+        <div class="rally-list">
+          <div v-for="rally in rallyData" :key="rally.rally_id" class="rally-card">
+            <div class="rally-header">
+              <span class="rally-id">Rally {{ rally.rally_id }}</span>
+              <span class="rally-duration">{{ formatDuration(rally.rally_duration || rally.duration) }}</span>
+            </div>
+            <div class="rally-details">
+              <span class="rally-stat">{{ rally.shot_count || rally.shots?.length || 0 }} shots</span>
+              <span class="rally-stat" v-if="rally.hit_count">{{ rally.hit_count }} hits</span>
+              <span class="rally-time">{{ formatTime(rally.start_time) }} - {{ formatTime(rally.end_time) }}</span>
+            </div>
+            <div class="rally-shots" v-if="rally.shots && rally.shots.length > 0">
+              <span
+                v-for="(shot, i) in rally.shots"
+                :key="i"
+                class="rally-shot-tag"
+                :style="{ backgroundColor: getShotColor(shot) + '33', color: getShotColor(shot), borderColor: getShotColor(shot) }"
+              >{{ formatShotType(shot) }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Downloads -->
+      <div class="section" v-if="report.has_recording || report.has_annotated_video">
+        <h2>Downloads</h2>
+        <div class="download-actions">
+          <button v-if="report.has_annotated_video" @click="downloadAnnotatedVideo" class="btn-download" :disabled="downloading">
+            {{ downloading ? 'Downloading...' : 'Download Annotated Video' }}
+          </button>
+          <button v-if="report.has_recording" @click="downloadRecording" class="btn-download btn-download-secondary" :disabled="downloading">
+            {{ downloading ? 'Downloading...' : 'Download Raw Recording' }}
+          </button>
+          <router-link
+            v-if="report.has_frame_data"
+            :to="`/stream/${sessionId}/tuning`"
+            class="btn-download btn-download-secondary"
+          >
+            Open in Frame Viewer
+          </router-link>
+        </div>
       </div>
     </template>
   </div>
@@ -179,6 +234,10 @@ const hasPositions = computed(() => {
 
 const hasTimeline = computed(() => {
   return report.value?.shot_timeline && report.value.shot_timeline.length > 0
+})
+
+const rallyData = computed(() => {
+  return report.value?.post_analysis?.rally_data || []
 })
 
 // Convert absolute timestamps to relative times
@@ -351,6 +410,29 @@ async function downloadRecording() {
     downloading.value = false
   }
 }
+
+async function downloadAnnotatedVideo() {
+  downloading.value = true
+  try {
+    const response = await api.get(`/api/v1/stream/${sessionId}/annotated-video`, {
+      responseType: 'blob'
+    })
+
+    const blob = new Blob([response.data], { type: 'video/mp4' })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `annotated_stream_${sessionId}.mp4`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+  } catch (err) {
+    error.value = err.response?.data?.detail || 'Failed to download annotated video'
+  } finally {
+    downloading.value = false
+  }
+}
 </script>
 
 <style scoped>
@@ -509,6 +591,44 @@ h1 {
   font-weight: bold;
 }
 
+.post-analysis-stats {
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+
+.pa-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.pa-value {
+  color: #4ecca3;
+  font-size: 1.8rem;
+  font-weight: bold;
+}
+
+.pa-label {
+  color: #888;
+  font-size: 0.85rem;
+}
+
+.download-actions {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.btn-download-secondary {
+  background: #2a2a4a !important;
+  color: #eee !important;
+}
+
+.btn-download-secondary:hover:not(:disabled) {
+  background: #3a3a5a !important;
+}
+
 .recording-desc {
   color: #888;
   margin-bottom: 1rem;
@@ -659,5 +779,67 @@ h1 {
 .list-conf {
   color: #666;
   font-size: 0.85rem;
+}
+
+/* Rally Breakdown */
+.rally-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.rally-card {
+  background: #16213e;
+  border-radius: 8px;
+  padding: 1rem;
+  border-left: 3px solid #4ecca3;
+}
+
+.rally-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.rally-id {
+  color: #4ecca3;
+  font-weight: bold;
+  font-size: 1rem;
+}
+
+.rally-duration {
+  color: #888;
+  font-size: 0.9rem;
+}
+
+.rally-details {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.rally-stat {
+  color: #ccc;
+}
+
+.rally-time {
+  color: #666;
+  font-family: monospace;
+}
+
+.rally-shots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.rally-shot-tag {
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border: 1px solid;
 }
 </style>

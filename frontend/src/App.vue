@@ -2,11 +2,11 @@
   <div id="app">
     <nav v-if="authStore.isAuthenticated && !isLandingPage" class="navbar">
       <div class="nav-brand">
-        <router-link to="/dashboard">🏸 vision.neymo.ai</router-link>
+        <router-link to="/hub">🏸 vision.neymo.ai</router-link>
       </div>
       <div class="nav-links">
-        <router-link to="/dashboard">Dashboard</router-link>
-        <router-link to="/upload">Upload</router-link>
+        <router-link to="/hub">Home</router-link>
+        <router-link v-if="isAdmin" to="/admin" class="nav-admin">Admin</router-link>
         <span class="user-info">{{ authStore.user?.username }}</span>
         <button @click="logout" class="btn-logout">Logout</button>
       </div>
@@ -26,6 +26,7 @@ const authStore = useAuthStore()
 const router = useRouter()
 const route = useRoute()
 
+const isAdmin = computed(() => authStore.user?.is_admin)
 const isLandingPage = computed(() => route.name === 'Landing')
 const isAuthPage = computed(() => ['Login', 'Signup'].includes(route.name))
 
@@ -95,6 +96,17 @@ const logout = () => {
 .nav-links a.router-link-active {
   background: rgba(78, 204, 163, 0.2);
   color: #4ecca3;
+}
+
+.nav-admin {
+  color: #9b59b6 !important;
+  border: 1px solid #9b59b6;
+}
+
+.nav-admin:hover,
+.nav-admin.router-link-active {
+  background: rgba(155, 89, 182, 0.2) !important;
+  color: #9b59b6 !important;
 }
 
 .user-info {

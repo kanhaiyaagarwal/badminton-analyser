@@ -1,10 +1,13 @@
 """Stream router for live streaming sessions."""
 
+import logging
 from typing import Optional
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 from ..database import get_db
 from ..db_models.stream_session import StreamSession, StreamStatus
@@ -22,6 +25,9 @@ class CreateStreamRequest(BaseModel):
     title: Optional[str] = None
     frame_rate: int = 10
     quality: str = "medium"
+    stream_mode: str = "basic"  # "basic" or "advanced"
+    enable_tuning_data: bool = False
+    enable_shuttle_tracking: bool = True
 
 
 class CreateStreamResponse(BaseModel):
@@ -68,6 +74,10 @@ async def create_stream_session(
     if request.quality not in ["low", "medium", "high", "max"]:
         raise HTTPException(status_code=400, detail="Invalid quality. Use low, medium, high, or max")
 
+    # Validate stream mode
+    if request.stream_mode not in ("basic", "advanced"):
+        raise HTTPException(status_code=400, detail="Invalid stream_mode. Use 'basic' or 'advanced'")
+
     # Create session in database
     session = StreamSession(
         user_id=current_user.id,
@@ -75,6 +85,9 @@ async def create_stream_session(
         status=StreamStatus.SETUP,
         frame_rate=request.frame_rate,
         quality=request.quality,
+        stream_mode=request.stream_mode,
+        enable_tuning_data=request.enable_tuning_data,
+        enable_shuttle_tracking=request.enable_shuttle_tracking,
         storage_type=get_storage_service().storage_type
     )
     db.add(session)
@@ -137,6 +150,7 @@ async def start_stream(
     db: Session = Depends(get_db)
 ):
     """Mark session as streaming (actual streaming via WebSocket)."""
+    from ..config import get_settings
     session = db.query(StreamSession).filter(
         StreamSession.id == session_id,
         StreamSession.user_id == current_user.id
@@ -159,7 +173,18 @@ async def start_stream(
 
     # Create analyzer for this session
     session_manager = get_stream_session_manager()
-    session_manager.create_session(session_id, session.court_boundary)
+    settings = get_settings()
+    output_dir = str(settings.output_path / str(current_user.id) / f"stream_{session_id}")
+    session_manager.create_session(
+        session_id,
+        session.court_boundary,
+        frame_rate=float(session.frame_rate or 30),
+        enable_tuning_data=bool(session.enable_tuning_data),
+        enable_shuttle_tracking=bool(session.enable_shuttle_tracking),
+        output_dir=output_dir,
+        stream_mode=session.stream_mode or "basic",
+        chunk_duration=session.chunk_duration or 60,
+    )
 
     session.status = StreamStatus.STREAMING
     session.started_at = datetime.utcnow()
@@ -253,7 +278,7 @@ async def end_stream(
             except Exception as e:
                 logger.error(f"Failed to auto-save recording: {e}")
 
-    # Get final report from analyzer
+    # Get final report (keeps analyzer alive for post-analysis)
     report = session_manager.end_session(session_id)
 
     # Update session in database
@@ -261,20 +286,26 @@ async def end_stream(
     session.ended_at = datetime.utcnow()
 
     if report:
-        # Save summary stats
         if 'summary' in report:
             session.total_shots = report['summary'].get('total_shots', 0)
-
-        # Save shot distribution
         if 'shot_distribution' in report:
             session.shot_distribution = report['shot_distribution']
+
+    # Save raw video path from analyzer
+    if analyzer:
+        if analyzer.raw_video_path:
+            session.raw_video_local_path = analyzer.raw_video_path
+        # Set analysis status to pending if we have post-analysis data
+        has_data = report.get('has_post_analysis_data', False) if report else False
+        session.analysis_status = "pending" if has_data else "none"
 
     db.commit()
 
     return {
         "status": "success",
         "message": "Stream ended",
-        "report": report
+        "report": report,
+        "analysis_available": session.analysis_status == "pending"
     }
 
 
@@ -297,7 +328,7 @@ async def get_stream_status(
     if session.status == StreamStatus.STREAMING:
         session_manager = get_stream_session_manager()
         analyzer = session_manager.get_session(session_id)
-        if analyzer:
+        if analyzer and hasattr(analyzer, 'stats'):
             session.total_shots = analyzer.stats.total_shots
             session.current_rally = analyzer.stats.current_rally
 
@@ -603,6 +634,13 @@ async def list_all_sessions(
             return Path(s.recording_local_path).exists()
         return False
 
+    def has_frame_data(s):
+        if s.frame_data_s3_key:
+            return True
+        if s.frame_data_local_path:
+            return Path(s.frame_data_local_path).exists()
+        return False
+
     return {
         "sessions": [
             {
@@ -614,8 +652,10 @@ async def list_all_sessions(
                 "created_at": s.created_at.isoformat() if s.created_at else None,
                 "started_at": s.started_at.isoformat() if s.started_at else None,
                 "ended_at": s.ended_at.isoformat() if s.ended_at else None,
-                "has_results": s.status == StreamStatus.ENDED and s.total_shots > 0,
+                "has_results": s.status == StreamStatus.ENDED,
                 "has_recording": has_recording(s),
+                "has_frame_data": has_frame_data(s),
+                "analysis_status": s.analysis_status,
                 "type": "stream"
             }
             for s in sessions
@@ -661,6 +701,19 @@ async def get_session_results(
         has_recording = Path(session.recording_local_path).exists()
         logger.info(f"Session {session_id} local recording: {session.recording_local_path}, exists: {has_recording}")
 
+    # Check post-analysis outputs
+    has_annotated_video = False
+    if session.annotated_video_s3_key:
+        has_annotated_video = True
+    elif session.annotated_video_local_path:
+        has_annotated_video = Path(session.annotated_video_local_path).exists()
+
+    has_frame_data = False
+    if session.frame_data_s3_key:
+        has_frame_data = True
+    elif session.frame_data_local_path:
+        has_frame_data = Path(session.frame_data_local_path).exists()
+
     return {
         "session_id": session.id,
         "title": session.title or f"Live Session #{session.id}",
@@ -676,6 +729,17 @@ async def get_session_results(
         "shot_timeline": session.shot_timeline or [],
         "court_boundary": session.court_boundary,
         "has_recording": has_recording,
+        "analysis_status": session.analysis_status or "none",
+        "analysis_progress": session.analysis_progress or 0,
+        "has_annotated_video": has_annotated_video,
+        "has_frame_data": has_frame_data,
+        "post_analysis": {
+            "shots": session.post_analysis_shots,
+            "distribution": session.post_analysis_distribution,
+            "rallies": session.post_analysis_rallies,
+            "shuttle_hits": session.post_analysis_shuttle_hits,
+            "rally_data": session.post_analysis_rally_data,
+        } if session.analysis_status == "complete" else None,
         "created_at": session.created_at.isoformat() if session.created_at else None,
         "started_at": session.started_at.isoformat() if session.started_at else None,
         "ended_at": session.ended_at.isoformat() if session.ended_at else None
@@ -784,6 +848,276 @@ async def get_session_heatmap_image(
         raise HTTPException(status_code=404, detail="Heatmap file not found")
 
     return FileResponse(heatmap_path, media_type="image/png")
+
+
+@router.post("/{session_id}/analyze")
+async def trigger_post_analysis(
+    session_id: int,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Trigger post-analysis on a completed stream session (runs in background)."""
+    from pathlib import Path
+    from ..config import get_settings
+    import threading
+    import logging
+
+    logger = logging.getLogger(__name__)
+    settings = get_settings()
+
+    session = db.query(StreamSession).filter(
+        StreamSession.id == session_id,
+        StreamSession.user_id == current_user.id
+    ).first()
+
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if session.status != StreamStatus.ENDED:
+        raise HTTPException(status_code=400, detail="Session must be ended before analysis")
+
+    if session.analysis_status == "running":
+        raise HTTPException(status_code=400, detail="Analysis already running")
+
+    if session.analysis_status == "complete":
+        raise HTTPException(status_code=400, detail="Analysis already complete")
+
+    # Check analyzer is still alive in session manager
+    session_manager = get_stream_session_manager()
+    analyzer = session_manager.get_session(session_id)
+    if not analyzer:
+        raise HTTPException(
+            status_code=400,
+            detail="Analyzer not available. Session data may have been cleaned up."
+        )
+
+    # Mark as running
+    session.analysis_status = "running"
+    session.analysis_progress = 0
+    db.commit()
+
+    output_dir = str(settings.output_path / str(current_user.id) / f"stream_{session_id}")
+
+    def run_analysis():
+        from ..database import SessionLocal
+        analysis_db = SessionLocal()
+        try:
+            def progress_cb(pct, msg):
+                try:
+                    s = analysis_db.query(StreamSession).filter(
+                        StreamSession.id == session_id
+                    ).first()
+                    if s:
+                        s.analysis_progress = pct
+                        analysis_db.commit()
+                except Exception:
+                    pass
+
+            result = session_manager.run_post_analysis(session_id, output_dir, progress_cb)
+
+            s = analysis_db.query(StreamSession).filter(
+                StreamSession.id == session_id
+            ).first()
+            if not s:
+                return
+
+            if result and not result.get("error"):
+                s.analysis_status = "complete"
+                s.analysis_progress = 100
+                s.annotated_video_local_path = result.get("annotated_video_path")
+                s.frame_data_local_path = result.get("frame_data_path")
+                s.post_analysis_shots = result.get("total_shots")
+                s.post_analysis_distribution = result.get("shot_distribution")
+                s.post_analysis_rallies = result.get("total_rallies")
+                s.post_analysis_shuttle_hits = result.get("shuttle_hits")
+                # Update top-level totals so /results endpoint returns accurate data
+                s.total_shots = result.get("total_shots", s.total_shots)
+                s.shot_distribution = result.get("shot_distribution", s.shot_distribution)
+                # Save detailed data for results page
+                s.shot_timeline = result.get("shot_timeline")
+                s.foot_positions = result.get("foot_positions")
+                s.post_analysis_rally_data = result.get("rallies")
+                logger.info(f"Post-analysis complete for session {session_id}")
+            else:
+                s.analysis_status = "failed"
+                logger.error(f"Post-analysis failed for session {session_id}: {result}")
+
+            analysis_db.commit()
+        except Exception as e:
+            logger.error(f"Post-analysis error for session {session_id}: {e}", exc_info=True)
+            try:
+                s = analysis_db.query(StreamSession).filter(
+                    StreamSession.id == session_id
+                ).first()
+                if s:
+                    s.analysis_status = "failed"
+                    analysis_db.commit()
+            except Exception:
+                pass
+        finally:
+            # Cleanup analyzer after analysis
+            session_manager.cleanup_session(session_id)
+            analysis_db.close()
+
+    thread = threading.Thread(target=run_analysis, daemon=True)
+    thread.start()
+
+    return {
+        "status": "running",
+        "message": "Post-analysis started",
+        "session_id": session_id
+    }
+
+
+@router.get("/{session_id}/analysis-status")
+async def get_analysis_status(
+    session_id: int,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get post-analysis status for a stream session."""
+    from pathlib import Path
+
+    session = db.query(StreamSession).filter(
+        StreamSession.id == session_id,
+        StreamSession.user_id == current_user.id
+    ).first()
+
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    has_annotated_video = False
+    if session.annotated_video_local_path:
+        has_annotated_video = Path(session.annotated_video_local_path).exists()
+
+    has_frame_data = False
+    if session.frame_data_local_path:
+        has_frame_data = Path(session.frame_data_local_path).exists()
+
+    return {
+        "analysis_status": session.analysis_status or "none",
+        "analysis_progress": session.analysis_progress or 0,
+        "has_annotated_video": has_annotated_video,
+        "has_frame_data": has_frame_data,
+        "post_analysis": {
+            "shots": session.post_analysis_shots,
+            "distribution": session.post_analysis_distribution,
+            "rallies": session.post_analysis_rallies,
+            "shuttle_hits": session.post_analysis_shuttle_hits,
+            "rally_data": session.post_analysis_rally_data,
+        } if session.analysis_status == "complete" else None,
+    }
+
+
+@router.get("/{session_id}/annotated-video")
+async def get_annotated_video(
+    session_id: int,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Download the post-analysis annotated video.
+
+    Automatically re-encodes mp4v to browser-compatible H.264 on first
+    request, caching the result with a _h264 suffix.
+    """
+    import subprocess
+    from pathlib import Path
+    from fastapi.responses import FileResponse
+
+    session = db.query(StreamSession).filter(
+        StreamSession.id == session_id,
+        StreamSession.user_id == current_user.id
+    ).first()
+
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if not session.annotated_video_local_path:
+        raise HTTPException(status_code=404, detail="Annotated video not available")
+
+    video_path = Path(session.annotated_video_local_path)
+    if not video_path.exists():
+        raise HTTPException(status_code=404, detail="Annotated video not available")
+
+    # Check for cached H.264 version (browsers can't play mp4v)
+    h264_path = video_path.parent / f"{video_path.stem}_h264{video_path.suffix}"
+    serve_path = video_path
+
+    if h264_path.exists():
+        serve_path = h264_path
+    else:
+        try:
+            subprocess.run(
+                [
+                    'ffmpeg', '-y',
+                    '-i', str(video_path),
+                    '-c:v', 'libx264',
+                    '-preset', 'fast',
+                    '-crf', '23',
+                    '-c:a', 'aac',
+                    '-movflags', '+faststart',
+                    str(h264_path)
+                ],
+                capture_output=True, text=True, timeout=300
+            )
+            if h264_path.exists():
+                serve_path = h264_path
+                logger.info(f"Session {session_id}: Created H.264 annotated video")
+        except (subprocess.SubprocessError, FileNotFoundError) as e:
+            logger.warning(f"Session {session_id}: H.264 re-encode failed: {e}")
+
+    return FileResponse(
+        path=str(serve_path),
+        media_type="video/mp4",
+        filename=f"annotated_stream_{session_id}.mp4"
+    )
+
+
+@router.get("/{session_id}/frame-data")
+async def get_frame_data(
+    session_id: int,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get frame data for the FrameViewer.
+
+    Returns structured JSON matching the tuning job format so FrameViewer
+    can consume it directly.
+    """
+    import json as _json
+    from pathlib import Path
+
+    session = db.query(StreamSession).filter(
+        StreamSession.id == session_id,
+        StreamSession.user_id == current_user.id
+    ).first()
+
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if not session.frame_data_local_path:
+        raise HTTPException(status_code=404, detail="Frame data not available")
+
+    path = Path(session.frame_data_local_path)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Frame data not available")
+
+    with open(path, 'r') as f:
+        raw = _json.load(f)
+
+    # Stream tuning data is stored as a flat list; wrap it to match the
+    # format the tuning job endpoint returns so FrameViewer works.
+    if isinstance(raw, list):
+        frames = raw
+    else:
+        frames = raw.get("frames", [])
+
+    return {
+        "session_id": session_id,
+        "video_info": raw.get("video_info") if isinstance(raw, dict) else None,
+        "total_frames": len(frames),
+        "frames": frames,
+    }
 
 
 @router.delete("/{session_id}")

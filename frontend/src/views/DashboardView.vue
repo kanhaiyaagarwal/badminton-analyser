@@ -1,11 +1,9 @@
 <template>
   <div class="dashboard">
+    <router-link to="/hub" class="back-link">&larr; Back to Hub</router-link>
     <div class="dashboard-header">
-      <h1>My Analysis</h1>
+      <h1>Badminton Dashboard</h1>
       <div class="header-actions">
-        <router-link v-if="isAdmin" to="/admin" class="btn-admin">
-          Admin
-        </router-link>
         <router-link to="/live" class="btn-live">
           <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
             <circle cx="12" cy="12" r="10" stroke-width="2"/>
@@ -86,6 +84,16 @@
               >
                 View Results
               </router-link>
+              <button
+                @click="handleDownloadVideo(item.id)"
+                class="btn-action btn-download"
+                :disabled="downloadingId === `video-${item.id}`"
+              >
+                <svg class="dl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                </svg>
+                {{ downloadingId === `video-${item.id}` ? 'Downloading...' : 'Download' }}
+              </button>
             </template>
 
             <template v-else-if="item.status === 'processing'">
@@ -109,13 +117,25 @@
 
           <!-- Stream session actions -->
           <template v-else-if="item.type === 'stream'">
-            <template v-if="item.status === 'ended' && item.has_results">
+            <template v-if="item.status === 'ended'">
               <router-link
+                v-if="item.has_results"
                 :to="`/stream-results/${item.id}`"
                 class="btn-action btn-success"
               >
                 View Results
               </router-link>
+              <button
+                v-if="item.has_recording"
+                @click="handleDownloadRecording(item.id)"
+                class="btn-action btn-download"
+                :disabled="downloadingId === `stream-${item.id}`"
+              >
+                <svg class="dl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                </svg>
+                {{ downloadingId === `stream-${item.id}` ? 'Downloading...' : 'Download' }}
+              </button>
             </template>
 
             <template v-else-if="item.status === 'streaming'">
@@ -151,18 +171,16 @@
 </template>
 
 <script setup>
-import { onMounted, computed } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useJobsStore } from '../stores/jobs'
-import { useAuthStore } from '../stores/auth'
+import api from '../api/client'
 import ProgressTracker from '../components/ProgressTracker.vue'
 
 const jobsStore = useJobsStore()
-const authStore = useAuthStore()
-
-const isAdmin = computed(() => authStore.user?.is_admin)
 
 const allAnalysis = computed(() => jobsStore.allAnalysis)
 const loading = computed(() => jobsStore.loading)
+const downloadingId = ref(null)
 
 onMounted(() => {
   jobsStore.fetchAll()
@@ -210,9 +228,59 @@ async function handleDeleteSession(sessionId) {
     await jobsStore.deleteSession(sessionId)
   }
 }
+
+async function handleDownloadVideo(jobId) {
+  downloadingId.value = `video-${jobId}`
+  try {
+    const response = await api.get(`/api/v1/results/${jobId}/video`, {
+      responseType: 'blob'
+    })
+    triggerDownload(response.data, 'video/mp4', `analyzed_video_${jobId}.mp4`)
+  } catch (err) {
+    alert(err.response?.data?.detail || 'Failed to download video')
+  } finally {
+    downloadingId.value = null
+  }
+}
+
+async function handleDownloadRecording(sessionId) {
+  downloadingId.value = `stream-${sessionId}`
+  try {
+    const response = await api.get(`/api/v1/stream/${sessionId}/recording`, {
+      responseType: 'blob'
+    })
+    triggerDownload(response.data, 'video/mp4', `stream_recording_${sessionId}.mp4`)
+  } catch (err) {
+    alert(err.response?.data?.detail || 'Failed to download recording')
+  } finally {
+    downloadingId.value = null
+  }
+}
+
+function triggerDownload(data, mimeType, filename) {
+  const blob = new Blob([data], { type: mimeType })
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  window.URL.revokeObjectURL(url)
+}
 </script>
 
 <style scoped>
+.back-link {
+  color: #888;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.back-link:hover {
+  color: #4ecca3;
+}
+
 .dashboard-header {
   display: flex;
   justify-content: space-between;
@@ -241,22 +309,6 @@ h1 {
 
 .btn-upload:hover {
   background: #3db892;
-}
-
-.btn-admin {
-  background: transparent;
-  color: #9b59b6;
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
-  border: 2px solid #9b59b6;
-  text-decoration: none;
-  font-weight: bold;
-  transition: all 0.2s;
-}
-
-.btn-admin:hover {
-  background: #9b59b6;
-  color: white;
 }
 
 .btn-live {
@@ -571,5 +623,24 @@ h1 {
 @keyframes pulse-status {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.6; }
+}
+
+.btn-action.btn-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: transparent;
+  border: 1px solid #4ecca3;
+  color: #4ecca3;
+}
+
+.btn-action.btn-download:hover:not(:disabled) {
+  background: #4ecca3;
+  color: #1a1a2e;
+}
+
+.btn-action.btn-download .dl-icon {
+  width: 14px;
+  height: 14px;
 }
 </style>
