@@ -2,7 +2,7 @@
   <div id="app">
     <nav v-if="authStore.isAuthenticated && !isLandingPage" class="navbar">
       <div class="nav-brand">
-        <router-link :to="isAdmin ? '/hub' : '/challenges'">
+        <router-link :to="isAdmin ? '/hub' : '/challenges/pushup'">
           <svg v-if="!isAdmin" class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5C7 4 7 7 7 7"/>
             <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5C17 4 17 7 17 7"/>
@@ -34,6 +34,9 @@
     <main :class="['main-content', { 'full-width': isLandingPage || isAuthPage }]">
       <router-view />
     </main>
+    <footer v-if="!isLandingPage" class="app-footer">
+      <a href="mailto:connect@neymo.ai">connect@neymo.ai</a>
+    </footer>
   </div>
 </template>
 
@@ -219,5 +222,22 @@ const logout = () => {
   .main-content {
     padding: 1rem;
   }
+}
+
+.app-footer {
+  text-align: center;
+  padding: 1.5rem 1rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.app-footer a {
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.app-footer a:hover {
+  color: var(--color-primary);
 }
 </style>

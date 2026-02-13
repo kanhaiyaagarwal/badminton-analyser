@@ -27,13 +27,21 @@
       <h1>{{ challengeTitle }}</h1>
       <p class="hint">{{ challengeHint }}</p>
 
-      <div class="camera-preview-wrap" @click="cameraReady && !starting && startSession()">
+      <div :class="['camera-preview-wrap', { maximized }]" @click="cameraReady && !starting && startSession()">
         <video ref="previewVideo" autoplay playsinline muted class="camera-preview"></video>
         <div v-if="!cameraReady" class="camera-placeholder">
           <p>{{ cameraError || 'Initialising camera...' }}</p>
         </div>
-        <div v-if="cameraReady && !starting" class="camera-tap-hint">
+        <div v-if="cameraReady && !starting && !maximized" class="camera-tap-hint">
           <span>Tap here to start</span>
+        </div>
+        <button class="maximize-btn" @click.stop="maximized = !maximized">
+          <svg v-if="!maximized" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+        </button>
+        <!-- Maximized overlay controls -->
+        <div v-if="maximized && cameraReady && !starting" class="max-overlay-controls">
+          <button class="max-start-btn" @click.stop="startSession">Tap to Start</button>
         </div>
       </div>
 
@@ -50,13 +58,22 @@
           {{ starting ? 'Starting...' : 'Start Challenge' }}
         </button>
       </div>
+
+      <label class="annotation-toggle">
+        <input type="checkbox" v-model="showAnnotations" />
+        <span class="toggle-label">Show skeleton overlay</span>
+      </label>
     </div>
 
     <!-- Active phase -->
     <div v-else-if="phase === 'active'" class="active-phase">
-      <div class="video-container">
+      <div :class="['video-container', { maximized }]">
         <video ref="streamVideo" autoplay playsinline muted class="stream-video"></video>
         <canvas ref="overlayCanvas" class="overlay-canvas"></canvas>
+        <button class="maximize-btn" @click="maximized = !maximized">
+          <svg v-if="!maximized" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+        </button>
 
         <!-- "Get in position" overlay (before ready) -->
         <div v-if="!playerReady" class="position-overlay">
@@ -72,6 +89,7 @@
             <p class="position-text" v-if="!playerDetected">Step into frame — full body visible</p>
             <p class="position-text" v-else>{{ formFeedback || 'Get into position...' }}</p>
             <div v-if="playerDetected" class="position-detected">Body detected</div>
+            <button class="end-early-btn" @click="endSession">End Challenge</button>
           </div>
         </div>
 
@@ -112,9 +130,21 @@
           <span class="recording-dot"></span>
           <span class="recording-time">{{ formatRecordingTime(recordingDuration) }}</span>
         </div>
+
+        <!-- Maximized overlay actions -->
+        <div v-if="maximized" class="max-overlay-actions">
+          <button @click="toggleRecording" :class="['max-action-btn', { recording: isRecording }]">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
+              <circle v-if="!isRecording" cx="12" cy="12" r="8"/>
+              <rect v-else x="8" y="8" width="8" height="8" rx="1"/>
+            </svg>
+            {{ isRecording ? 'Stop Rec' : 'Record' }}
+          </button>
+          <button @click="endSession" class="max-action-btn end">End</button>
+        </div>
       </div>
 
-      <div class="session-actions">
+      <div v-if="!maximized" class="session-actions">
         <button
           @click="toggleRecording"
           :class="['btn-record', { recording: isRecording }]"
@@ -160,6 +190,12 @@ const meta = computed(() => CHALLENGE_META[challengeType.value] || CHALLENGE_MET
 const challengeTitle = computed(() => meta.value.title)
 const challengeHint = computed(() => meta.value.hint)
 const scoreLabel = computed(() => meta.value.scoreLabel)
+
+// Annotations toggle
+const showAnnotations = ref(true)
+
+// Fullscreen / maximize
+const maximized = ref(false)
 
 // Placement guide — show until user has completed at least 1 challenge
 const showPlacementGuide = ref(false)
@@ -544,12 +580,16 @@ function drawPose(poseData) {
   const ctx = canvas.getContext('2d')
   ctx.clearRect(0, 0, canvas.width, canvas.height)
 
+  if (!showAnnotations.value) return
+
   const landmarks = poseData.landmarks
   if (!landmarks) return
 
   // Scale from pose detection resolution to canvas
   const sx = canvas.width / poseData.width
   const sy = canvas.height / poseData.height
+
+  ctx.globalAlpha = 0.45
 
   // Draw connections with body-part colors
   ctx.lineWidth = 3
@@ -573,6 +613,8 @@ function drawPose(poseData) {
     ctx.arc(lm.x * sx, lm.y * sy, 5, 0, 2 * Math.PI)
     ctx.fill()
   }
+
+  ctx.globalAlpha = 1
 }
 
 // ---------- Cleanup ----------
@@ -687,6 +729,25 @@ onUnmounted(() => {
 .start-btn:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 0 6px 20px rgba(124, 58, 237, 0.4);
+}
+
+.annotation-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  cursor: pointer;
+}
+
+.annotation-toggle input {
+  accent-color: var(--color-primary);
+  width: 18px;
+  height: 18px;
+}
+
+.toggle-label {
+  color: var(--text-muted);
+  font-size: 0.85rem;
 }
 
 .camera-preview-wrap {
@@ -921,6 +982,21 @@ onUnmounted(() => {
   font-weight: 500;
 }
 
+.end-early-btn {
+  margin-top: 1.5rem;
+  background: transparent;
+  border: 1px solid rgba(231, 76, 60, 0.6);
+  color: #e74c3c;
+  padding: 0.5rem 1.5rem;
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.end-early-btn:hover {
+  background: rgba(231, 76, 60, 0.15);
+}
+
 /* Leg status indicator — overlaid on camera feed */
 .leg-status {
   position: absolute;
@@ -1125,6 +1201,111 @@ onUnmounted(() => {
   z-index: 100;
 }
 
+/* Maximize / fullscreen mode */
+.maximize-btn {
+  position: absolute;
+  bottom: 0.75rem;
+  right: 0.75rem;
+  background: rgba(0, 0, 0, 0.5);
+  border: none;
+  color: #fff;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 15;
+  transition: background 0.2s;
+}
+.maximize-btn:hover {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.camera-preview-wrap.maximized,
+.video-container.maximized {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  border-radius: 0;
+  aspect-ratio: auto;
+  margin: 0;
+  background: #000;
+}
+
+.camera-preview-wrap.maximized .camera-preview,
+.video-container.maximized .stream-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.max-overlay-controls {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 12;
+  pointer-events: none;
+}
+
+.max-start-btn {
+  pointer-events: auto;
+  background: var(--gradient-primary);
+  color: #fff;
+  border: none;
+  padding: 1rem 2.5rem;
+  border-radius: var(--radius-lg);
+  font-size: 1.2rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  animation: tap-pulse 2.5s ease-in-out infinite;
+}
+
+.max-overlay-actions {
+  position: absolute;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 1rem;
+  z-index: 15;
+}
+
+.max-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
+  color: #fff;
+  padding: 0.6rem 1.2rem;
+  border-radius: var(--radius-full);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  transition: background 0.2s;
+}
+.max-action-btn:hover {
+  background: rgba(0, 0, 0, 0.8);
+}
+.max-action-btn.recording {
+  border-color: #e74c3c;
+  color: #e74c3c;
+}
+.max-action-btn.end {
+  border-color: rgba(231, 76, 60, 0.6);
+  color: #e74c3c;
+}
+.max-action-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
 @media (max-width: 640px) {
   .controls {
     flex-direction: column;
@@ -1155,6 +1336,72 @@ onUnmounted(() => {
   .position-text {
     font-size: 1rem;
     padding: 0 1rem;
+  }
+}
+
+/* Landscape orientation — tighten HUD & overlay when rotated */
+@media (orientation: landscape) and (max-height: 500px) {
+  .hud {
+    top: 0.5rem;
+    left: 0.5rem;
+    gap: 0.75rem;
+  }
+
+  .hud-metric {
+    padding: 0.3rem 0.75rem;
+  }
+
+  .metric-value {
+    font-size: 1.3rem;
+  }
+
+  .metric-label {
+    font-size: 0.65rem;
+  }
+
+  .max-overlay-actions {
+    bottom: 1rem;
+  }
+
+  .position-prompt {
+    padding: 1rem;
+  }
+
+  .position-icon svg {
+    width: 32px;
+    height: 32px;
+  }
+
+  .position-text {
+    font-size: 0.95rem;
+  }
+
+  .end-early-btn {
+    margin-top: 0.75rem;
+    padding: 0.4rem 1.2rem;
+    font-size: 0.8rem;
+  }
+
+  .leg-status {
+    top: 0.5rem;
+    right: 0.5rem;
+  }
+
+  .form-feedback {
+    bottom: 0.5rem;
+  }
+
+  .recording-status {
+    top: 2.5rem;
+  }
+
+  .rep-pop-number {
+    font-size: 5rem;
+  }
+
+  .maximize-btn {
+    bottom: 0.5rem;
+    right: 0.5rem;
   }
 }
 </style>

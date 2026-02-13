@@ -3,6 +3,8 @@
 import cv2
 import numpy as np
 import logging
+import shutil
+import subprocess
 from datetime import datetime, date, timedelta
 from pathlib import Path
 from typing import List, Optional
@@ -81,7 +83,7 @@ def _build_response(session: ChallengeSession, personal_best=None) -> ChallengeR
 
 
 def _save_recording(frames: list, session: ChallengeSession, user_id: int):
-    """Encode recorded frames to MP4 and persist to S3 or local storage."""
+    """Encode recorded frames to H.264 MP4 and persist to S3 or local storage."""
     if not frames:
         return
 
@@ -90,6 +92,7 @@ def _save_recording(frames: list, session: ChallengeSession, user_id: int):
 
     output_dir = settings.output_path / str(user_id) / f"challenge_{session.id}"
     output_dir.mkdir(parents=True, exist_ok=True)
+    raw_path = str(output_dir / "recording_raw.mp4")
     video_path = str(output_dir / "recording.mp4")
 
     try:
@@ -98,13 +101,41 @@ def _save_recording(frames: list, session: ChallengeSession, user_id: int):
 
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         fps = 10
-        out = cv2.VideoWriter(video_path, fourcc, fps, (width, height))
+        out = cv2.VideoWriter(raw_path, fourcc, fps, (width, height))
 
         for frame_data in frames:
             frame = cv2.imdecode(np.frombuffer(frame_data, np.uint8), cv2.IMREAD_COLOR)
             if frame is not None:
                 out.write(frame)
         out.release()
+
+        # Re-encode to H.264 with faststart for browser/mobile playback
+        if shutil.which("ffmpeg"):
+            result = subprocess.run(
+                [
+                    "ffmpeg", "-y", "-i", raw_path,
+                    "-c:v", "libx264", "-preset", "fast", "-crf", "28",
+                    "-movflags", "+faststart",
+                    "-pix_fmt", "yuv420p",
+                    video_path,
+                ],
+                capture_output=True, timeout=120,
+            )
+            Path(raw_path).unlink(missing_ok=True)
+            if result.returncode != 0:
+                logger.warning(f"ffmpeg re-encode failed: {result.stderr[:500]}")
+                # Fallback: use the raw mp4v file
+                Path(raw_path).touch()  # may already be deleted
+                if not Path(video_path).exists():
+                    video_path = raw_path
+        else:
+            # No ffmpeg available — use raw mp4v file directly
+            logger.warning("ffmpeg not found, saving raw mp4v recording")
+            Path(raw_path).rename(video_path)
+
+        if not Path(video_path).exists():
+            logger.error("Recording file not produced")
+            return
 
         if storage.is_s3():
             try:
@@ -121,6 +152,8 @@ def _save_recording(frames: list, session: ChallengeSession, user_id: int):
 
     except Exception as e:
         logger.error(f"Failed to create challenge recording: {e}")
+        # Clean up partial files
+        Path(raw_path).unlink(missing_ok=True)
 
 
 def _save_screenshots(screenshots: List[bytes], session: ChallengeSession, user_id: int):
