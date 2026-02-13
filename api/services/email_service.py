@@ -130,35 +130,37 @@ class EmailService:
 
     def send_otp_email(self, to_email: str, otp_code: str, username: str) -> bool:
         """Send OTP verification email."""
-        subject = "Verify your email - Badminton Analyzer"
+        subject = "Verify your email - PushUp Pro"
 
         body_html = f"""
         <!DOCTYPE html>
         <html>
         <head>
             <style>
-                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                body {{ font-family: 'Inter', Arial, sans-serif; line-height: 1.6; color: #1e293b; background: #f0f4ff; }}
                 .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-                .header {{ background: #4ecca3; color: #1a1a2e; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }}
-                .content {{ background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }}
-                .otp-code {{ font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #4ecca3; text-align: center; padding: 20px; background: #1a1a2e; border-radius: 8px; margin: 20px 0; }}
-                .footer {{ text-align: center; margin-top: 20px; color: #888; font-size: 12px; }}
+                .header {{ background: linear-gradient(135deg, #3b82f6, #a855f7); color: #ffffff; padding: 24px; text-align: center; border-radius: 12px 12px 0 0; }}
+                .header h1 {{ margin: 0; font-size: 24px; font-weight: 700; }}
+                .content {{ background: #ffffff; padding: 32px; border-radius: 0 0 12px 12px; border: 1px solid rgba(0,0,0,0.08); border-top: none; }}
+                .otp-code {{ font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #7c3aed; text-align: center; padding: 20px; background: #f0f4ff; border-radius: 8px; margin: 20px 0; border: 2px dashed #a855f7; }}
+                .footer {{ text-align: center; margin-top: 20px; color: #94a3b8; font-size: 12px; }}
+                p {{ color: #64748b; }}
             </style>
         </head>
         <body>
             <div class="container">
                 <div class="header">
-                    <h1>Badminton Analyzer</h1>
+                    <h1>PushUp Pro</h1>
                 </div>
                 <div class="content">
                     <p>Hi {username},</p>
-                    <p>Welcome to Badminton Analyzer! Please use the following code to verify your email address:</p>
+                    <p>Welcome to PushUp Pro! Please use the following code to verify your email address:</p>
                     <div class="otp-code">{otp_code}</div>
                     <p>This code will expire in {settings.otp_expire_minutes} minutes.</p>
                     <p>If you didn't create an account, you can safely ignore this email.</p>
                 </div>
                 <div class="footer">
-                    <p>&copy; Badminton Analyzer. All rights reserved.</p>
+                    <p>&copy; PushUp Pro. All rights reserved.</p>
                 </div>
             </div>
         </body>
@@ -168,7 +170,7 @@ class EmailService:
         body_text = f"""
 Hi {username},
 
-Welcome to Badminton Analyzer! Please use the following code to verify your email address:
+Welcome to PushUp Pro! Please use the following code to verify your email address:
 
 {otp_code}
 
@@ -176,32 +178,34 @@ This code will expire in {settings.otp_expire_minutes} minutes.
 
 If you didn't create an account, you can safely ignore this email.
 
-- Badminton Analyzer Team
+- PushUp Pro Team
         """
 
         return self.provider.send_email(to_email, subject, body_html, body_text)
 
     def send_password_reset_email(self, to_email: str, otp_code: str, username: str) -> bool:
         """Send password reset OTP email."""
-        subject = "Reset your password - Badminton Analyzer"
+        subject = "Reset your password - PushUp Pro"
 
         body_html = f"""
         <!DOCTYPE html>
         <html>
         <head>
             <style>
-                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                body {{ font-family: 'Inter', Arial, sans-serif; line-height: 1.6; color: #1e293b; background: #f0f4ff; }}
                 .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-                .header {{ background: #4ecca3; color: #1a1a2e; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }}
-                .content {{ background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }}
-                .otp-code {{ font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #4ecca3; text-align: center; padding: 20px; background: #1a1a2e; border-radius: 8px; margin: 20px 0; }}
-                .footer {{ text-align: center; margin-top: 20px; color: #888; font-size: 12px; }}
+                .header {{ background: linear-gradient(135deg, #3b82f6, #a855f7); color: #ffffff; padding: 24px; text-align: center; border-radius: 12px 12px 0 0; }}
+                .header h1 {{ margin: 0; font-size: 24px; font-weight: 700; }}
+                .content {{ background: #ffffff; padding: 32px; border-radius: 0 0 12px 12px; border: 1px solid rgba(0,0,0,0.08); border-top: none; }}
+                .otp-code {{ font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #7c3aed; text-align: center; padding: 20px; background: #f0f4ff; border-radius: 8px; margin: 20px 0; border: 2px dashed #a855f7; }}
+                .footer {{ text-align: center; margin-top: 20px; color: #94a3b8; font-size: 12px; }}
+                p {{ color: #64748b; }}
             </style>
         </head>
         <body>
             <div class="container">
                 <div class="header">
-                    <h1>Badminton Analyzer</h1>
+                    <h1>PushUp Pro</h1>
                 </div>
                 <div class="content">
                     <p>Hi {username},</p>
@@ -211,7 +215,7 @@ If you didn't create an account, you can safely ignore this email.
                     <p>If you didn't request a password reset, you can safely ignore this email.</p>
                 </div>
                 <div class="footer">
-                    <p>&copy; Badminton Analyzer. All rights reserved.</p>
+                    <p>&copy; PushUp Pro. All rights reserved.</p>
                 </div>
             </div>
         </body>
@@ -229,7 +233,7 @@ This code will expire in {settings.otp_expire_minutes} minutes.
 
 If you didn't request a password reset, you can safely ignore this email.
 
-- Badminton Analyzer Team
+- PushUp Pro Team
         """
 
         return self.provider.send_email(to_email, subject, body_html, body_text)

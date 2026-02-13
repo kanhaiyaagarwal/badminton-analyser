@@ -361,8 +361,8 @@ function formatTime(seconds) {
 }
 
 .drop-zone {
-  border: 2px dashed #3a3a5a;
-  border-radius: 12px;
+  border: 2px dashed var(--border-input);
+  border-radius: var(--radius-lg);
   padding: 2rem;
   cursor: pointer;
   transition: all 0.2s;
@@ -375,8 +375,8 @@ function formatTime(seconds) {
 
 .drop-zone:hover,
 .drop-zone.dragover {
-  border-color: #4ecca3;
-  background: rgba(78, 204, 163, 0.1);
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
 }
 
 .hidden-input {
@@ -386,23 +386,23 @@ function formatTime(seconds) {
 .upload-icon {
   width: 48px;
   height: 48px;
-  color: #4ecca3;
+  color: var(--color-primary);
 }
 
 .main-text {
-  color: #eee;
+  color: var(--text-primary);
   font-size: 1.1rem;
   margin: 0;
 }
 
 .sub-text {
-  color: #888;
+  color: var(--text-muted);
   font-size: 0.9rem;
   margin: 0;
 }
 
 .formats {
-  color: #666;
+  color: var(--text-muted);
   font-size: 0.8rem;
   margin-top: 0.5rem;
 }
@@ -413,9 +413,9 @@ function formatTime(seconds) {
   gap: 0.5rem;
   margin-top: 1rem;
   padding: 0.5rem 1rem;
-  background: rgba(78, 204, 163, 0.1);
-  border-radius: 20px;
-  color: #4ecca3;
+  background: var(--color-primary-light);
+  border-radius: var(--radius-full);
+  color: var(--color-primary);
   font-size: 0.85rem;
 }
 
@@ -435,14 +435,15 @@ function formatTime(seconds) {
   align-items: center;
   gap: 1rem;
   padding: 1rem;
-  background: #16213e;
-  border-radius: 8px;
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
 }
 
 .video-icon {
   width: 40px;
   height: 40px;
-  color: #4ecca3;
+  color: var(--color-primary);
 }
 
 .file-info {
@@ -451,31 +452,31 @@ function formatTime(seconds) {
 }
 
 .filename {
-  color: #eee;
+  color: var(--text-primary);
   font-weight: bold;
   word-break: break-word;
   margin: 0;
 }
 
 .filesize {
-  color: #888;
+  color: var(--text-muted);
   font-size: 0.85rem;
   margin: 0;
 }
 
 .clear-btn {
-  background: rgba(231, 76, 60, 0.2);
-  color: #e74c3c;
+  background: var(--color-destructive-light);
+  color: var(--color-destructive);
   border: none;
   width: 28px;
   height: 28px;
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   cursor: pointer;
-  font-weight: bold;
+  font-weight: 600;
 }
 
 .clear-btn:hover {
-  background: #e74c3c;
+  background: var(--color-destructive);
   color: white;
 }
 
@@ -484,18 +485,18 @@ function formatTime(seconds) {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  background: #4ecca3;
-  color: #1a1a2e;
+  background: var(--color-primary);
+  color: var(--text-on-primary);
   border: none;
   padding: 0.75rem 1.5rem;
-  border-radius: 8px;
-  font-weight: bold;
+  border-radius: var(--radius-md);
+  font-weight: 600;
   cursor: pointer;
   transition: background 0.2s;
 }
 
 .upload-btn:hover {
-  background: #3db892;
+  background: var(--color-primary-hover);
 }
 
 .btn-icon {
@@ -505,8 +506,9 @@ function formatTime(seconds) {
 
 .upload-progress {
   padding: 1.5rem;
-  background: #16213e;
-  border-radius: 12px;
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
 }
 
 .progress-header {
@@ -516,24 +518,24 @@ function formatTime(seconds) {
 }
 
 .status-text {
-  color: #eee;
+  color: var(--text-primary);
 }
 
 .progress-percent {
-  color: #4ecca3;
+  color: var(--color-primary);
   font-weight: bold;
 }
 
 .progress-bar-container {
   height: 8px;
-  background: #0f0f1a;
+  background: var(--bg-input);
   border-radius: 4px;
   overflow: hidden;
 }
 
 .progress-bar {
   height: 100%;
-  background: linear-gradient(90deg, #4ecca3, #3db892);
+  background: var(--gradient-primary);
   transition: width 0.3s ease;
 }
 
@@ -542,22 +544,23 @@ function formatTime(seconds) {
   justify-content: space-between;
   margin-top: 0.5rem;
   font-size: 0.85rem;
-  color: #888;
+  color: var(--text-muted);
 }
 
 .cancel-btn {
   margin-top: 1rem;
-  background: rgba(231, 76, 60, 0.2);
-  color: #e74c3c;
+  background: var(--color-destructive-light);
+  color: var(--color-destructive);
   border: none;
   padding: 0.5rem 1rem;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
+  font-weight: 600;
   transition: all 0.2s;
 }
 
 .cancel-btn:hover {
-  background: #e74c3c;
+  background: var(--color-destructive);
   color: white;
 }
 
@@ -567,17 +570,17 @@ function formatTime(seconds) {
   justify-content: space-between;
   margin-top: 1rem;
   padding: 0.75rem 1rem;
-  background: rgba(231, 76, 60, 0.1);
-  border: 1px solid rgba(231, 76, 60, 0.3);
-  border-radius: 8px;
-  color: #e74c3c;
+  background: var(--color-destructive-light);
+  border: 1px solid var(--color-destructive);
+  border-radius: var(--radius-md);
+  color: var(--color-destructive);
 }
 
 .dismiss-btn {
   background: none;
   border: none;
-  color: #e74c3c;
+  color: var(--color-destructive);
   cursor: pointer;
-  font-weight: bold;
+  font-weight: 600;
 }
 </style>

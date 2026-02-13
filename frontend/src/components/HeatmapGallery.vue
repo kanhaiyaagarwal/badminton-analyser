@@ -144,7 +144,7 @@ function downloadHeatmap(heatmap) {
 .loading, .empty {
   text-align: center;
   padding: 2rem;
-  color: #888;
+  color: var(--text-muted);
 }
 
 .gallery {
@@ -154,21 +154,21 @@ function downloadHeatmap(heatmap) {
 }
 
 .heatmap-item {
-  background: #1a1a2e;
-  border-radius: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
   overflow: hidden;
   cursor: pointer;
   transition: transform 0.2s, box-shadow 0.2s;
-  border: 2px solid transparent;
 }
 
 .heatmap-item:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-md);
 }
 
 .heatmap-item.selected {
-  border-color: #4ecca3;
+  border-color: var(--color-primary);
 }
 
 .heatmap-item img {
@@ -183,8 +183,8 @@ function downloadHeatmap(heatmap) {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #0a0a1a;
-  color: #666;
+  background: var(--bg-input);
+  color: var(--text-muted);
   font-size: 0.8rem;
 }
 
@@ -193,14 +193,14 @@ function downloadHeatmap(heatmap) {
   text-align: center;
   font-size: 0.9rem;
   font-weight: bold;
-  color: #eee;
+  color: var(--text-primary);
 }
 
 .heatmap-desc {
   padding: 0.25rem 0.75rem 0.75rem;
   text-align: center;
   font-size: 0.75rem;
-  color: #888;
+  color: var(--text-muted);
 }
 
 .enlarged-view {
@@ -221,8 +221,8 @@ function downloadHeatmap(heatmap) {
   position: relative;
   max-width: 90vw;
   max-height: 90vh;
-  background: #16213e;
-  border-radius: 12px;
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
   overflow: hidden;
 }
 
@@ -244,18 +244,19 @@ function downloadHeatmap(heatmap) {
   border-radius: 50%;
   cursor: pointer;
   font-size: 1rem;
+  font-weight: 600;
   transition: background 0.2s;
 }
 
 .close-btn:hover {
-  background: #e74c3c;
+  background: var(--color-destructive);
 }
 
 .enlarged-label {
   padding: 1rem;
   text-align: center;
   font-size: 1.1rem;
-  color: #eee;
+  color: var(--text-primary);
 }
 
 .download-btn {
@@ -263,16 +264,16 @@ function downloadHeatmap(heatmap) {
   width: 100%;
   text-align: center;
   padding: 0.75rem;
-  background: #4ecca3;
-  color: #1a1a2e;
+  background: var(--color-primary);
+  color: var(--text-on-primary);
   border: none;
-  font-weight: bold;
+  font-weight: 600;
   font-size: 1rem;
   cursor: pointer;
   transition: background 0.2s;
 }
 
 .download-btn:hover {
-  background: #3db892;
+  background: var(--color-primary-hover);
 }
 </style>

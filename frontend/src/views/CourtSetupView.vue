@@ -240,32 +240,32 @@ async function startAnalysis() {
 }
 
 h1 {
-  color: #4ecca3;
+  color: var(--color-primary);
   margin-bottom: 0.5rem;
 }
 
 .subtitle {
-  color: #888;
+  color: var(--text-muted);
 }
 
 .loading {
   text-align: center;
   padding: 3rem;
-  color: #888;
+  color: var(--text-muted);
 }
 
 .error {
-  background: rgba(231, 76, 60, 0.2);
-  color: #e74c3c;
+  background: var(--color-destructive-light);
+  color: var(--color-destructive);
   padding: 1rem;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   gap: 1rem;
 }
 
 .btn-retry {
-  background: #e74c3c;
+  background: var(--color-destructive);
   color: white;
   border: none;
   padding: 0.5rem 1rem;
@@ -280,25 +280,29 @@ h1 {
 }
 
 .canvas-container {
-  background: #16213e;
-  border-radius: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
   padding: 1rem;
   overflow: hidden;
+  box-shadow: var(--shadow-md);
 }
 
 .controls-panel {
-  background: #16213e;
-  border-radius: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
   padding: 1.5rem;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+  box-shadow: var(--shadow-md);
 }
 
 .timestamp-control label,
 .speed-preset label {
   display: block;
-  color: #888;
+  color: var(--text-muted);
   margin-bottom: 0.5rem;
 }
 
@@ -306,60 +310,60 @@ h1 {
 .speed-preset select {
   width: 100%;
   padding: 0.5rem;
-  border: 2px solid #2a2a4a;
-  border-radius: 6px;
-  background: #1a1a2e;
-  color: #eee;
+  border: 2px solid var(--border-input);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--text-primary);
   margin-bottom: 0.5rem;
 }
 
 .btn-secondary {
   width: 100%;
   padding: 0.5rem;
-  background: #3a3a5a;
-  color: #eee;
+  background: var(--border-input);
+  color: var(--text-primary);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background 0.2s;
 }
 
 .btn-secondary:hover {
-  background: #4a4a6a;
+  background: var(--border-color);
 }
 
 .preset-hint {
   font-size: 0.75rem;
-  color: #f39c12;
+  color: var(--color-warning);
   margin-top: 0.25rem;
 }
 
 .video-info {
-  background: #1a1a2e;
+  background: var(--bg-input);
   padding: 1rem;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 
 .video-info p {
-  color: #888;
+  color: var(--text-muted);
   font-size: 0.9rem;
   margin-bottom: 0.25rem;
 }
 
 .boundary-preview {
-  background: #1a1a2e;
+  background: var(--bg-input);
   padding: 1rem;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 
 .boundary-preview h3 {
-  color: #4ecca3;
+  color: var(--color-primary);
   font-size: 0.9rem;
   margin-bottom: 0.5rem;
 }
 
 .coords p {
-  color: #888;
+  color: var(--text-muted);
   font-size: 0.8rem;
   font-family: monospace;
   margin-bottom: 0.25rem;
@@ -368,18 +372,18 @@ h1 {
 .btn-start {
   width: 100%;
   padding: 1rem;
-  background: #4ecca3;
-  color: #1a1a2e;
+  background: var(--gradient-primary);
+  color: var(--text-on-primary);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-size: 1rem;
-  font-weight: bold;
+  font-weight: 600;
   cursor: pointer;
   transition: background 0.2s;
 }
 
 .btn-start:hover:not(:disabled) {
-  background: #3db892;
+  background: var(--color-primary-hover);
 }
 
 .btn-start:disabled {
@@ -390,24 +394,24 @@ h1 {
 .btn-cancel {
   display: block;
   text-align: center;
-  color: #888;
+  color: var(--text-muted);
   text-decoration: none;
   padding: 0.75rem;
-  border: 1px solid #3a3a5a;
-  border-radius: 8px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-md);
   transition: all 0.2s;
 }
 
 .btn-cancel:hover {
-  border-color: #e74c3c;
-  color: #e74c3c;
+  border-color: var(--color-destructive);
+  color: var(--color-destructive);
 }
 
 .frame-mode-toggle {
-  background: #1a1a2e;
+  background: var(--bg-input);
   padding: 1rem;
-  border-radius: 6px;
-  border: 2px solid #3a3a5a;
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--border-input);
 }
 
 .toggle-label {
@@ -420,17 +424,17 @@ h1 {
 .toggle-label input[type="checkbox"] {
   width: 18px;
   height: 18px;
-  accent-color: #4ecca3;
+  accent-color: var(--color-primary);
   cursor: pointer;
 }
 
 .toggle-text {
-  color: #eee;
+  color: var(--text-primary);
   font-weight: 500;
 }
 
 .toggle-hint {
-  color: #888;
+  color: var(--text-muted);
   font-size: 0.75rem;
   margin-top: 0.5rem;
   margin-left: 1.75rem;
@@ -444,7 +448,7 @@ h1 {
 .frame-image {
   width: 100%;
   height: auto;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
 }
 
 .entire-frame-overlay {
@@ -453,37 +457,37 @@ h1 {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(78, 204, 163, 0.15);
-  border: 3px dashed #4ecca3;
-  border-radius: 8px;
+  background: var(--color-primary-light);
+  border: 3px dashed var(--color-primary);
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .entire-frame-overlay span {
-  background: rgba(26, 26, 46, 0.9);
-  color: #4ecca3;
+  background: var(--bg-card);
+  color: var(--color-primary);
   padding: 0.75rem 1.5rem;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-weight: 500;
 }
 
 .entire-frame-info {
-  background: rgba(78, 204, 163, 0.1);
-  border: 1px solid #4ecca3;
+  background: var(--color-primary-light);
+  border: 1px solid var(--color-primary);
 }
 
 .entire-frame-info p {
-  color: #4ecca3;
+  color: var(--color-primary);
   font-size: 0.85rem;
 }
 
 .tuning-option {
-  background: #1a1a2e;
+  background: var(--bg-input);
   padding: 1rem;
-  border-radius: 6px;
-  border: 1px solid #3a3a5a;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-input);
 }
 
 @media (max-width: 900px) {

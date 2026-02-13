@@ -112,7 +112,7 @@ function getShotCounts(shots) {
 .empty {
   text-align: center;
   padding: 2rem;
-  color: #888;
+  color: var(--text-muted);
 }
 
 .rallies-list {
@@ -122,14 +122,15 @@ function getShotCounts(shots) {
 }
 
 .rally-item {
-  background: #1a1a2e;
-  border-radius: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
   overflow: hidden;
   transition: all 0.2s;
 }
 
 .rally-item.expanded {
-  background: #1e1e3a;
+  background: var(--bg-card);
 }
 
 .rally-header {
@@ -141,7 +142,7 @@ function getShotCounts(shots) {
 }
 
 .rally-header:hover {
-  background: rgba(78, 204, 163, 0.1);
+  background: var(--color-primary-light);
 }
 
 .rally-info {
@@ -150,13 +151,13 @@ function getShotCounts(shots) {
 
 .rally-id {
   display: block;
-  color: #4ecca3;
+  color: var(--color-primary);
   font-weight: bold;
   font-size: 0.9rem;
 }
 
 .rally-stats {
-  color: #888;
+  color: var(--text-muted);
   font-size: 0.8rem;
 }
 
@@ -173,25 +174,25 @@ function getShotCounts(shots) {
   border-radius: 4px;
   font-size: 0.7rem;
   font-weight: bold;
-  background: #2a2a4a;
-  color: #eee;
+  background: var(--border-color);
+  color: var(--text-primary);
 }
 
-.shot-chip.smash { background: rgba(231, 76, 60, 0.3); color: #e74c3c; }
-.shot-chip.clear { background: rgba(46, 204, 113, 0.3); color: #2ecc71; }
-.shot-chip.drop_shot { background: rgba(243, 156, 18, 0.3); color: #f39c12; }
-.shot-chip.net_shot { background: rgba(52, 152, 219, 0.3); color: #3498db; }
-.shot-chip.drive { background: rgba(155, 89, 182, 0.3); color: #9b59b6; }
-.shot-chip.lift { background: rgba(26, 188, 156, 0.3); color: #1abc9c; }
+.shot-chip.smash { background: var(--color-destructive-light); color: var(--color-destructive); }
+.shot-chip.clear { background: var(--color-success-light); color: var(--color-success); }
+.shot-chip.drop_shot { background: var(--color-warning-light); color: var(--color-warning); }
+.shot-chip.net_shot { background: var(--color-info-light); color: var(--color-info); }
+.shot-chip.drive { background: var(--color-secondary-light); color: var(--color-secondary); }
+.shot-chip.lift { background: var(--color-primary-light); color: var(--color-primary); }
 
 .more {
-  color: #888;
+  color: var(--text-muted);
   font-size: 0.8rem;
   padding: 0.15rem 0.4rem;
 }
 
 .expand-icon {
-  color: #4ecca3;
+  color: var(--color-primary);
   font-size: 1.2rem;
   font-weight: bold;
   width: 24px;
@@ -200,7 +201,7 @@ function getShotCounts(shots) {
 
 .rally-details {
   padding: 0 1rem 1rem;
-  border-top: 1px solid #2a2a4a;
+  border-top: 1px solid var(--border-color);
 }
 
 .shots-flow {
@@ -224,12 +225,12 @@ function getShotCounts(shots) {
   font-weight: bold;
 }
 
-.shot-badge.smash { background: #e74c3c; color: white; }
-.shot-badge.clear { background: #2ecc71; color: white; }
-.shot-badge.drop_shot { background: #f39c12; color: white; }
-.shot-badge.net_shot { background: #3498db; color: white; }
-.shot-badge.drive { background: #9b59b6; color: white; }
-.shot-badge.lift { background: #1abc9c; color: white; }
+.shot-badge.smash { background: var(--color-destructive); color: white; }
+.shot-badge.clear { background: var(--color-success); color: white; }
+.shot-badge.drop_shot { background: var(--color-warning); color: white; }
+.shot-badge.net_shot { background: var(--color-info); color: white; }
+.shot-badge.drive { background: var(--color-secondary); color: white; }
+.shot-badge.lift { background: var(--color-primary); color: white; }
 
 .arrow {
   color: #4a4a6a;
@@ -237,14 +238,15 @@ function getShotCounts(shots) {
 }
 
 .shot-breakdown {
-  background: #16213e;
-  border-radius: 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
   padding: 1rem;
   margin-top: 0.5rem;
 }
 
 .shot-breakdown h4 {
-  color: #888;
+  color: var(--text-muted);
   font-size: 0.8rem;
   font-weight: normal;
   margin-bottom: 0.75rem;
@@ -269,20 +271,20 @@ function getShotCounts(shots) {
   border-radius: 50%;
 }
 
-.dot.smash { background: #e74c3c; }
-.dot.clear { background: #2ecc71; }
-.dot.drop_shot { background: #f39c12; }
-.dot.net_shot { background: #3498db; }
-.dot.drive { background: #9b59b6; }
-.dot.lift { background: #1abc9c; }
+.dot.smash { background: var(--color-destructive); }
+.dot.clear { background: var(--color-success); }
+.dot.drop_shot { background: var(--color-warning); }
+.dot.net_shot { background: var(--color-info); }
+.dot.drive { background: var(--color-secondary); }
+.dot.lift { background: var(--color-primary); }
 
 .type {
-  color: #888;
+  color: var(--text-muted);
   flex: 1;
 }
 
 .count {
-  color: #eee;
+  color: var(--text-primary);
   font-weight: bold;
 }
 </style>

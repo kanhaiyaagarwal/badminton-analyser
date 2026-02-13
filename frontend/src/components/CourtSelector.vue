@@ -305,29 +305,31 @@ function emitBoundary() {
   justify-content: space-between;
   align-items: center;
   padding: 0.75rem 1rem;
-  background: #1a1a2e;
-  border-radius: 8px;
+  background: var(--bg-input);
+  border-radius: var(--radius-md);
   margin-bottom: 1rem;
-  color: #888;
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
 }
 
 .instructions .complete {
-  color: #4ecca3;
+  color: var(--color-primary);
 }
 
 .btn-reset {
   background: transparent;
-  border: 1px solid #e74c3c;
-  color: #e74c3c;
+  border: 1px solid var(--color-destructive);
+  color: var(--color-destructive);
   padding: 0.25rem 0.75rem;
   border-radius: 4px;
   cursor: pointer;
   font-size: 0.85rem;
+  font-weight: 600;
   transition: all 0.2s;
 }
 
 .btn-reset:hover {
-  background: #e74c3c;
+  background: var(--color-destructive);
   color: white;
 }
 
@@ -335,7 +337,7 @@ function emitBoundary() {
   display: flex;
   justify-content: center;
   background: #0a0a1a;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 1rem;
   overflow: hidden;
 }
@@ -351,8 +353,9 @@ canvas {
   gap: 0.5rem;
   margin-top: 1rem;
   padding: 1rem;
-  background: #1a1a2e;
-  border-radius: 8px;
+  background: var(--bg-input);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
 }
 
 .coord-item {
@@ -367,6 +370,6 @@ canvas {
 }
 
 .coord-item .value {
-  color: #888;
+  color: var(--text-muted);
 }
 </style>

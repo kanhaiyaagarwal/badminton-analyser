@@ -66,8 +66,12 @@ export const useAuthStore = defineStore('auth', () => {
       code
     })
     if (response.data.success) {
-      // Clear pending verification on success
       pendingVerification.value = null
+      // Auto-login: backend returns tokens on successful verification
+      if (response.data.access_token) {
+        setTokens(response.data.access_token, response.data.refresh_token)
+        await fetchUser()
+      }
     }
     return response.data
   }

@@ -272,13 +272,13 @@ function triggerDownload(data, mimeType, filename) {
 
 <style scoped>
 .back-link {
-  color: #888;
+  color: var(--text-secondary);
   text-decoration: none;
   font-size: 0.9rem;
 }
 
 .back-link:hover {
-  color: #4ecca3;
+  color: var(--color-primary);
 }
 
 .dashboard-header {
@@ -289,7 +289,7 @@ function triggerDownload(data, mimeType, filename) {
 }
 
 h1 {
-  color: #4ecca3;
+  color: var(--color-primary);
 }
 
 .header-actions {
@@ -298,17 +298,17 @@ h1 {
 }
 
 .btn-upload {
-  background: #4ecca3;
-  color: #1a1a2e;
+  background: var(--color-primary);
+  color: var(--text-on-primary);
   padding: 0.75rem 1.5rem;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   text-decoration: none;
   font-weight: bold;
   transition: background 0.2s;
 }
 
 .btn-upload:hover {
-  background: #3db892;
+  background: var(--color-primary-hover);
 }
 
 .btn-live {
@@ -316,17 +316,17 @@ h1 {
   align-items: center;
   gap: 0.5rem;
   background: transparent;
-  color: #e74c3c;
+  color: var(--color-destructive);
   padding: 0.75rem 1.5rem;
-  border-radius: 8px;
-  border: 2px solid #e74c3c;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--color-destructive);
   text-decoration: none;
   font-weight: bold;
   transition: all 0.2s;
 }
 
 .btn-live:hover {
-  background: #e74c3c;
+  background: var(--color-destructive);
   color: white;
 }
 
@@ -338,16 +338,16 @@ h1 {
 .loading, .empty-state {
   text-align: center;
   padding: 3rem;
-  color: #888;
+  color: var(--text-secondary);
 }
 
 .empty-state .btn-primary {
   display: inline-block;
   margin-top: 1rem;
-  background: #4ecca3;
-  color: #1a1a2e;
+  background: var(--color-primary);
+  color: var(--text-on-primary);
   padding: 0.75rem 1.5rem;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   text-decoration: none;
   font-weight: bold;
 }
@@ -359,10 +359,11 @@ h1 {
 }
 
 .job-card {
-  background: #16213e;
-  border-radius: 12px;
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
   padding: 1.5rem;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border-color);
 }
 
 .job-header {
@@ -374,7 +375,7 @@ h1 {
 
 .job-filename {
   font-weight: bold;
-  color: #eee;
+  color: var(--text-primary);
   word-break: break-word;
   flex: 1;
   margin-right: 1rem;
@@ -382,35 +383,35 @@ h1 {
 
 .status-badge {
   padding: 0.25rem 0.75rem;
-  border-radius: 20px;
+  border-radius: var(--radius-full);
   font-size: 0.8rem;
   font-weight: bold;
   text-transform: uppercase;
 }
 
 .status-badge.pending {
-  background: rgba(241, 196, 15, 0.2);
-  color: #f1c40f;
+  background: var(--color-warning-light);
+  color: var(--color-warning);
 }
 
 .status-badge.processing {
-  background: rgba(52, 152, 219, 0.2);
-  color: #3498db;
+  background: var(--color-info-light);
+  color: var(--color-info);
 }
 
 .status-badge.completed {
-  background: rgba(78, 204, 163, 0.2);
-  color: #4ecca3;
+  background: var(--color-primary-light);
+  color: var(--color-primary);
 }
 
 .status-badge.failed {
-  background: rgba(231, 76, 60, 0.2);
-  color: #e74c3c;
+  background: var(--color-destructive-light);
+  color: var(--color-destructive);
 }
 
 .status-badge.cancelled {
-  background: rgba(149, 165, 166, 0.2);
-  color: #95a5a6;
+  background: rgba(148, 163, 184, 0.1);
+  color: var(--text-muted);
 }
 
 .job-info {
@@ -418,7 +419,7 @@ h1 {
 }
 
 .progress-bar {
-  background: #2a2a4a;
+  background: var(--border-input);
   border-radius: 10px;
   height: 20px;
   position: relative;
@@ -427,7 +428,7 @@ h1 {
 }
 
 .progress-fill {
-  background: linear-gradient(90deg, #4ecca3, #3498db);
+  background: var(--gradient-primary);
   height: 100%;
   transition: width 0.3s;
 }
@@ -443,19 +444,19 @@ h1 {
 }
 
 .status-message {
-  color: #888;
+  color: var(--text-secondary);
   font-size: 0.9rem;
   margin-bottom: 0.5rem;
 }
 
 .error-message {
-  color: #e74c3c;
+  color: var(--color-destructive);
   font-size: 0.9rem;
   margin-bottom: 0.5rem;
 }
 
 .job-date {
-  color: #666;
+  color: var(--text-muted);
   font-size: 0.8rem;
 }
 
@@ -467,7 +468,7 @@ h1 {
 
 .btn-action {
   padding: 0.5rem 1rem;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   text-decoration: none;
   font-size: 0.9rem;
   cursor: pointer;
@@ -476,35 +477,35 @@ h1 {
 }
 
 .btn-action.btn-primary {
-  background: #4ecca3;
-  color: #1a1a2e;
+  background: var(--color-primary);
+  color: var(--text-on-primary);
 }
 
 .btn-action.btn-success {
-  background: #27ae60;
+  background: var(--color-success);
   color: white;
 }
 
 .btn-action.btn-danger {
   background: transparent;
-  border: 1px solid #e74c3c;
-  color: #e74c3c;
+  border: 1px solid var(--color-destructive);
+  color: var(--color-destructive);
 }
 
 .btn-action.btn-danger:hover:not(:disabled) {
-  background: #e74c3c;
+  background: var(--color-destructive);
   color: white;
 }
 
 .btn-action.btn-cancel {
   background: transparent;
-  border: 1px solid #f39c12;
-  color: #f39c12;
+  border: 1px solid var(--color-warning);
+  color: var(--color-warning);
 }
 
 .btn-action.btn-cancel:hover {
-  background: #f39c12;
-  color: #1a1a2e;
+  background: var(--color-warning);
+  color: var(--text-on-primary);
 }
 
 .btn-action:disabled {
@@ -521,22 +522,22 @@ h1 {
 }
 
 .or-divider {
-  color: #666;
+  color: var(--text-muted);
 }
 
 .btn-live-alt {
   background: transparent;
-  color: #e74c3c;
+  color: var(--color-destructive);
   padding: 0.75rem 1.5rem;
-  border-radius: 8px;
-  border: 2px solid #e74c3c;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--color-destructive);
   text-decoration: none;
   font-weight: bold;
   transition: all 0.2s;
 }
 
 .btn-live-alt:hover {
-  background: #e74c3c;
+  background: var(--color-destructive);
   color: white;
 }
 
@@ -558,13 +559,13 @@ h1 {
 }
 
 .type-badge.video {
-  background: rgba(52, 152, 219, 0.2);
-  color: #3498db;
+  background: var(--color-info-light);
+  color: var(--color-info);
 }
 
 .type-badge.stream {
-  background: rgba(231, 76, 60, 0.2);
-  color: #e74c3c;
+  background: var(--color-destructive-light);
+  color: var(--color-destructive);
 }
 
 .stream-stats {
@@ -572,12 +573,12 @@ h1 {
 }
 
 .stat-item {
-  color: #888;
+  color: var(--text-secondary);
   font-size: 0.9rem;
 }
 
 .stat-item strong {
-  color: #4ecca3;
+  color: var(--color-primary);
 }
 
 .stream-stats {
@@ -592,8 +593,8 @@ h1 {
   align-items: center;
   gap: 0.25rem;
   padding: 0.2rem 0.5rem;
-  background: rgba(231, 76, 60, 0.15);
-  color: #e74c3c;
+  background: var(--color-destructive-light);
+  color: var(--color-destructive);
   border-radius: 4px;
   font-size: 0.8rem;
 }
@@ -605,19 +606,19 @@ h1 {
 
 .status-badge.setup,
 .status-badge.ready {
-  background: rgba(155, 89, 182, 0.2);
-  color: #9b59b6;
+  background: var(--color-secondary-light);
+  color: var(--color-secondary);
 }
 
 .status-badge.streaming {
-  background: rgba(231, 76, 60, 0.2);
-  color: #e74c3c;
+  background: var(--color-destructive-light);
+  color: var(--color-destructive);
   animation: pulse-status 1.5s infinite;
 }
 
 .status-badge.ended {
-  background: rgba(78, 204, 163, 0.2);
-  color: #4ecca3;
+  background: var(--color-primary-light);
+  color: var(--color-primary);
 }
 
 @keyframes pulse-status {
@@ -630,13 +631,13 @@ h1 {
   align-items: center;
   gap: 0.35rem;
   background: transparent;
-  border: 1px solid #4ecca3;
-  color: #4ecca3;
+  border: 1px solid var(--color-primary);
+  color: var(--color-primary);
 }
 
 .btn-action.btn-download:hover:not(:disabled) {
-  background: #4ecca3;
-  color: #1a1a2e;
+  background: var(--color-primary);
+  color: var(--text-on-primary);
 }
 
 .btn-action.btn-download .dl-icon {

@@ -4,9 +4,7 @@ import { useAuthStore } from '../stores/auth'
 const routes = [
   {
     path: '/',
-    name: 'Landing',
-    component: () => import('../views/LandingView.vue'),
-    meta: { guest: true }
+    redirect: '/login'
   },
   {
     path: '/landing-full',
@@ -147,7 +145,7 @@ router.beforeEach((to, from, next) => {
   }
 
   // 2. Guest-only pages (login/signup) — redirect if already authenticated
-  if (to.meta.guest && isAuth && to.name !== 'Landing') {
+  if (to.meta.guest && isAuth) {
     next(isAdmin ? '/hub' : '/challenges')
     return
   }
@@ -158,8 +156,8 @@ router.beforeEach((to, from, next) => {
     return
   }
 
-  // 4. Non-admin authenticated users can only access challenge routes, guest routes, and Landing
-  if (isAuth && !isAdmin && !to.meta.challengeRoute && !to.meta.guest && to.name !== 'Landing') {
+  // 4. Non-admin authenticated users can only access challenge routes and guest routes
+  if (isAuth && !isAdmin && !to.meta.challengeRoute && !to.meta.guest) {
     next('/challenges')
     return
   }

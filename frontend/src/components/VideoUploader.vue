@@ -100,8 +100,8 @@ function formatSize(bytes) {
 
 <style scoped>
 .video-uploader {
-  border: 2px dashed #3a3a5a;
-  border-radius: 12px;
+  border: 2px dashed var(--border-input);
+  border-radius: var(--radius-lg);
   padding: 2rem;
   cursor: pointer;
   transition: all 0.2s;
@@ -110,8 +110,8 @@ function formatSize(bytes) {
 
 .video-uploader:hover,
 .video-uploader.dragover {
-  border-color: #4ecca3;
-  background: rgba(78, 204, 163, 0.1);
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
 }
 
 .hidden-input {
@@ -128,21 +128,21 @@ function formatSize(bytes) {
 .upload-icon {
   width: 48px;
   height: 48px;
-  color: #4ecca3;
+  color: var(--color-primary);
 }
 
 .main-text {
-  color: #eee;
+  color: var(--text-primary);
   font-size: 1.1rem;
 }
 
 .sub-text {
-  color: #888;
+  color: var(--text-muted);
   font-size: 0.9rem;
 }
 
 .formats {
-  color: #666;
+  color: var(--text-muted);
   font-size: 0.8rem;
   margin-top: 0.5rem;
 }
@@ -157,7 +157,7 @@ function formatSize(bytes) {
 .video-icon {
   width: 40px;
   height: 40px;
-  color: #4ecca3;
+  color: var(--color-primary);
 }
 
 .file-info {
@@ -165,30 +165,30 @@ function formatSize(bytes) {
 }
 
 .filename {
-  color: #eee;
+  color: var(--text-primary);
   font-weight: bold;
   word-break: break-word;
 }
 
 .filesize {
-  color: #888;
+  color: var(--text-muted);
   font-size: 0.85rem;
 }
 
 .clear-btn {
-  background: rgba(231, 76, 60, 0.2);
-  color: #e74c3c;
+  background: var(--color-destructive-light);
+  color: var(--color-destructive);
   border: none;
   width: 28px;
   height: 28px;
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   cursor: pointer;
-  font-weight: bold;
+  font-weight: 600;
   transition: all 0.2s;
 }
 
 .clear-btn:hover {
-  background: #e74c3c;
+  background: var(--color-destructive);
   color: white;
 }
 </style>

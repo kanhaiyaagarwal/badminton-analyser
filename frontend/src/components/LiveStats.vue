@@ -121,8 +121,9 @@ function formatShotType(type) {
 
 <style scoped>
 .live-stats {
-  background: #16213e;
-  border-radius: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
   padding: 1.5rem;
 }
 
@@ -132,14 +133,14 @@ function formatShotType(type) {
 
 .stats-header h3 {
   margin: 0;
-  color: #eee;
+  color: var(--text-primary);
   font-size: 1.1rem;
 }
 
 /* Last Shot Section - Fixed Height */
 .last-shot-section {
-  background: #0f0f1a;
-  border-radius: 8px;
+  background: var(--bg-input);
+  border-radius: var(--radius-md);
   padding: 1rem;
   margin-bottom: 1rem;
   min-height: 70px;
@@ -149,7 +150,7 @@ function formatShotType(type) {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  color: #888;
+  color: var(--text-muted);
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -164,25 +165,25 @@ function formatShotType(type) {
 }
 
 .shot-type-badge {
-  font-weight: bold;
+  font-weight: 600;
   padding: 0.5rem 1rem;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-size: 1.1rem;
 }
 
-.shot-type-badge.smash { color: #e74c3c; background: rgba(231, 76, 60, 0.2); }
-.shot-type-badge.clear { color: #2ecc71; background: rgba(46, 204, 113, 0.2); }
-.shot-type-badge.drop_shot { color: #f39c12; background: rgba(243, 156, 18, 0.2); }
-.shot-type-badge.net_shot { color: #3498db; background: rgba(52, 152, 219, 0.2); }
-.shot-type-badge.drive { color: #9b59b6; background: rgba(155, 89, 182, 0.2); }
+.shot-type-badge.smash { color: var(--color-destructive); background: var(--color-destructive-light); }
+.shot-type-badge.clear { color: var(--color-success); background: rgba(46, 204, 113, 0.2); }
+.shot-type-badge.drop_shot { color: var(--color-warning); background: rgba(243, 156, 18, 0.2); }
+.shot-type-badge.net_shot { color: var(--color-info); background: rgba(52, 152, 219, 0.2); }
+.shot-type-badge.drive { color: var(--color-secondary); background: rgba(155, 89, 182, 0.2); }
 .shot-type-badge.lift { color: #1abc9c; background: rgba(26, 188, 156, 0.2); }
 .shot-type-badge.serve { color: #e67e22; background: rgba(230, 126, 34, 0.2); }
 
 .confidence-badge {
-  color: #4ecca3;
+  color: var(--color-primary);
   font-size: 0.9rem;
   padding: 0.25rem 0.5rem;
-  background: rgba(78, 204, 163, 0.1);
+  background: var(--color-primary-light);
   border-radius: 4px;
 }
 
@@ -193,7 +194,7 @@ function formatShotType(type) {
 }
 
 .waiting-text {
-  color: #555;
+  color: var(--text-muted);
   font-style: italic;
   font-size: 0.9rem;
 }
@@ -208,19 +209,19 @@ function formatShotType(type) {
 .stat-card {
   text-align: center;
   padding: 0.75rem;
-  background: #0f0f1a;
-  border-radius: 8px;
+  background: var(--bg-input);
+  border-radius: var(--radius-md);
 }
 
 .stat-value {
   font-size: 1.5rem;
   font-weight: bold;
-  color: #4ecca3;
+  color: var(--color-primary);
 }
 
 .stat-label {
   font-size: 0.75rem;
-  color: #888;
+  color: var(--text-muted);
   margin-top: 0.25rem;
 }
 
@@ -230,7 +231,7 @@ function formatShotType(type) {
 
 .shot-distribution h4 {
   margin: 0 0 0.75rem 0;
-  color: #888;
+  color: var(--text-muted);
   font-size: 0.9rem;
   font-weight: normal;
 }
@@ -244,11 +245,11 @@ function formatShotType(type) {
 .no-distribution {
   padding: 1rem;
   text-align: center;
-  color: #555;
+  color: var(--text-muted);
   font-style: italic;
   font-size: 0.85rem;
-  background: #0f0f1a;
-  border-radius: 8px;
+  background: var(--bg-input);
+  border-radius: var(--radius-md);
 }
 
 .shot-bar {
@@ -259,49 +260,49 @@ function formatShotType(type) {
 }
 
 .bar-label {
-  color: #888;
+  color: var(--text-muted);
   font-size: 0.8rem;
   text-align: right;
 }
 
 .bar-container {
   height: 16px;
-  background: #0f0f1a;
-  border-radius: 8px;
+  background: var(--bg-input);
+  border-radius: var(--radius-md);
   overflow: hidden;
 }
 
 .bar-fill {
   height: 100%;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   transition: width 0.3s ease;
 }
 
-.bar-fill.smash { background: #e74c3c; }
-.bar-fill.clear { background: #2ecc71; }
-.bar-fill.drop_shot { background: #f39c12; }
-.bar-fill.net_shot { background: #3498db; }
-.bar-fill.drive { background: #9b59b6; }
+.bar-fill.smash { background: var(--color-destructive); }
+.bar-fill.clear { background: var(--color-success); }
+.bar-fill.drop_shot { background: var(--color-warning); }
+.bar-fill.net_shot { background: var(--color-info); }
+.bar-fill.drive { background: var(--color-secondary); }
 .bar-fill.lift { background: #1abc9c; }
 .bar-fill.serve { background: #e67e22; }
 
 .bar-count {
-  color: #eee;
+  color: var(--text-primary);
   font-size: 0.85rem;
   font-weight: bold;
 }
 
 /* Coaching Section - Fixed Height */
 .coaching-section {
-  background: #0f0f1a;
-  border-radius: 8px;
+  background: var(--bg-input);
+  border-radius: var(--radius-md);
   padding: 1rem;
   min-height: 80px;
-  border-left: 3px solid #4ecca3;
+  border-left: 3px solid var(--color-primary);
 }
 
 .coaching-section .section-label {
-  color: #4ecca3;
+  color: var(--color-primary);
 }
 
 .tip-icon {
@@ -316,13 +317,13 @@ function formatShotType(type) {
 }
 
 .tip-text {
-  color: #eee;
+  color: var(--text-primary);
   font-size: 0.9rem;
   line-height: 1.4;
 }
 
 .no-tip {
-  color: #555;
+  color: var(--text-muted);
   font-style: italic;
   font-size: 0.85rem;
 }

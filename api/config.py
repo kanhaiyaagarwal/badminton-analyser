@@ -61,7 +61,7 @@ class Settings(BaseSettings):
     smtp_user: str = ""
     smtp_password: str = ""
     smtp_from_email: str = "noreply@example.com"
-    smtp_from_name: str = "Badminton Analyzer"
+    smtp_from_name: str = "PushUp Pro"
 
     # SES Region (if different from aws_region)
     ses_region: str = ""

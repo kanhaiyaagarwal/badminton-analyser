@@ -121,22 +121,22 @@ onMounted(async () => {
 }
 
 .back-link {
-  color: #888;
+  color: var(--text-muted);
   text-decoration: none;
   font-size: 0.9rem;
 }
 
 .back-link:hover {
-  color: #4ecca3;
+  color: var(--color-primary);
 }
 
 .selector-header h1 {
-  color: #eee;
+  color: var(--text-primary);
   margin: 0.5rem 0 0.25rem;
 }
 
 .subtitle {
-  color: #888;
+  color: var(--text-muted);
 }
 
 .challenge-grid {
@@ -146,9 +146,9 @@ onMounted(async () => {
 }
 
 .challenge-card {
-  background: rgba(22, 33, 62, 0.8);
-  border: 1px solid rgba(78, 204, 163, 0.15);
-  border-radius: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
   padding: 2rem;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -157,9 +157,9 @@ onMounted(async () => {
 }
 
 .challenge-card:hover {
-  border-color: #4ecca3;
+  border-color: var(--color-primary);
   transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(78, 204, 163, 0.15);
+  box-shadow: var(--shadow-lg);
 }
 
 .card-icon {
@@ -168,13 +168,13 @@ onMounted(async () => {
 }
 
 .challenge-card h2 {
-  color: #4ecca3;
+  color: var(--color-primary);
   font-size: 1.2rem;
   margin-bottom: 0.5rem;
 }
 
 .challenge-card p {
-  color: #aaa;
+  color: var(--text-secondary);
   font-size: 0.9rem;
   line-height: 1.5;
   flex: 1;
@@ -185,7 +185,7 @@ onMounted(async () => {
   gap: 0;
   margin-top: 1rem;
   padding-top: 0.75rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid var(--border-color);
 }
 
 .card-stat {
@@ -194,7 +194,7 @@ onMounted(async () => {
 }
 
 .card-stat + .card-stat {
-  border-left: 1px solid rgba(255, 255, 255, 0.05);
+  border-left: 1px solid var(--border-color);
 }
 
 .card-stat-value {
@@ -204,14 +204,15 @@ onMounted(async () => {
   line-height: 1.2;
 }
 
-.card-stat-value.best { color: #4ecca3; }
-.card-stat-value.today { color: #f9ca24; }
-.card-stat-value.week { color: #42a5f5; }
+.card-stat-value.best { color: var(--color-primary); }
+.card-stat-value.today { color: var(--color-warning); }
+.card-stat-value.week { color: var(--color-info); }
 
 .card-stat-label {
   display: block;
-  color: #666;
+  color: var(--text-muted);
   font-size: 0.7rem;
+  font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   margin-top: 0.2rem;
@@ -219,18 +220,19 @@ onMounted(async () => {
 
 .start-btn {
   margin-top: 1rem;
-  background: rgba(78, 204, 163, 0.15);
-  border: 1px solid rgba(78, 204, 163, 0.3);
-  color: #4ecca3;
+  background: var(--color-primary-light);
+  border: 1px solid var(--border-color);
+  color: var(--color-primary);
   padding: 0.6rem 1rem;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   font-size: 0.9rem;
   transition: all 0.2s;
 }
 
 .start-btn:hover {
-  background: rgba(78, 204, 163, 0.25);
+  background: var(--color-primary-hover);
+  color: var(--text-on-primary);
 }
 
 @media (max-width: 640px) {

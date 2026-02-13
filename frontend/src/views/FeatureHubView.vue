@@ -49,13 +49,13 @@ const authStore = useAuthStore()
 }
 
 .hub-header h1 {
-  color: #eee;
+  color: var(--text-primary);
   font-size: 2rem;
   margin-bottom: 0.5rem;
 }
 
 .hub-subtitle {
-  color: #888;
+  color: var(--text-muted);
   font-size: 1.1rem;
 }
 
@@ -66,20 +66,21 @@ const authStore = useAuthStore()
 }
 
 .feature-card {
-  background: rgba(22, 33, 62, 0.8);
-  border: 1px solid rgba(78, 204, 163, 0.15);
-  border-radius: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
   padding: 2rem;
   text-decoration: none;
   transition: all 0.3s ease;
   display: flex;
   flex-direction: column;
+  box-shadow: var(--shadow-md);
 }
 
 .feature-card:hover {
-  border-color: #4ecca3;
+  border-color: var(--color-primary);
   transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(78, 204, 163, 0.15);
+  box-shadow: var(--shadow-lg);
 }
 
 .feature-card.coming-soon {
@@ -93,20 +94,20 @@ const authStore = useAuthStore()
 }
 
 .feature-card h2 {
-  color: #4ecca3;
+  color: var(--color-primary);
   font-size: 1.3rem;
   margin-bottom: 0.75rem;
 }
 
 .feature-card p {
-  color: #aaa;
+  color: var(--text-secondary);
   font-size: 0.95rem;
   line-height: 1.5;
   flex: 1;
 }
 
 .card-action {
-  color: #4ecca3;
+  color: var(--color-primary);
   font-size: 0.9rem;
   margin-top: 1.25rem;
   font-weight: 500;
@@ -114,10 +115,10 @@ const authStore = useAuthStore()
 
 .card-badge {
   display: inline-block;
-  background: rgba(78, 204, 163, 0.15);
-  color: #4ecca3;
+  background: var(--color-primary-light);
+  color: var(--color-primary);
   padding: 0.25rem 0.75rem;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   font-size: 0.8rem;
   margin-top: 1.25rem;
   width: fit-content;

@@ -263,22 +263,24 @@ function isCompactCategory(key) {
 .no-categories {
   text-align: center;
   padding: 1rem;
-  color: #888;
-  background: #1a1a2e;
-  border-radius: 6px;
+  color: var(--text-muted);
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
   grid-column: 1 / -1;
 }
 
 .no-categories .debug-info {
   font-size: 0.65rem;
-  color: #555;
+  color: var(--text-muted);
   word-break: break-all;
   margin-top: 0.25rem;
 }
 
 .threshold-group {
-  background: #1a1a2e;
-  border-radius: 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
   overflow: hidden;
 }
 
@@ -311,22 +313,23 @@ function isCompactCategory(key) {
   align-items: center;
   padding: 0.4rem 0.6rem;
   cursor: pointer;
-  background: rgba(78, 204, 163, 0.1);
-  border-bottom: 1px solid #2a2a4a;
+  background: var(--color-primary-light);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .group-header:hover {
-  background: rgba(78, 204, 163, 0.15);
+  background: var(--color-primary-light);
+  filter: brightness(0.95);
 }
 
 .group-header h3 {
   margin: 0;
   font-size: 0.75rem;
-  color: #4ecca3;
+  color: var(--color-primary);
 }
 
 .toggle-icon {
-  color: #4ecca3;
+  color: var(--color-primary);
   font-size: 0.9rem;
   font-weight: bold;
 }
@@ -335,8 +338,8 @@ function isCompactCategory(key) {
   margin: 0;
   padding: 0.25rem 0.6rem;
   font-size: 0.65rem;
-  color: #666;
-  background: #1a1a2e;
+  color: var(--text-muted);
+  background: var(--bg-card);
 }
 
 .group-content {
@@ -346,7 +349,7 @@ function isCompactCategory(key) {
 .threshold-slider {
   margin-bottom: 0.4rem;
   padding-bottom: 0.4rem;
-  border-bottom: 1px solid #232342;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .threshold-slider:last-child {
@@ -363,7 +366,7 @@ function isCompactCategory(key) {
 }
 
 .slider-header label {
-  color: #ccc;
+  color: var(--text-secondary);
   font-size: 0.72rem;
 }
 
@@ -376,21 +379,21 @@ function isCompactCategory(key) {
 .value-input {
   width: 48px;
   padding: 0.1rem 0.3rem;
-  background: #2a2a4a;
-  border: 1px solid #3a3a5a;
+  background: var(--bg-input);
+  border: 1px solid var(--border-input);
   border-radius: 3px;
-  color: #4ecca3;
+  color: var(--color-primary);
   font-size: 0.72rem;
   text-align: right;
 }
 
 .value-input:focus {
   outline: none;
-  border-color: #4ecca3;
+  border-color: var(--color-primary);
 }
 
 .unit {
-  color: #666;
+  color: var(--text-muted);
   font-size: 0.65rem;
 }
 
@@ -401,7 +404,7 @@ function isCompactCategory(key) {
 }
 
 .range-label {
-  color: #555;
+  color: var(--text-muted);
   font-size: 0.6rem;
   min-width: 22px;
 }
@@ -419,9 +422,10 @@ function isCompactCategory(key) {
   -webkit-appearance: none;
   appearance: none;
   height: 4px;
-  background: #2a2a4a;
+  background: var(--border-color);
   border-radius: 2px;
   outline: none;
+  accent-color: var(--color-primary);
 }
 
 .slider::-webkit-slider-thumb {
@@ -429,7 +433,7 @@ function isCompactCategory(key) {
   appearance: none;
   width: 12px;
   height: 12px;
-  background: #4ecca3;
+  background: var(--color-primary);
   border-radius: 50%;
   cursor: pointer;
   transition: transform 0.1s;
@@ -442,7 +446,7 @@ function isCompactCategory(key) {
 .slider::-moz-range-thumb {
   width: 12px;
   height: 12px;
-  background: #4ecca3;
+  background: var(--color-primary);
   border: none;
   border-radius: 50%;
   cursor: pointer;
@@ -451,7 +455,7 @@ function isCompactCategory(key) {
 .slider-gauge {
   position: relative;
   height: 3px;
-  background: #2a2a4a;
+  background: var(--border-color);
   border-radius: 2px;
   margin-top: 0.2rem;
   margin-left: 24px;
@@ -463,7 +467,7 @@ function isCompactCategory(key) {
   top: 0;
   left: 0;
   height: 100%;
-  background: linear-gradient(90deg, #4ecca3 0%, #3db892 100%);
+  background: var(--gradient-primary);
   border-radius: 2px;
   transition: width 0.1s;
 }
@@ -473,18 +477,18 @@ function isCompactCategory(key) {
   top: -2px;
   width: 2px;
   height: 7px;
-  background: #888;
+  background: var(--text-muted);
   transform: translateX(-50%);
 }
 
 .gauge-marker.default {
-  background: #f1c40f;
+  background: var(--color-warning);
 }
 
 .threshold-description {
   margin: 0.2rem 0 0;
   font-size: 0.6rem;
-  color: #555;
+  color: var(--text-muted);
   margin-left: 24px;
 }
 </style>

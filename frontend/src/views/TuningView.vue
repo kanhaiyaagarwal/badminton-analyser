@@ -810,25 +810,25 @@ function formatTime(seconds) {
 }
 
 .back-link {
-  color: #888;
+  color: var(--text-muted);
   text-decoration: none;
   font-size: 0.9rem;
 }
 
 h1 {
-  color: #4ecca3;
+  color: var(--color-primary);
   margin: 0.5rem 0 0.25rem;
 }
 
 .subtitle {
-  color: #888;
+  color: var(--text-muted);
   margin: 0;
 }
 
 .not-admin {
   text-align: center;
   padding: 3rem;
-  color: #888;
+  color: var(--text-muted);
 }
 
 .tuning-layout {
@@ -844,13 +844,15 @@ h1 {
 }
 
 .section {
-  background: #16213e;
-  border-radius: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
   padding: 1rem;
+  box-shadow: var(--shadow-md);
 }
 
 .section h2 {
-  color: #eee;
+  color: var(--text-primary);
   margin: 0 0 0.75rem;
   font-size: 1rem;
 }
@@ -889,23 +891,24 @@ h1 {
 .tab {
   flex: 1;
   padding: 0.75rem;
-  background: #1a1a2e;
-  border: 1px solid #2a2a4a;
-  color: #888;
-  border-radius: 8px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-input);
+  color: var(--text-muted);
+  border-radius: var(--radius-md);
   cursor: pointer;
   transition: all 0.2s;
+  font-weight: 600;
 }
 
 .tab:hover {
-  border-color: #4ecca3;
-  color: #eee;
+  border-color: var(--color-primary);
+  color: var(--text-primary);
 }
 
 .tab.active {
-  background: rgba(78, 204, 163, 0.1);
-  border-color: #4ecca3;
-  color: #4ecca3;
+  background: var(--color-primary-light);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
 }
 
 .form-group {
@@ -914,7 +917,7 @@ h1 {
 
 .form-group label {
   display: block;
-  color: #888;
+  color: var(--text-muted);
   margin-bottom: 0.5rem;
   font-size: 0.9rem;
 }
@@ -923,10 +926,11 @@ h1 {
 .form-group input {
   width: 100%;
   padding: 0.75rem;
-  background: #1a1a2e;
-  border: 1px solid #2a2a4a;
-  border-radius: 8px;
-  color: #eee;
+  background: var(--bg-input);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  accent-color: var(--color-primary);
 }
 
 .form-group-inline {
@@ -936,17 +940,17 @@ h1 {
 }
 
 .form-group-inline label {
-  color: #888;
+  color: var(--text-muted);
   font-size: 0.9rem;
   white-space: nowrap;
 }
 
 .form-group-inline select {
   padding: 0.5rem 0.75rem;
-  background: #1a1a2e;
-  border: 1px solid #2a2a4a;
-  border-radius: 8px;
-  color: #eee;
+  background: var(--bg-input);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
   min-width: 250px;
 }
 
@@ -960,11 +964,11 @@ h1 {
   display: flex;
   gap: 1rem;
   font-size: 0.85rem;
-  color: #888;
+  color: var(--text-muted);
 }
 
 .live-stats-inline span {
-  color: #4ecca3;
+  color: var(--color-primary);
 }
 
 .preset-selector {
@@ -976,21 +980,22 @@ h1 {
 .preset-selector select {
   flex: 1;
   padding: 0.5rem;
-  background: #1a1a2e;
-  border: 1px solid #2a2a4a;
-  border-radius: 6px;
-  color: #eee;
+  background: var(--bg-input);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
   max-width: 200px;
 }
 
 .btn-small {
   padding: 0.5rem 1rem;
-  background: #2a2a4a;
+  background: var(--border-color);
   border: none;
-  color: #eee;
-  border-radius: 6px;
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: 0.85rem;
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -1008,23 +1013,23 @@ h1 {
   gap: 0.75rem;
   margin-top: 1.5rem;
   padding-top: 1rem;
-  border-top: 1px solid #2a2a4a;
+  border-top: 1px solid var(--border-color);
 }
 
 .btn-primary {
   flex: 1;
   padding: 0.75rem 1.5rem;
-  background: #4ecca3;
-  color: #1a1a2e;
+  background: var(--color-primary);
+  color: var(--text-on-primary);
   border: none;
-  border-radius: 8px;
-  font-weight: bold;
+  border-radius: var(--radius-md);
+  font-weight: 600;
   cursor: pointer;
   transition: background 0.2s;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #3db892;
+  background: var(--color-primary-hover);
 }
 
 .btn-primary:disabled {
@@ -1035,15 +1040,16 @@ h1 {
 .btn-secondary {
   padding: 0.75rem 1rem;
   background: transparent;
-  border: 1px solid #3a3a5a;
-  color: #888;
-  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  border-radius: var(--radius-md);
   cursor: pointer;
+  font-weight: 600;
 }
 
 .btn-secondary:hover {
-  border-color: #4ecca3;
-  color: #eee;
+  border-color: var(--color-primary);
+  color: var(--text-primary);
 }
 
 .empty-viewer {
@@ -1051,9 +1057,9 @@ h1 {
   align-items: center;
   justify-content: center;
   height: 300px;
-  background: #1a1a2e;
-  border-radius: 8px;
-  color: #888;
+  background: var(--bg-input);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
 }
 
 .results-summary {
@@ -1070,11 +1076,11 @@ h1 {
 .stat .value {
   font-size: 2rem;
   font-weight: bold;
-  color: #4ecca3;
+  color: var(--color-primary);
 }
 
 .stat .label {
-  color: #888;
+  color: var(--text-muted);
   font-size: 0.85rem;
 }
 
@@ -1089,7 +1095,7 @@ h1 {
 }
 
 .distribution h4 {
-  color: #888;
+  color: var(--text-muted);
   margin: 0 0 0.5rem;
   font-size: 0.85rem;
   text-transform: uppercase;
@@ -1099,16 +1105,16 @@ h1 {
   display: flex;
   justify-content: space-between;
   padding: 0.25rem 0;
-  border-bottom: 1px solid #2a2a4a;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .shot-type {
-  color: #eee;
+  color: var(--text-primary);
   text-transform: capitalize;
 }
 
 .count {
-  color: #4ecca3;
+  color: var(--color-primary);
   font-weight: bold;
 }
 
@@ -1117,7 +1123,7 @@ h1 {
 }
 
 .comparison-table h4 {
-  color: #888;
+  color: var(--text-muted);
   margin: 0 0 0.75rem;
   font-size: 0.85rem;
   text-transform: uppercase;
@@ -1132,17 +1138,18 @@ h1 {
 .comparison-table td {
   padding: 0.5rem;
   text-align: left;
-  border-bottom: 1px solid #2a2a4a;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .comparison-table th {
-  color: #888;
+  color: var(--text-muted);
   font-weight: normal;
   font-size: 0.8rem;
+  background: var(--bg-input);
 }
 
 .comparison-table td {
-  color: #eee;
+  color: var(--text-primary);
   font-size: 0.9rem;
 }
 
@@ -1151,28 +1158,28 @@ h1 {
 }
 
 .comparison-table tr.clickable:hover {
-  background: rgba(78, 204, 163, 0.1);
+  background: var(--color-primary-light);
 }
 
 .more-results {
-  color: #888;
+  color: var(--text-muted);
   font-size: 0.85rem;
   text-align: center;
   margin-top: 0.5rem;
 }
 
 .error-message {
-  background: rgba(231, 76, 60, 0.2);
-  color: #e74c3c;
+  background: var(--color-destructive-light);
+  color: var(--color-destructive);
   padding: 0.75rem;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   margin-bottom: 1rem;
   font-size: 0.9rem;
 }
 
 .loading {
   text-align: center;
-  color: #888;
+  color: var(--text-muted);
   padding: 1rem;
 }
 
@@ -1182,19 +1189,19 @@ h1 {
 }
 
 .no-sessions p {
-  color: #888;
+  color: var(--text-muted);
   margin-bottom: 0.5rem;
 }
 
 .no-sessions .hint {
   font-size: 0.85rem;
-  color: #666;
+  color: var(--text-muted);
   margin-bottom: 1rem;
 }
 
 .live-stats {
-  background: #1a1a2e;
-  border-radius: 8px;
+  background: var(--bg-input);
+  border-radius: var(--radius-md);
   padding: 1rem;
   margin-top: 1rem;
 }
@@ -1206,11 +1213,11 @@ h1 {
 }
 
 .stat-row .label {
-  color: #888;
+  color: var(--text-muted);
 }
 
 .stat-row .value {
-  color: #4ecca3;
+  color: var(--color-primary);
   font-weight: bold;
 }
 
@@ -1225,15 +1232,16 @@ h1 {
 }
 
 .modal-content {
-  background: #16213e;
+  background: var(--bg-card);
   padding: 2rem;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   width: 100%;
   max-width: 400px;
+  box-shadow: var(--shadow-lg);
 }
 
 .modal-content h2 {
-  color: #4ecca3;
+  color: var(--color-primary);
   margin-bottom: 1.5rem;
 }
 
@@ -1245,11 +1253,11 @@ h1 {
 .loading-schema {
   padding: 1.5rem;
   text-align: center;
-  color: #888;
+  color: var(--text-muted);
 }
 
 .loading-schema .error-text {
-  color: #e74c3c;
+  color: var(--color-destructive);
   margin-top: 0.5rem;
 }
 </style>

@@ -18,19 +18,20 @@
 }
 
 .back-link {
-  color: #888;
+  color: var(--text-muted);
   text-decoration: none;
   font-size: 0.9rem;
 }
-.back-link:hover { color: #4ecca3; }
+.back-link:hover { color: var(--color-primary); }
 
 .placeholder-card {
-  background: rgba(22, 33, 62, 0.8);
-  border: 1px solid rgba(78, 204, 163, 0.15);
-  border-radius: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
   padding: 4rem 2rem;
   text-align: center;
   margin-top: 2rem;
+  box-shadow: var(--shadow-md);
 }
 
 .icon {
@@ -39,12 +40,12 @@
 }
 
 .placeholder-card h1 {
-  color: #eee;
+  color: var(--text-primary);
   margin-bottom: 0.75rem;
 }
 
 .placeholder-card p {
-  color: #888;
+  color: var(--text-muted);
   max-width: 400px;
   margin: 0 auto 1.5rem;
   line-height: 1.5;
@@ -52,11 +53,11 @@
 
 .badge {
   display: inline-block;
-  background: rgba(78, 204, 163, 0.15);
-  color: #4ecca3;
+  background: var(--color-primary-light);
+  color: var(--color-primary);
   padding: 0.4rem 1.25rem;
   border-radius: 20px;
   font-size: 0.9rem;
-  font-weight: 500;
+  font-weight: 600;
 }
 </style>

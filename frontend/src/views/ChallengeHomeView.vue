@@ -1,15 +1,24 @@
 <template>
   <div class="challenge-home">
-    <router-link to="/challenges" class="back-link">&larr; All Challenges</router-link>
+    <router-link v-if="store.enabledTypes.length > 1" to="/challenges" class="back-link">&larr; All Challenges</router-link>
 
     <div class="home-header">
       <span class="header-icon">{{ meta.icon }}</span>
       <h1>{{ meta.name }}</h1>
     </div>
 
-    <button class="start-challenge-btn" @click="startSession">
-      Start Challenge &rarr;
-    </button>
+    <div class="challenge-cta" @click="startSession">
+      <div class="cta-circle cta-circle-tr"></div>
+      <div class="cta-circle cta-circle-bl"></div>
+      <div class="cta-content">
+        <h2 class="cta-title">Ready for Your Next Challenge?</h2>
+        <p class="cta-sub">Push your limits and beat your personal record!</p>
+        <button class="cta-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"></polygon></svg>
+          Start Challenge Now
+        </button>
+      </div>
+    </div>
 
     <!-- Rank badge -->
     <div v-if="hasRank" class="rank-badge">
@@ -25,16 +34,31 @@
     <!-- Stats row -->
     <div class="stats-row" v-if="typeStats">
       <div class="stat-box">
-        <span class="stat-val best">{{ typeStats.personal_best || 0 }}</span>
-        <span class="stat-lbl">Personal Best</span>
+        <div class="stat-icon icon-blue">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        </div>
+        <div class="stat-info">
+          <span class="stat-val">{{ typeStats.personal_best || 0 }}</span>
+          <span class="stat-lbl">Personal Best</span>
+        </div>
       </div>
       <div class="stat-box">
-        <span class="stat-val today">{{ typeStats.daily_best || 0 }}</span>
-        <span class="stat-lbl">Today's Best</span>
+        <div class="stat-icon icon-orange">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5C7 4 7 7 7 7"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5C17 4 17 7 17 7"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+        </div>
+        <div class="stat-info">
+          <span class="stat-val">{{ typeStats.daily_best || 0 }}</span>
+          <span class="stat-lbl">Today's Best</span>
+        </div>
       </div>
       <div class="stat-box">
-        <span class="stat-val week">{{ typeStats.weekly_total || 0 }}</span>
-        <span class="stat-lbl">This Week</span>
+        <div class="stat-icon icon-green">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        </div>
+        <div class="stat-info">
+          <span class="stat-val">{{ typeStats.weekly_total || 0 }}</span>
+          <span class="stat-lbl">This Week</span>
+        </div>
       </div>
     </div>
 
@@ -53,7 +77,7 @@
               :class="['lb-entry', { 'lb-self': entry.is_self }]"
             >
               <span class="lb-medal">{{ medalFor(entry.rank) }}</span>
-              <span class="lb-email">{{ entry.email }}</span>
+              <span class="lb-name">{{ entry.username || entry.email }}</span>
               <span class="lb-score">{{ entry.score }}</span>
             </div>
           </div>
@@ -70,7 +94,7 @@
               :class="['lb-entry', { 'lb-self': entry.is_self }]"
             >
               <span class="lb-medal">{{ medalFor(entry.rank) }}</span>
-              <span class="lb-email">{{ entry.email }}</span>
+              <span class="lb-name">{{ entry.username || entry.email }}</span>
               <span class="lb-score">{{ entry.score }}</span>
             </div>
           </div>
@@ -170,6 +194,7 @@ function viewResults(sessionId) {
 }
 
 onMounted(() => {
+  store.fetchEnabledChallenges()
   store.fetchStats()
   store.fetchLeaderboard(challengeType.value)
   store.fetchSessions()
@@ -184,11 +209,11 @@ onMounted(() => {
 }
 
 .back-link {
-  color: #888;
+  color: var(--text-muted);
   text-decoration: none;
   font-size: 0.9rem;
 }
-.back-link:hover { color: #4ecca3; }
+.back-link:hover { color: var(--color-primary); }
 
 .home-header {
   display: flex;
@@ -202,40 +227,106 @@ onMounted(() => {
 }
 
 .home-header h1 {
-  color: #eee;
+  color: var(--text-primary);
   margin: 0;
 }
 
-.start-challenge-btn {
-  width: 100%;
-  background: #4ecca3;
-  color: #0a0a1a;
-  border: none;
-  padding: 1rem;
-  border-radius: 12px;
-  font-size: 1.2rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: opacity 0.2s;
+/* CTA Card */
+.challenge-cta {
+  position: relative;
+  background: var(--gradient-primary);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
   margin-bottom: 1.5rem;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
 }
-.start-challenge-btn:hover { opacity: 0.9; }
+
+.challenge-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.cta-circle {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.cta-circle-tr {
+  width: 16rem;
+  height: 16rem;
+  top: 0;
+  right: 0;
+  transform: translate(8rem, -8rem);
+}
+
+.cta-circle-bl {
+  width: 12rem;
+  height: 12rem;
+  bottom: 0;
+  left: 0;
+  transform: translate(-6rem, 6rem);
+}
+
+.cta-content {
+  position: relative;
+  z-index: 1;
+}
+
+.cta-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #fff;
+  margin: 0 0 0.5rem;
+}
+
+.cta-sub {
+  color: rgba(191, 219, 254, 0.9);
+  font-size: 1.05rem;
+  margin: 0 0 1.5rem;
+}
+
+.cta-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #fff;
+  color: var(--color-primary);
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1.5rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.cta-btn:hover {
+  background: #eff6ff;
+}
+
+.cta-btn svg {
+  width: 20px;
+  height: 20px;
+}
 
 /* Rank badge */
 .rank-badge {
   text-align: center;
-  background: rgba(78, 204, 163, 0.08);
-  border: 1px solid rgba(78, 204, 163, 0.2);
+  background: var(--color-primary-light);
+  border: 1px solid var(--border-color);
   border-radius: 24px;
   padding: 0.6rem 1.25rem;
-  color: #ccc;
+  color: var(--text-secondary);
   font-size: 0.95rem;
   margin-bottom: 1.5rem;
   animation: badge-glow 3s ease-in-out infinite;
 }
 
 .rank-badge strong {
-  color: #4ecca3;
+  color: var(--color-primary);
 }
 
 .rank-sparkle {
@@ -244,8 +335,8 @@ onMounted(() => {
 }
 
 @keyframes badge-glow {
-  0%, 100% { box-shadow: 0 0 8px rgba(78, 204, 163, 0.1); }
-  50% { box-shadow: 0 0 16px rgba(78, 204, 163, 0.25); }
+  0%, 100% { box-shadow: var(--shadow-md); }
+  50% { box-shadow: var(--shadow-lg); }
 }
 
 @keyframes sparkle-float {
@@ -262,26 +353,61 @@ onMounted(() => {
 
 .stat-box {
   flex: 1;
-  text-align: center;
-  background: rgba(22, 33, 62, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 10px;
-  padding: 1rem 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1.25rem 1rem;
+  box-shadow: var(--shadow-md);
+}
+
+.stat-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.stat-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.icon-blue {
+  background: rgba(59, 130, 246, 0.12);
+  color: #3b82f6;
+}
+
+.icon-orange {
+  background: rgba(249, 115, 22, 0.12);
+  color: #f97316;
+}
+
+.icon-green {
+  background: rgba(22, 163, 74, 0.12);
+  color: #16a34a;
+}
+
+.stat-info {
+  display: flex;
+  flex-direction: column;
 }
 
 .stat-val {
-  display: block;
   font-size: 1.5rem;
   font-weight: 700;
   line-height: 1.2;
+  color: var(--text-primary);
 }
-.stat-val.best { color: #4ecca3; }
-.stat-val.today { color: #f9ca24; }
-.stat-val.week { color: #42a5f5; }
 
 .stat-lbl {
   display: block;
-  color: #666;
+  color: var(--text-muted);
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -294,7 +420,7 @@ onMounted(() => {
 }
 
 .leaderboard-section h2 {
-  color: #eee;
+  color: var(--text-primary);
   font-size: 1.2rem;
   margin-bottom: 1rem;
 }
@@ -306,16 +432,17 @@ onMounted(() => {
 }
 
 .lb-card {
-  background: rgba(22, 33, 62, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
   padding: 1.25rem;
+  box-shadow: var(--shadow-md);
   animation: shimmer 3s ease-in-out infinite;
 }
 
 @keyframes shimmer {
-  0%, 100% { border-color: rgba(255, 255, 255, 0.05); }
-  50% { border-color: rgba(78, 204, 163, 0.15); }
+  0%, 100% { border-color: var(--border-color); }
+  50% { border-color: var(--color-primary); }
 }
 
 .lb-card h3 {
@@ -327,7 +454,7 @@ onMounted(() => {
 }
 
 .lb-empty {
-  color: #666;
+  color: var(--text-muted);
   text-align: center;
   padding: 1.5rem 0;
   font-size: 0.9rem;
@@ -344,13 +471,13 @@ onMounted(() => {
   align-items: center;
   gap: 0.75rem;
   padding: 0.6rem 0.75rem;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.02);
+  border-radius: var(--radius-md);
+  background: var(--color-primary-light);
 }
 
 .lb-entry.lb-self {
-  background: rgba(78, 204, 163, 0.08);
-  box-shadow: 0 0 12px rgba(78, 204, 163, 0.15);
+  background: var(--color-primary-light);
+  box-shadow: var(--shadow-md);
 }
 
 .lb-medal {
@@ -359,9 +486,9 @@ onMounted(() => {
   text-align: center;
 }
 
-.lb-email {
+.lb-name {
   flex: 1;
-  color: #ccc;
+  color: var(--text-secondary);
   font-size: 0.9rem;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -369,20 +496,20 @@ onMounted(() => {
 }
 
 .lb-score {
-  color: #4ecca3;
+  color: var(--color-primary);
   font-weight: 700;
   font-size: 1.1rem;
 }
 
 /* History */
 .history-section h2 {
-  color: #eee;
+  color: var(--text-primary);
   font-size: 1.2rem;
   margin-bottom: 1rem;
 }
 
 .history-empty {
-  color: #888;
+  color: var(--text-muted);
   text-align: center;
   padding: 2rem;
 }
@@ -394,15 +521,16 @@ onMounted(() => {
 }
 
 .history-card {
-  background: rgba(22, 33, 62, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
   border-radius: 10px;
   padding: 1rem 1.25rem;
   cursor: pointer;
   transition: all 0.2s;
+  box-shadow: var(--shadow-md);
 }
 .history-card:hover {
-  border-color: rgba(78, 204, 163, 0.3);
+  border-color: var(--color-primary);
 }
 
 .history-header {
@@ -413,20 +541,20 @@ onMounted(() => {
 }
 
 .history-score {
-  color: #4ecca3;
+  color: var(--color-primary);
   font-weight: 700;
   font-size: 1.05rem;
 }
 
 .history-date {
-  color: #666;
+  color: var(--text-muted);
   font-size: 0.85rem;
 }
 
 .history-meta {
   display: flex;
   gap: 1.5rem;
-  color: #888;
+  color: var(--text-muted);
   font-size: 0.85rem;
 }
 

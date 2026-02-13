@@ -3,7 +3,7 @@
     <div class="landing-card">
       <div class="brand">
         <span class="brand-icon">🏸</span>
-        <span class="brand-name">vision.neymo.ai</span>
+        <span class="brand-name">pushup.neymo.ai</span>
       </div>
       <p class="tagline">AI-powered motion analysis for athletes</p>
       <div class="actions">
@@ -21,6 +21,7 @@
   align-items: center;
   justify-content: center;
   padding: 1rem;
+  background: var(--gradient-primary);
 }
 
 .landing-card {
@@ -44,14 +45,11 @@
 .brand-name {
   font-size: 1.8rem;
   font-weight: 800;
-  background: linear-gradient(135deg, #4ecca3, #45b7aa);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: #fff;
 }
 
 .tagline {
-  color: #888;
+  color: rgba(255, 255, 255, 0.85);
   font-size: 1rem;
   margin-bottom: 2.5rem;
 }
@@ -65,19 +63,19 @@
 .btn-primary {
   width: 100%;
   padding: 1rem;
-  background: linear-gradient(135deg, #4ecca3, #45b7aa);
-  color: #0a0a1a;
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--color-primary);
   border: none;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   font-size: 1.1rem;
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
   transition: transform 0.2s, box-shadow 0.2s;
 }
 
 .btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 24px rgba(78, 204, 163, 0.4);
+  box-shadow: var(--shadow-lg);
 }
 
 .btn-secondary {
@@ -85,8 +83,8 @@
   padding: 1rem;
   background: transparent;
   color: #fff;
-  border: 2px solid rgba(78, 204, 163, 0.4);
-  border-radius: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-radius: var(--radius-lg);
   font-size: 1.1rem;
   font-weight: 600;
   cursor: pointer;
@@ -94,7 +92,7 @@
 }
 
 .btn-secondary:hover {
-  border-color: #4ecca3;
-  background: rgba(78, 204, 163, 0.1);
+  border-color: #fff;
+  background: rgba(255, 255, 255, 0.15);
 }
 </style>

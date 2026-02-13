@@ -446,7 +446,7 @@ async function downloadAnnotatedVideo() {
 }
 
 .back-link {
-  color: #888;
+  color: var(--text-muted);
   text-decoration: none;
   font-size: 0.9rem;
   display: inline-block;
@@ -454,27 +454,27 @@ async function downloadAnnotatedVideo() {
 }
 
 .back-link:hover {
-  color: #4ecca3;
+  color: var(--color-primary);
 }
 
 h1 {
-  color: #4ecca3;
+  color: var(--color-primary);
   margin-bottom: 0.25rem;
 }
 
 .session-title {
-  color: #888;
+  color: var(--text-muted);
   font-size: 1.1rem;
 }
 
 .loading, .error {
   text-align: center;
   padding: 3rem;
-  color: #888;
+  color: var(--text-muted);
 }
 
 .error {
-  color: #e74c3c;
+  color: var(--color-destructive);
 }
 
 .session-info {
@@ -490,11 +490,11 @@ h1 {
 }
 
 .info-item .label {
-  color: #888;
+  color: var(--text-muted);
 }
 
 .info-item .value {
-  color: #eee;
+  color: var(--text-primary);
 }
 
 .summary-cards {
@@ -505,21 +505,23 @@ h1 {
 }
 
 .card {
-  background: #16213e;
-  border-radius: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
   padding: 1.5rem;
   text-align: center;
+  box-shadow: var(--shadow-md);
 }
 
 .card h3 {
-  color: #888;
+  color: var(--text-muted);
   font-size: 0.9rem;
   font-weight: normal;
   margin-bottom: 0.5rem;
 }
 
 .card .value {
-  color: #4ecca3;
+  color: var(--color-primary);
   font-size: 2rem;
   font-weight: bold;
 }
@@ -530,14 +532,16 @@ h1 {
 }
 
 .section {
-  background: #16213e;
-  border-radius: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
   padding: 1.5rem;
   margin-bottom: 1.5rem;
+  box-shadow: var(--shadow-md);
 }
 
 .section h2 {
-  color: #eee;
+  color: var(--text-primary);
   font-size: 1.2rem;
   margin-bottom: 1rem;
 }
@@ -547,7 +551,7 @@ h1 {
 }
 
 .no-data {
-  color: #888;
+  color: var(--text-muted);
   text-align: center;
   padding: 2rem;
 }
@@ -566,14 +570,14 @@ h1 {
 
 .shot-type {
   width: 100px;
-  color: #888;
+  color: var(--text-muted);
   font-size: 0.9rem;
 }
 
 .shot-bar {
   flex: 1;
   height: 24px;
-  background: #2a2a4a;
+  background: var(--border-color);
   border-radius: 4px;
   overflow: hidden;
 }
@@ -587,7 +591,7 @@ h1 {
 .shot-count {
   width: 40px;
   text-align: right;
-  color: #4ecca3;
+  color: var(--color-primary);
   font-weight: bold;
 }
 
@@ -604,13 +608,13 @@ h1 {
 }
 
 .pa-value {
-  color: #4ecca3;
+  color: var(--color-primary);
   font-size: 1.8rem;
   font-weight: bold;
 }
 
 .pa-label {
-  color: #888;
+  color: var(--text-muted);
   font-size: 0.85rem;
 }
 
@@ -621,16 +625,16 @@ h1 {
 }
 
 .btn-download-secondary {
-  background: #2a2a4a !important;
-  color: #eee !important;
+  background: var(--border-color) !important;
+  color: var(--text-primary) !important;
 }
 
 .btn-download-secondary:hover:not(:disabled) {
-  background: #3a3a5a !important;
+  background: var(--border-input) !important;
 }
 
 .recording-desc {
-  color: #888;
+  color: var(--text-muted);
   margin-bottom: 1rem;
 }
 
@@ -638,12 +642,12 @@ h1 {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  background: #4ecca3;
-  color: #1a1a2e;
+  background: var(--gradient-primary);
+  color: var(--text-on-primary);
   padding: 0.75rem 1.5rem;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   text-decoration: none;
-  font-weight: bold;
+  font-weight: 600;
   transition: background 0.2s;
   border: none;
   cursor: pointer;
@@ -651,11 +655,11 @@ h1 {
 }
 
 .btn-download:hover:not(:disabled) {
-  background: #3db892;
+  background: var(--color-primary-hover);
 }
 
 .btn-download:disabled {
-  background: #888;
+  background: var(--text-muted);
   cursor: not-allowed;
 }
 
@@ -667,15 +671,15 @@ h1 {
 /* Timeline Styles */
 .timeline-container {
   padding: 1rem;
-  background: #0f0f1a;
-  border-radius: 8px;
+  background: var(--bg-input);
+  border-radius: var(--radius-md);
   margin-bottom: 1rem;
 }
 
 .timeline {
   position: relative;
   height: 60px;
-  background: linear-gradient(90deg, #2a2a4a 0%, #3a3a5a 50%, #2a2a4a 100%);
+  background: var(--border-color);
   border-radius: 4px;
   margin-bottom: 0.5rem;
 }
@@ -704,9 +708,9 @@ h1 {
   bottom: 100%;
   left: 50%;
   transform: translateX(-50%);
-  background: #16213e;
-  border: 1px solid #3a3a5a;
-  border-radius: 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-sm);
   padding: 0.5rem;
   white-space: nowrap;
   opacity: 0;
@@ -717,6 +721,7 @@ h1 {
   gap: 0.25rem;
   z-index: 10;
   margin-bottom: 0.5rem;
+  box-shadow: var(--shadow-md);
 }
 
 .timeline-item:hover .timeline-tooltip {
@@ -725,25 +730,25 @@ h1 {
 }
 
 .timeline-tooltip .shot-name {
-  color: #4ecca3;
+  color: var(--color-primary);
   font-weight: bold;
   font-size: 0.85rem;
 }
 
 .timeline-tooltip .shot-time {
-  color: #888;
+  color: var(--text-muted);
   font-size: 0.8rem;
 }
 
 .timeline-tooltip .shot-conf {
-  color: #666;
+  color: var(--text-muted);
   font-size: 0.75rem;
 }
 
 .timeline-axis {
   display: flex;
   justify-content: space-between;
-  color: #666;
+  color: var(--text-muted);
   font-size: 0.8rem;
 }
 
@@ -760,12 +765,12 @@ h1 {
   align-items: center;
   gap: 1rem;
   padding: 0.5rem;
-  background: #0f0f1a;
+  background: var(--bg-input);
   border-radius: 4px;
 }
 
 .list-time {
-  color: #888;
+  color: var(--text-muted);
   font-family: monospace;
   font-size: 0.85rem;
   width: 50px;
@@ -777,7 +782,7 @@ h1 {
 }
 
 .list-conf {
-  color: #666;
+  color: var(--text-muted);
   font-size: 0.85rem;
 }
 
@@ -789,10 +794,12 @@ h1 {
 }
 
 .rally-card {
-  background: #16213e;
-  border-radius: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
   padding: 1rem;
-  border-left: 3px solid #4ecca3;
+  border-left: 3px solid var(--color-primary);
+  box-shadow: var(--shadow-md);
 }
 
 .rally-header {
@@ -803,13 +810,13 @@ h1 {
 }
 
 .rally-id {
-  color: #4ecca3;
+  color: var(--color-primary);
   font-weight: bold;
   font-size: 1rem;
 }
 
 .rally-duration {
-  color: #888;
+  color: var(--text-muted);
   font-size: 0.9rem;
 }
 
@@ -821,11 +828,11 @@ h1 {
 }
 
 .rally-stat {
-  color: #ccc;
+  color: var(--text-secondary);
 }
 
 .rally-time {
-  color: #666;
+  color: var(--text-muted);
   font-family: monospace;
 }
 

@@ -276,15 +276,31 @@ async def verify_email(request: VerifyEmailRequest, db: Session = Depends(get_db
         )
 
     if user.email_verified:
+        tokens = UserService.create_tokens(user)
         return VerifyEmailResponse(
             success=True,
-            message="Email already verified."
+            message="Email already verified.",
+            access_token=tokens.access_token,
+            refresh_token=tokens.refresh_token,
+            token_type=tokens.token_type,
         )
 
     success, message, remaining = OTPService.verify_otp(db, request.user_id, request.code)
 
+    if success:
+        # Re-fetch user to get updated email_verified state
+        user = UserService.get_user_by_id(db, request.user_id)
+        tokens = UserService.create_tokens(user)
+        return VerifyEmailResponse(
+            success=True,
+            message=message,
+            access_token=tokens.access_token,
+            refresh_token=tokens.refresh_token,
+            token_type=tokens.token_type,
+        )
+
     return VerifyEmailResponse(
-        success=success,
+        success=False,
         message=message,
         remaining_attempts=remaining
     )

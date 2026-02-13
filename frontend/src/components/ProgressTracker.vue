@@ -140,23 +140,23 @@ function handleError(error) {
   align-items: center;
   gap: 0.5rem;
   font-size: 0.75rem;
-  color: #888;
+  color: var(--text-muted);
   margin-bottom: 0.5rem;
 }
 
 .status-indicator.connected {
-  color: #4ecca3;
+  color: var(--color-primary);
 }
 
 .dot {
   width: 8px;
   height: 8px;
-  border-radius: 50%;
-  background: #888;
+  border-radius: var(--radius-full);
+  background: var(--text-muted);
 }
 
 .status-indicator.connected .dot {
-  background: #4ecca3;
+  background: var(--color-primary);
   animation: pulse 2s infinite;
 }
 
@@ -170,15 +170,15 @@ function handleError(error) {
 }
 
 .progress-bar {
-  background: #2a2a4a;
-  border-radius: 10px;
+  background: var(--border-color);
+  border-radius: var(--radius-full);
   height: 8px;
   overflow: hidden;
   margin-bottom: 0.25rem;
 }
 
 .progress-fill {
-  background: linear-gradient(90deg, #4ecca3, #3498db);
+  background: var(--gradient-primary);
   height: 100%;
   transition: width 0.3s;
 }
@@ -190,12 +190,12 @@ function handleError(error) {
 }
 
 .percentage {
-  color: #4ecca3;
+  color: var(--color-primary);
   font-weight: bold;
 }
 
 .message {
-  color: #888;
+  color: var(--text-muted);
   text-overflow: ellipsis;
   overflow: hidden;
   white-space: nowrap;

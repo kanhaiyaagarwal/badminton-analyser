@@ -231,8 +231,9 @@ function getTimeAgo(timestamp) {
 
 <style scoped>
 .live-annotation {
-  background: #16213e;
-  border-radius: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
   padding: 1rem;
   display: flex;
   flex-direction: column;
@@ -247,19 +248,19 @@ function getTimeAgo(timestamp) {
 
 .annotation-header h3 {
   margin: 0;
-  color: #eee;
+  color: var(--text-primary);
   font-size: 1rem;
 }
 
 .status-dot {
   width: 10px;
   height: 10px;
-  border-radius: 50%;
-  background: #555;
+  border-radius: var(--radius-full);
+  background: var(--text-muted);
 }
 
 .status-dot.active {
-  background: #4ecca3;
+  background: var(--color-primary);
   animation: pulse-dot 1.5s infinite;
 }
 
@@ -270,8 +271,8 @@ function getTimeAgo(timestamp) {
 
 /* Current Shot Panel */
 .current-shot-panel {
-  background: #0f0f1a;
-  border-radius: 8px;
+  background: var(--bg-input);
+  border-radius: var(--radius-md);
   padding: 1rem;
   min-height: 60px;
 }
@@ -285,7 +286,7 @@ function getTimeAgo(timestamp) {
 .shot-icon {
   width: 40px;
   height: 40px;
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -296,11 +297,11 @@ function getTimeAgo(timestamp) {
   height: 24px;
 }
 
-.shot-display.smash .shot-icon { background: rgba(231, 76, 60, 0.2); color: #e74c3c; }
-.shot-display.clear .shot-icon { background: rgba(46, 204, 113, 0.2); color: #2ecc71; }
-.shot-display.drop_shot .shot-icon { background: rgba(243, 156, 18, 0.2); color: #f39c12; }
-.shot-display.net_shot .shot-icon { background: rgba(52, 152, 219, 0.2); color: #3498db; }
-.shot-display.drive .shot-icon { background: rgba(155, 89, 182, 0.2); color: #9b59b6; }
+.shot-display.smash .shot-icon { background: var(--color-destructive-light); color: var(--color-destructive); }
+.shot-display.clear .shot-icon { background: rgba(46, 204, 113, 0.2); color: var(--color-success); }
+.shot-display.drop_shot .shot-icon { background: rgba(243, 156, 18, 0.2); color: var(--color-warning); }
+.shot-display.net_shot .shot-icon { background: rgba(52, 152, 219, 0.2); color: var(--color-info); }
+.shot-display.drive .shot-icon { background: rgba(155, 89, 182, 0.2); color: var(--color-secondary); }
 .shot-display.lift .shot-icon { background: rgba(26, 188, 156, 0.2); color: #1abc9c; }
 .shot-display.serve .shot-icon { background: rgba(230, 126, 34, 0.2); color: #e67e22; }
 
@@ -309,18 +310,18 @@ function getTimeAgo(timestamp) {
 }
 
 .shot-name {
-  font-weight: bold;
-  color: #eee;
+  font-weight: 600;
+  color: var(--text-primary);
   font-size: 1.1rem;
 }
 
 .shot-confidence {
-  color: #4ecca3;
+  color: var(--color-primary);
   font-size: 0.8rem;
 }
 
 .shot-time {
-  color: #666;
+  color: var(--text-muted);
   font-size: 0.8rem;
   font-family: monospace;
 }
@@ -329,15 +330,15 @@ function getTimeAgo(timestamp) {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  color: #555;
+  color: var(--text-muted);
   font-style: italic;
 }
 
 .pulse-ring {
   width: 20px;
   height: 20px;
-  border-radius: 50%;
-  border: 2px solid #4ecca3;
+  border-radius: var(--radius-full);
+  border: 2px solid var(--color-primary);
   animation: pulse-ring 1.5s infinite;
 }
 
@@ -348,13 +349,13 @@ function getTimeAgo(timestamp) {
 
 /* Mini Court */
 .mini-court-container {
-  background: #0f0f1a;
-  border-radius: 8px;
+  background: var(--bg-input);
+  border-radius: var(--radius-md);
   padding: 0.75rem;
 }
 
 .mini-court-label {
-  color: #888;
+  color: var(--text-muted);
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -394,20 +395,20 @@ function getTimeAgo(timestamp) {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #555;
+  color: var(--text-muted);
   font-size: 0.75rem;
   font-style: italic;
 }
 
 /* Shots Timeline */
 .shots-timeline {
-  background: #0f0f1a;
-  border-radius: 8px;
+  background: var(--bg-input);
+  border-radius: var(--radius-md);
   padding: 0.75rem;
 }
 
 .timeline-label {
-  color: #888;
+  color: var(--text-muted);
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -432,14 +433,14 @@ function getTimeAgo(timestamp) {
 .shot-dot {
   width: 8px;
   height: 8px;
-  border-radius: 50%;
+  border-radius: var(--radius-full);
 }
 
-.timeline-shot.smash .shot-dot { background: #e74c3c; }
-.timeline-shot.clear .shot-dot { background: #2ecc71; }
-.timeline-shot.drop_shot .shot-dot { background: #f39c12; }
-.timeline-shot.net_shot .shot-dot { background: #3498db; }
-.timeline-shot.drive .shot-dot { background: #9b59b6; }
+.timeline-shot.smash .shot-dot { background: var(--color-destructive); }
+.timeline-shot.clear .shot-dot { background: var(--color-success); }
+.timeline-shot.drop_shot .shot-dot { background: var(--color-warning); }
+.timeline-shot.net_shot .shot-dot { background: var(--color-info); }
+.timeline-shot.drive .shot-dot { background: var(--color-secondary); }
 .timeline-shot.lift .shot-dot { background: #1abc9c; }
 .timeline-shot.serve .shot-dot { background: #e67e22; }
 
@@ -451,15 +452,15 @@ function getTimeAgo(timestamp) {
 }
 
 .shot-type-name {
-  color: #ccc;
+  color: var(--text-secondary);
 }
 
 .shot-ago {
-  color: #666;
+  color: var(--text-muted);
 }
 
 .no-shots {
-  color: #555;
+  color: var(--text-muted);
   font-size: 0.8rem;
   font-style: italic;
   text-align: center;
@@ -471,17 +472,17 @@ function getTimeAgo(timestamp) {
   display: flex;
   justify-content: space-between;
   padding: 0.5rem;
-  background: #0f0f1a;
-  border-radius: 6px;
+  background: var(--bg-input);
+  border-radius: var(--radius-sm);
   font-size: 0.8rem;
 }
 
 .counter-label {
-  color: #888;
+  color: var(--text-muted);
 }
 
 .counter-value {
-  color: #4ecca3;
+  color: var(--color-primary);
   font-family: monospace;
 }
 </style>

@@ -64,6 +64,9 @@ class VerifyEmailResponse(BaseModel):
     success: bool
     message: str
     remaining_attempts: Optional[int] = None
+    access_token: Optional[str] = None
+    refresh_token: Optional[str] = None
+    token_type: Optional[str] = None
 
 
 class ResendOTPRequest(BaseModel):

@@ -235,7 +235,7 @@ async function downloadVideo() {
 }
 
 .back-link {
-  color: #888;
+  color: var(--text-muted);
   text-decoration: none;
   font-size: 0.9rem;
   display: inline-block;
@@ -243,21 +243,21 @@ async function downloadVideo() {
 }
 
 .back-link:hover {
-  color: #4ecca3;
+  color: var(--color-primary);
 }
 
 h1 {
-  color: #4ecca3;
+  color: var(--color-primary);
 }
 
 .loading, .error {
   text-align: center;
   padding: 3rem;
-  color: #888;
+  color: var(--text-muted);
 }
 
 .error {
-  color: #e74c3c;
+  color: var(--color-destructive);
 }
 
 .summary-cards {
@@ -268,40 +268,44 @@ h1 {
 }
 
 .card {
-  background: #16213e;
-  border-radius: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
   padding: 1.5rem;
   text-align: center;
+  box-shadow: var(--shadow-md);
 }
 
 .card h3 {
-  color: #888;
+  color: var(--text-muted);
   font-size: 0.9rem;
   font-weight: normal;
   margin-bottom: 0.5rem;
 }
 
 .card .value {
-  color: #4ecca3;
+  color: var(--color-primary);
   font-size: 2rem;
   font-weight: bold;
 }
 
 .card .sub-value {
-  color: #666;
+  color: var(--text-muted);
   font-size: 0.75rem;
   margin-top: 0.25rem;
 }
 
 .section {
-  background: #16213e;
-  border-radius: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
   padding: 1.5rem;
   margin-bottom: 1.5rem;
+  box-shadow: var(--shadow-md);
 }
 
 .section h2 {
-  color: #eee;
+  color: var(--text-primary);
   font-size: 1.2rem;
   margin-bottom: 1rem;
 }
@@ -321,11 +325,11 @@ h1 {
   align-items: center;
   gap: 0.75rem;
   padding: 0.5rem 0;
-  border-bottom: 1px solid #1a1a3e;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .timeline-time {
-  color: #888;
+  color: var(--text-muted);
   font-size: 0.85rem;
   min-width: 60px;
   font-family: monospace;
@@ -338,41 +342,41 @@ h1 {
   min-width: 80px;
 }
 
-.shot-smash { color: #e74c3c; }
-.shot-clear { color: #2ecc71; }
-.shot-drop_shot { color: #f39c12; }
-.shot-net_shot { color: #3498db; }
-.shot-drive { color: #9b59b6; }
-.shot-lift { color: #1abc9c; }
+.shot-smash { color: var(--color-destructive); }
+.shot-clear { color: var(--color-success); }
+.shot-drop_shot { color: var(--color-warning); }
+.shot-net_shot { color: var(--color-info); }
+.shot-drive { color: var(--color-secondary); }
+.shot-lift { color: var(--color-primary); }
 
 .timeline-confidence {
-  color: #666;
+  color: var(--text-muted);
   font-size: 0.8rem;
 }
 
 .timeline-speed {
-  color: #f39c12;
+  color: var(--color-warning);
   font-size: 0.8rem;
   font-family: monospace;
 }
 
 .timeline-hit-badge {
-  background: #e74c3c;
+  background: var(--color-destructive);
   color: #fff;
   font-size: 0.65rem;
-  font-weight: bold;
+  font-weight: 600;
   padding: 0.15rem 0.4rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 .btn-download {
   display: inline-block;
-  background: #4ecca3;
-  color: #1a1a2e;
+  background: var(--color-primary);
+  color: var(--text-on-primary);
   padding: 0.75rem 1.5rem;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   text-decoration: none;
-  font-weight: bold;
+  font-weight: 600;
   transition: background 0.2s;
   border: none;
   cursor: pointer;
@@ -380,11 +384,11 @@ h1 {
 }
 
 .btn-download:hover:not(:disabled) {
-  background: #3db892;
+  background: var(--color-primary-hover);
 }
 
 .btn-download:disabled {
-  background: #888;
+  background: var(--text-muted);
   cursor: not-allowed;
 }
 </style>

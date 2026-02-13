@@ -1546,10 +1546,11 @@ function getShotClass(shotType) {
   gap: 1rem;
 }
 
+/* Video/canvas display area keeps dark backgrounds for viewing video frames */
 .video-container {
   position: relative;
   background: #0a0a14;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   overflow: hidden;
 }
 
@@ -1575,11 +1576,12 @@ function getShotClass(shotType) {
 .play-btn {
   width: 40px;
   height: 40px;
-  background: rgba(78, 204, 163, 0.9);
+  background: var(--color-primary);
   border: none;
   border-radius: 50%;
-  color: #1a1a2e;
+  color: var(--text-on-primary);
   font-size: 1rem;
+  font-weight: 600;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1588,7 +1590,7 @@ function getShotClass(shotType) {
 }
 
 .play-btn:hover {
-  background: #4ecca3;
+  background: var(--color-primary-hover);
 }
 
 .video-time {
@@ -1598,16 +1600,17 @@ function getShotClass(shotType) {
 }
 
 .no-video {
-  background: #1a1a2e;
-  border-radius: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
   padding: 2rem;
   text-align: center;
-  color: #888;
+  color: var(--text-muted);
 }
 
 .no-video .hint {
   font-size: 0.85rem;
-  color: #666;
+  color: var(--text-muted);
   margin-top: 0.5rem;
 }
 
@@ -1616,10 +1619,10 @@ function getShotClass(shotType) {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  background: rgba(231, 76, 60, 0.9);
+  background: var(--color-destructive);
   color: white;
   padding: 0.75rem 1.5rem;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-size: 0.9rem;
 }
 
@@ -1632,17 +1635,17 @@ function getShotClass(shotType) {
 .nav-btn {
   width: 36px;
   height: 36px;
-  background: #2a2a4a;
-  border: none;
-  border-radius: 6px;
-  color: #eee;
+  background: var(--bg-input);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
   cursor: pointer;
-  font-weight: bold;
+  font-weight: 600;
   transition: background 0.2s;
 }
 
 .nav-btn:hover:not(:disabled) {
-  background: #3a3a5a;
+  background: var(--border-input);
 }
 
 .nav-btn:disabled {
@@ -1682,13 +1685,13 @@ function getShotClass(shotType) {
   top: 14px;
   width: 1px;
   height: 6px;
-  background: rgba(255, 255, 255, 0.3);
+  background: var(--border-color);
   transform: translateX(-50%);
 }
 
 .time-label {
   font-size: 9px;
-  color: #666;
+  color: var(--text-muted);
   white-space: nowrap;
 }
 
@@ -1698,11 +1701,11 @@ function getShotClass(shotType) {
   top: 14px;
   width: 2px;
   height: 20px;
-  background: #4ecca3;
+  background: var(--color-primary);
   transform: translateX(-50%);
   pointer-events: none;
   z-index: 5;
-  box-shadow: 0 0 4px rgba(78, 204, 163, 0.6);
+  box-shadow: 0 0 4px var(--color-primary-light);
 }
 
 .shot-markers {
@@ -1757,13 +1760,13 @@ function getShotClass(shotType) {
   margin-bottom: 2px;
 }
 
-.marker-smash { background: #e74c3c; color: #e74c3c; }
-.marker-clear { background: #2ecc71; color: #2ecc71; }
-.marker-drop { background: #f1c40f; color: #f1c40f; }
-.marker-net { background: #3498db; color: #3498db; }
-.marker-drive { background: #9b59b6; color: #9b59b6; }
+.marker-smash { background: var(--color-destructive); color: var(--color-destructive); }
+.marker-clear { background: var(--color-success); color: var(--color-success); }
+.marker-drop { background: var(--color-warning); color: var(--color-warning); }
+.marker-net { background: var(--color-info); color: var(--color-info); }
+.marker-drive { background: var(--color-secondary); color: var(--color-secondary); }
 .marker-lift { background: #e67e22; color: #e67e22; }
-.marker-default { background: #888; color: #888; }
+.marker-default { background: var(--text-muted); color: var(--text-muted); }
 .marker-rally-end { background: #fff; color: #fff; }
 
 /* Gap zone overlays on seek bar */
@@ -1771,7 +1774,7 @@ function getShotClass(shotType) {
   position: absolute;
   top: -6px;
   height: 20px;
-  background: rgba(231, 76, 60, 0.15);
+  background: var(--color-destructive-light);
   border-radius: 2px;
   pointer-events: none;
   z-index: 1;
@@ -1809,16 +1812,16 @@ function getShotClass(shotType) {
   transform: translateX(-50%);
   font-size: 10px;
   font-weight: bold;
-  color: #1a1a2e;
+  color: var(--text-on-primary);
   white-space: nowrap;
   background: #fff;
   padding: 3px 8px;
   border-radius: 4px;
   margin-bottom: 4px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-md);
 }
 
-/* Shuttle hit markers on seek bar — gold diamonds */
+/* Shuttle hit markers on seek bar -- gold diamonds */
 .hit-marker {
   position: absolute;
   top: -2px;
@@ -1854,13 +1857,13 @@ function getShotClass(shotType) {
   transform: translateX(-50%) rotate(-45deg);
   font-size: 9px;
   font-weight: bold;
-  color: #1a1a2e;
+  color: var(--text-on-primary);
   white-space: nowrap;
   background: #ffd700;
   padding: 2px 6px;
   border-radius: 3px;
   margin-bottom: 6px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-md);
 }
 
 /* Shuttle visibility strip below timeline */
@@ -1892,22 +1895,22 @@ function getShotClass(shotType) {
   align-items: center;
   gap: 0.35rem;
   padding: 0.25rem 0.6rem;
-  background: rgba(100, 100, 100, 0.15);
+  background: var(--bg-input);
   border-radius: 4px;
   font-size: 0.72rem;
-  color: #666;
+  color: var(--text-muted);
   cursor: pointer;
   user-select: none;
   transition: all 0.15s;
 }
 
 .overlay-toggle:hover {
-  background: rgba(100, 100, 100, 0.25);
+  background: var(--border-color);
 }
 
 .overlay-toggle.active {
-  color: #ccc;
-  background: rgba(100, 100, 100, 0.3);
+  color: var(--text-secondary);
+  background: var(--border-color);
 }
 
 .toggle-dot {
@@ -1917,7 +1920,7 @@ function getShotClass(shotType) {
 }
 
 .toggle-dot.shuttle-dot {
-  background: #4ecca3;
+  background: var(--color-primary);
 }
 
 .toggle-dot.rally-dot {
@@ -1934,8 +1937,9 @@ function getShotClass(shotType) {
 }
 
 .shot-summary-section {
-  background: #1a1a2e;
-  border-radius: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
   padding: 0.75rem;
 }
 
@@ -1948,29 +1952,30 @@ function getShotClass(shotType) {
 
 .filter-header h4 {
   margin: 0;
-  color: #4ecca3;
+  color: var(--color-primary);
   font-size: 0.9rem;
 }
 
 .filter-toggle-all {
-  background: #2a2a4a;
-  border: none;
-  color: #888;
+  background: var(--bg-input);
+  border: 1px solid var(--border-input);
+  color: var(--text-muted);
   padding: 0.2rem 0.6rem;
   border-radius: 4px;
   font-size: 0.7rem;
+  font-weight: 600;
   cursor: pointer;
   text-transform: uppercase;
 }
 
 .filter-toggle-all:hover {
-  background: #3a3a5a;
-  color: #eee;
+  background: var(--border-input);
+  color: var(--text-primary);
 }
 
 .shot-filters h4 {
   margin: 0 0 0.75rem;
-  color: #4ecca3;
+  color: var(--color-primary);
   font-size: 0.9rem;
 }
 
@@ -1986,8 +1991,8 @@ function getShotClass(shotType) {
   flex-direction: column;
   align-items: center;
   padding: 0.5rem;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
   cursor: pointer;
   transition: opacity 0.2s, transform 0.1s;
   user-select: none;
@@ -2013,23 +2018,23 @@ function getShotClass(shotType) {
   opacity: 0.8;
 }
 
-.shot-count-item.shot-smash { background: rgba(231, 76, 60, 0.2); color: #e74c3c; }
-.shot-count-item.shot-clear { background: rgba(46, 204, 113, 0.2); color: #2ecc71; }
-.shot-count-item.shot-drop { background: rgba(241, 196, 15, 0.2); color: #f1c40f; }
-.shot-count-item.shot-net { background: rgba(52, 152, 219, 0.2); color: #3498db; }
-.shot-count-item.shot-drive { background: rgba(155, 89, 182, 0.2); color: #9b59b6; }
+.shot-count-item.shot-smash { background: var(--color-destructive-light); color: var(--color-destructive); }
+.shot-count-item.shot-clear { background: var(--color-success-light); color: var(--color-success); }
+.shot-count-item.shot-drop { background: var(--color-warning-light); color: var(--color-warning); }
+.shot-count-item.shot-net { background: var(--color-info-light); color: var(--color-info); }
+.shot-count-item.shot-drive { background: var(--color-secondary-light); color: var(--color-secondary); }
 .shot-count-item.shot-lift { background: rgba(230, 126, 34, 0.2); color: #e67e22; }
 
 .total-shots {
   text-align: center;
-  color: #888;
+  color: var(--text-muted);
   font-size: 0.85rem;
   padding-top: 0.5rem;
-  border-top: 1px solid #2a2a4a;
+  border-top: 1px solid var(--border-color);
 }
 
 .total-shots strong {
-  color: #4ecca3;
+  color: var(--color-primary);
 }
 
 .shot-legend {
@@ -2040,11 +2045,11 @@ function getShotClass(shotType) {
   padding: 0.5rem 0;
   font-size: 0.75rem;
   margin-top: 0.5rem;
-  border-top: 1px solid #2a2a4a;
+  border-top: 1px solid var(--border-color);
 }
 
 .legend-label {
-  color: #888;
+  color: var(--text-muted);
   margin-right: 0.25rem;
 }
 
@@ -2052,7 +2057,7 @@ function getShotClass(shotType) {
   display: flex;
   align-items: center;
   gap: 0.25rem;
-  color: #aaa;
+  color: var(--text-secondary);
 }
 
 .legend-item .dot {
@@ -2061,11 +2066,11 @@ function getShotClass(shotType) {
   border-radius: 2px;
 }
 
-.legend-item .dot.marker-smash { background: #e74c3c; }
-.legend-item .dot.marker-clear { background: #2ecc71; }
-.legend-item .dot.marker-drop { background: #f1c40f; }
-.legend-item .dot.marker-net { background: #3498db; }
-.legend-item .dot.marker-drive { background: #9b59b6; }
+.legend-item .dot.marker-smash { background: var(--color-destructive); }
+.legend-item .dot.marker-clear { background: var(--color-success); }
+.legend-item .dot.marker-drop { background: var(--color-warning); }
+.legend-item .dot.marker-net { background: var(--color-info); }
+.legend-item .dot.marker-drive { background: var(--color-secondary); }
 .legend-item .dot.marker-lift { background: #e67e22; }
 .legend-item .dot.marker-rally-end {
   background: transparent;
@@ -2080,7 +2085,7 @@ function getShotClass(shotType) {
   -webkit-appearance: none;
   appearance: none;
   height: 6px;
-  background: #2a2a4a;
+  background: var(--border-color);
   border-radius: 3px;
   outline: none;
   cursor: pointer;
@@ -2106,8 +2111,9 @@ function getShotClass(shotType) {
 }
 
 .data-panel {
-  background: #1a1a2e;
-  border-radius: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
   padding: 0.5rem;
 }
 
@@ -2136,7 +2142,7 @@ function getShotClass(shotType) {
 
 .no-player {
   text-align: center;
-  color: #888;
+  color: var(--text-muted);
   padding: 1rem;
   font-size: 0.8rem;
 }
@@ -2144,7 +2150,7 @@ function getShotClass(shotType) {
 .metric-section {
   margin-bottom: 0.4rem;
   padding-bottom: 0.4rem;
-  border-bottom: 1px solid #232342;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .metric-section:last-child {
@@ -2155,7 +2161,7 @@ function getShotClass(shotType) {
 
 .metric-section h4 {
   margin: 0 0 0.3rem;
-  color: #666;
+  color: var(--text-muted);
   font-size: 0.65rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -2169,13 +2175,13 @@ function getShotClass(shotType) {
 }
 
 .metric-label {
-  color: #888;
+  color: var(--text-muted);
   font-size: 0.72rem;
   min-width: 52px;
 }
 
 .metric-value {
-  color: #eee;
+  color: var(--text-primary);
   font-size: 0.75rem;
 }
 
@@ -2185,17 +2191,17 @@ function getShotClass(shotType) {
 }
 
 .metric-value .dim {
-  color: #666;
+  color: var(--text-muted);
   font-size: 0.7rem;
 }
 
 .metric-value.direction {
   text-transform: capitalize;
-  color: #4ecca3;
+  color: var(--color-primary);
 }
 
 .metric-value.active {
-  color: #f1c40f;
+  color: var(--color-warning);
 }
 
 .metric-bar-container {
@@ -2213,14 +2219,14 @@ function getShotClass(shotType) {
 
 .metric-bar {
   height: 5px;
-  background: linear-gradient(90deg, #4ecca3 0%, #3db892 100%);
+  background: var(--gradient-primary);
   border-radius: 3px;
   min-width: 2px;
   transition: width 0.2s;
 }
 
 .metric-bar.body {
-  background: linear-gradient(90deg, #3498db 0%, #2980b9 100%);
+  background: linear-gradient(90deg, var(--color-info) 0%, #2980b9 100%);
 }
 
 .classification-display {
@@ -2232,7 +2238,7 @@ function getShotClass(shotType) {
 
 .shot-badge {
   padding: 0.25rem 0.6rem;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   font-weight: bold;
   text-transform: capitalize;
   font-size: 0.75rem;
@@ -2243,11 +2249,11 @@ function getShotClass(shotType) {
   font-size: 0.7rem;
 }
 
-.shot-smash { background: rgba(231, 76, 60, 0.3); color: #e74c3c; }
-.shot-clear { background: rgba(46, 204, 113, 0.3); color: #2ecc71; }
-.shot-drop { background: rgba(241, 196, 15, 0.3); color: #f1c40f; }
-.shot-net { background: rgba(52, 152, 219, 0.3); color: #3498db; }
-.shot-drive { background: rgba(155, 89, 182, 0.3); color: #9b59b6; }
+.shot-smash { background: var(--color-destructive-light); color: var(--color-destructive); }
+.shot-clear { background: var(--color-success-light); color: var(--color-success); }
+.shot-drop { background: var(--color-warning-light); color: var(--color-warning); }
+.shot-net { background: var(--color-info-light); color: var(--color-info); }
+.shot-drive { background: var(--color-secondary-light); color: var(--color-secondary); }
 .shot-lift { background: rgba(230, 126, 34, 0.3); color: #e67e22; }
 .shot-prep { background: rgba(149, 165, 166, 0.3); color: #95a5a6; }
 .shot-ready { background: rgba(127, 140, 141, 0.3); color: #7f8c8d; }
@@ -2258,12 +2264,12 @@ function getShotClass(shotType) {
 .confidence {
   font-size: 1rem;
   font-weight: bold;
-  color: #4ecca3;
+  color: var(--color-primary);
 }
 
 .reclassify-section {
-  background: rgba(78, 204, 163, 0.1);
-  border-radius: 6px;
+  background: var(--color-primary-light);
+  border-radius: var(--radius-sm);
   padding: 0.4rem;
   margin-top: 0.25rem;
 }
@@ -2276,13 +2282,13 @@ function getShotClass(shotType) {
 }
 
 .reclassify-comparison .label {
-  color: #888;
+  color: var(--text-muted);
   font-size: 0.68rem;
   margin-right: 0.15rem;
 }
 
 .arrow {
-  color: #4ecca3;
+  color: var(--color-primary);
   font-size: 0.9rem;
 }
 
@@ -2290,8 +2296,8 @@ function getShotClass(shotType) {
   display: inline-block;
   margin-top: 0.25rem;
   padding: 0.15rem 0.35rem;
-  background: rgba(241, 196, 15, 0.2);
-  color: #f1c40f;
+  background: var(--color-warning-light);
+  color: var(--color-warning);
   border-radius: 3px;
   font-size: 0.65rem;
   font-weight: bold;
@@ -2301,8 +2307,8 @@ function getShotClass(shotType) {
   display: inline-block;
   margin-top: 0.2rem;
   padding: 0.15rem 0.4rem;
-  background: rgba(231, 76, 60, 0.3);
-  color: #e74c3c;
+  background: var(--color-destructive-light);
+  color: var(--color-destructive);
   border-radius: 3px;
   font-size: 0.65rem;
   font-weight: bold;
@@ -2319,8 +2325,8 @@ function getShotClass(shotType) {
 
 .condition-badge {
   padding: 0.15rem 0.35rem;
-  background: rgba(100, 100, 100, 0.2);
-  color: #666;
+  background: var(--bg-input);
+  color: var(--text-muted);
   border-radius: 3px;
   font-size: 0.65rem;
   text-transform: uppercase;
@@ -2328,13 +2334,13 @@ function getShotClass(shotType) {
 }
 
 .condition-badge.active {
-  background: rgba(78, 204, 163, 0.3);
-  color: #4ecca3;
+  background: var(--color-primary-light);
+  color: var(--color-primary);
   font-weight: bold;
 }
 
 .classification-reason {
-  background: #1a1a2e;
+  background: var(--bg-input);
   border-radius: 3px;
   padding: 0.25rem 0.35rem;
   margin-top: 0.25rem;
@@ -2342,7 +2348,7 @@ function getShotClass(shotType) {
 
 .reason-text {
   font-size: 0.6rem;
-  color: #888;
+  color: var(--text-muted);
   font-family: monospace;
   word-break: break-all;
 }
@@ -2351,11 +2357,11 @@ function getShotClass(shotType) {
   display: flex;
   gap: 2rem;
   justify-content: center;
-  color: #666;
+  color: var(--text-muted);
   font-size: 0.75rem;
 }
 
-/* Manual hit markers on seek bar — cyan circles */
+/* Manual hit markers on seek bar -- cyan circles */
 .manual-hit-marker {
   position: absolute;
   top: -1px;
@@ -2392,13 +2398,13 @@ function getShotClass(shotType) {
   transform: translateX(-50%);
   font-size: 9px;
   font-weight: bold;
-  color: #1a1a2e;
+  color: var(--text-on-primary);
   white-space: nowrap;
   background: #00e5ff;
   padding: 2px 6px;
   border-radius: 3px;
   margin-bottom: 6px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-md);
 }
 
 .toggle-dot.manual-hit-dot {
@@ -2415,19 +2421,20 @@ function getShotClass(shotType) {
 
 .action-btn {
   padding: 0.3rem 0.7rem;
-  background: #2a2a4a;
-  border: 1px solid #3a3a5a;
-  border-radius: 6px;
-  color: #ccc;
+  background: var(--bg-input);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
   font-size: 0.72rem;
+  font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
   transition: background 0.2s, border-color 0.2s;
 }
 
 .action-btn:hover {
-  background: #3a3a5a;
-  border-color: #4a4a6a;
+  background: var(--border-input);
+  border-color: var(--border-color);
 }
 
 .mark-hit-btn.active {
@@ -2437,13 +2444,13 @@ function getShotClass(shotType) {
 }
 
 .download-btn:hover {
-  background: rgba(78, 204, 163, 0.2);
-  border-color: #4ecca3;
-  color: #4ecca3;
+  background: var(--color-primary-light);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
 }
 
 /* Shot label dropdown */
-/* Manual shot label markers on seek bar — like shot markers but with white border */
+/* Manual shot label markers on seek bar -- like shot markers but with white border */
 .shot-label-marker {
   position: absolute;
   top: -5px;
@@ -2474,10 +2481,10 @@ function getShotClass(shotType) {
 
 .shot-label-select {
   padding: 0.25rem 0.4rem;
-  background: #2a2a4a;
-  border: 1px solid #3a3a5a;
-  border-radius: 6px;
-  color: #ccc;
+  background: var(--bg-input);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
   font-size: 0.72rem;
   cursor: pointer;
   outline: none;
@@ -2485,12 +2492,12 @@ function getShotClass(shotType) {
 }
 
 .shot-label-select:focus {
-  border-color: #4ecca3;
+  border-color: var(--color-primary);
 }
 
 .shot-label-select option {
-  background: #1a1a2e;
-  color: #ccc;
+  background: var(--bg-card);
+  color: var(--text-secondary);
 }
 
 </style>

@@ -584,7 +584,7 @@ watch(() => props.poseData, () => {
   width: 100%;
   aspect-ratio: 16/9;
   background: #0f0f1a;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   overflow: hidden;
 }
 
@@ -601,7 +601,7 @@ watch(() => props.poseData, () => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: #888;
+  color: var(--text-muted);
   gap: 1rem;
 }
 
@@ -623,16 +623,16 @@ watch(() => props.poseData, () => {
 }
 
 .control-group label {
-  color: #888;
+  color: var(--text-muted);
   font-size: 0.9rem;
 }
 
 .control-group select {
   padding: 0.75rem;
-  background: #16213e;
-  border: 1px solid #3a3a5a;
-  border-radius: 8px;
-  color: #eee;
+  background: var(--bg-card);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
   font-size: 1rem;
 }
 
@@ -644,26 +644,27 @@ watch(() => props.poseData, () => {
 .fps-btn {
   flex: 1;
   padding: 0.5rem;
-  background: #16213e;
-  border: 1px solid #3a3a5a;
-  border-radius: 6px;
-  color: #888;
+  background: var(--bg-card);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .fps-btn:hover {
-  border-color: #4ecca3;
+  border-color: var(--color-primary);
 }
 
 .fps-btn.active {
-  background: rgba(78, 204, 163, 0.2);
-  border-color: #4ecca3;
-  color: #4ecca3;
+  background: var(--color-primary-light);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
 }
 
 .fps-hint {
-  color: #666;
+  color: var(--text-muted);
   font-size: 0.8rem;
   margin: 0;
 }
@@ -674,22 +675,22 @@ watch(() => props.poseData, () => {
   justify-content: center;
   gap: 0.5rem;
   padding: 1rem;
-  background: #4ecca3;
-  color: #1a1a2e;
+  background: var(--color-primary);
+  color: var(--text-on-primary);
   border: none;
-  border-radius: 8px;
-  font-weight: bold;
+  border-radius: var(--radius-md);
+  font-weight: 600;
   font-size: 1rem;
   cursor: pointer;
   transition: background 0.2s;
 }
 
 .start-btn:hover:not(:disabled) {
-  background: #3db892;
+  background: var(--color-primary-hover);
 }
 
 .start-btn:disabled {
-  background: #888;
+  background: var(--text-muted);
   cursor: not-allowed;
 }
 
@@ -709,7 +710,7 @@ watch(() => props.poseData, () => {
   width: 100%;
   aspect-ratio: 16/9;
   background: #0f0f1a;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   overflow: hidden;
 }
 
@@ -737,7 +738,7 @@ watch(() => props.poseData, () => {
   background: rgba(231, 76, 60, 0.9);
   border-radius: 4px;
   color: white;
-  font-weight: bold;
+  font-weight: 600;
   font-size: 0.85rem;
 }
 
@@ -745,7 +746,7 @@ watch(() => props.poseData, () => {
   width: 8px;
   height: 8px;
   background: white;
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   animation: pulse 1s infinite;
 }
 
@@ -761,7 +762,7 @@ watch(() => props.poseData, () => {
   padding: 0.5rem 1rem;
   background: rgba(0, 0, 0, 0.7);
   border-radius: 4px;
-  color: #4ecca3;
+  color: var(--color-primary);
   font-size: 0.85rem;
 }
 
@@ -777,11 +778,11 @@ watch(() => props.poseData, () => {
   justify-content: center;
   gap: 0.5rem;
   padding: 1rem;
-  background: #e74c3c;
+  background: var(--color-destructive);
   color: white;
   border: none;
-  border-radius: 8px;
-  font-weight: bold;
+  border-radius: var(--radius-md);
+  font-weight: 600;
   cursor: pointer;
   transition: background 0.2s;
 }

@@ -75,7 +75,7 @@
         },
         {
           "name": "CORS_ORIGINS",
-          "value": "http://localhost:5173,http://localhost:3000,https://badminton.neymo.ai"
+          "value": "http://localhost:5173,http://localhost:3000,https://pushup.neymo.ai"
         },
         {
           "name": "JWT_ALGORITHM",
@@ -99,7 +99,7 @@
         },
         {
           "name": "SMTP_FROM_NAME",
-          "value": "Badminton Analyzer"
+          "value": "PushUp Pro"
         },
         {
           "name": "SES_REGION",

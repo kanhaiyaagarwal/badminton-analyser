@@ -144,28 +144,29 @@ onMounted(async () => {
 }
 
 .back-link {
-  color: #888;
+  color: var(--text-muted);
   text-decoration: none;
   font-size: 0.9rem;
 }
-.back-link:hover { color: #4ecca3; }
+.back-link:hover { color: var(--color-primary); }
 
 .results-header h1 {
-  color: #eee;
+  color: var(--text-primary);
   margin-top: 0.5rem;
 }
 
 .results-card {
-  background: rgba(22, 33, 62, 0.8);
-  border: 1px solid rgba(78, 204, 163, 0.15);
-  border-radius: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
   padding: 2.5rem;
   text-align: center;
 }
 
 .result-type {
-  color: #888;
+  color: var(--text-muted);
   font-size: 1rem;
+  font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin-bottom: 1rem;
@@ -178,13 +179,13 @@ onMounted(async () => {
 .score-value {
   font-size: 4rem;
   font-weight: 700;
-  color: #4ecca3;
+  color: var(--color-primary);
   line-height: 1;
 }
 
 .score-unit {
   font-size: 1.2rem;
-  color: #888;
+  color: var(--text-muted);
   margin-left: 0.5rem;
 }
 
@@ -194,7 +195,7 @@ onMounted(async () => {
   gap: 3rem;
   margin-bottom: 2rem;
   padding-top: 1.5rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid var(--border-color);
 }
 
 .stat {
@@ -203,32 +204,34 @@ onMounted(async () => {
 
 .stat-value {
   display: block;
-  color: #eee;
+  color: var(--text-primary);
   font-size: 1.3rem;
   font-weight: 600;
 }
 
 .stat-value.new-pb {
-  color: #f1c40f;
+  color: var(--color-warning);
 }
 
 .stat-label {
   display: block;
-  color: #888;
+  color: var(--text-muted);
   font-size: 0.8rem;
+  font-weight: 500;
   margin-top: 0.25rem;
 }
 
 .recording-download {
   margin: 1.5rem 0;
   padding: 1.5rem;
-  background: #0f0f1a;
-  border-radius: 8px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
   text-align: center;
 }
 
 .recording-desc {
-  color: #888;
+  color: var(--text-muted);
   margin-bottom: 1rem;
 }
 
@@ -236,18 +239,18 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  background: #4ecca3;
-  color: #1a1a2e;
+  background: var(--gradient-primary);
+  color: var(--text-on-primary);
   padding: 0.75rem 1.5rem;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-weight: 600;
   border: none;
   cursor: pointer;
   font-size: 1rem;
   transition: background 0.2s;
 }
-.download-btn:hover:not(:disabled) { background: #3db892; }
-.download-btn:disabled { background: #888; cursor: not-allowed; }
+.download-btn:hover:not(:disabled) { opacity: 0.9; }
+.download-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .download-btn .btn-icon {
   width: 18px;
   height: 18px;
@@ -261,11 +264,11 @@ onMounted(async () => {
 }
 
 .retry-btn {
-  background: #4ecca3;
-  color: #0a0a1a;
+  background: var(--gradient-primary);
+  color: var(--text-on-primary);
   border: none;
   padding: 0.75rem 2rem;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-weight: 600;
   cursor: pointer;
   transition: opacity 0.2s;
@@ -274,18 +277,18 @@ onMounted(async () => {
 
 .home-btn {
   background: transparent;
-  border: 1px solid rgba(78, 204, 163, 0.3);
-  color: #4ecca3;
+  border: 1px solid var(--border-color);
+  color: var(--color-primary);
   padding: 0.75rem 2rem;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   text-decoration: none;
   transition: all 0.2s;
 }
-.home-btn:hover { background: rgba(78, 204, 163, 0.1); }
+.home-btn:hover { background: var(--color-primary-light); }
 
 .loading {
   text-align: center;
-  color: #888;
+  color: var(--text-muted);
   padding: 3rem;
 }
 </style>

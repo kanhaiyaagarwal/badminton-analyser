@@ -42,6 +42,13 @@ def _anonymize_email(email: str) -> str:
     return f"{local[:visible]}***@{domain}"
 
 
+def _anonymize_username(name: str) -> str:
+    """Mask username: show first 3 chars, hide the rest."""
+    if len(name) <= 3:
+        return name
+    return f"{name[:3]}***"
+
+
 ANALYZER_MAP = {
     "plank": PlankAnalyzer,
     "squat": SquatAnalyzer,
@@ -513,7 +520,7 @@ def get_leaderboard(
             is_self = u.id == user.id
             ranked.append({
                 "rank": idx,
-                "username": u.username,
+                "username": u.username if is_self else _anonymize_username(u.username),
                 "email": u.email if is_self else _anonymize_email(u.email),
                 "score": int(row.best_score),
                 "is_self": is_self,

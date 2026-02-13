@@ -3,14 +3,32 @@
     <nav v-if="authStore.isAuthenticated && !isLandingPage" class="navbar">
       <div class="nav-brand">
         <router-link :to="isAdmin ? '/hub' : '/challenges'">
-          {{ isAdmin ? '🏸 vision.neymo.ai' : 'Challenges' }}
+          <svg v-if="!isAdmin" class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5C7 4 7 7 7 7"/>
+            <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5C17 4 17 7 17 7"/>
+            <path d="M4 22h16"/>
+            <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20 7 22"/>
+            <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20 17 22"/>
+            <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>
+          </svg>
+          {{ isAdmin ? '🏸 pushup.neymo.ai' : 'PushUp Pro' }}
         </router-link>
       </div>
       <div class="nav-links">
         <router-link v-if="isAdmin" to="/hub">Home</router-link>
         <router-link v-if="isAdmin" to="/admin" class="nav-admin">Admin</router-link>
-        <span class="user-info">{{ authStore.user?.username }}</span>
-        <button @click="logout" class="btn-logout">Logout</button>
+        <div class="user-badge">
+          <span class="user-avatar">{{ userInitial }}</span>
+          <span class="user-name">{{ authStore.user?.username }}</span>
+        </div>
+        <button @click="logout" class="btn-logout">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <polyline points="16 17 21 12 16 7"/>
+            <line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+          Logout
+        </button>
       </div>
     </nav>
     <main :class="['main-content', { 'full-width': isLandingPage || isAuthPage }]">
@@ -31,6 +49,7 @@ const route = useRoute()
 const isAdmin = computed(() => authStore.user?.is_admin)
 const isLandingPage = computed(() => route.name === 'Landing' || route.name === 'LandingFull')
 const isAuthPage = computed(() => ['Login', 'Signup'].includes(route.name))
+const userInitial = computed(() => (authStore.user?.username || authStore.user?.email || '?')[0].toUpperCase())
 
 const logout = () => {
   authStore.logout()
@@ -43,41 +62,41 @@ const logout = () => {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background-image: url('@/assets/images/pattern-bg.jpg');
-  background-size: cover;
-  background-position: center;
-  background-attachment: fixed;
+  background: var(--bg-page);
   position: relative;
 }
 
-#app::before {
-  content: '';
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(10, 10, 26, 0.8);
-  z-index: 0;
-  pointer-events: none;
-}
-
 .navbar {
-  background: rgba(22, 33, 62, 0.95);
+  background: var(--bg-card);
   position: relative;
   z-index: 1;
   padding: 1rem 2rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-sm);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .nav-brand a {
-  color: #4ecca3;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
   text-decoration: none;
   font-size: 1.5rem;
-  font-weight: bold;
+  font-weight: 700;
+}
+
+.brand-icon {
+  width: 28px;
+  height: 28px;
+  stroke: var(--color-primary);
+  flex-shrink: 0;
+  -webkit-text-fill-color: initial;
 }
 
 .nav-links {
@@ -87,48 +106,74 @@ const logout = () => {
 }
 
 .nav-links a {
-  color: #eee;
+  color: var(--text-secondary);
   text-decoration: none;
   padding: 0.5rem 1rem;
-  border-radius: 4px;
-  transition: background 0.2s;
+  border-radius: var(--radius-md);
+  transition: background 0.2s, color 0.2s;
+  font-weight: 500;
 }
 
 .nav-links a:hover,
 .nav-links a.router-link-active {
-  background: rgba(78, 204, 163, 0.2);
-  color: #4ecca3;
+  background: var(--color-primary-light);
+  color: var(--color-primary);
 }
 
 .nav-admin {
-  color: #9b59b6 !important;
-  border: 1px solid #9b59b6;
+  color: var(--color-secondary) !important;
+  border: 1px solid var(--color-secondary);
 }
 
 .nav-admin:hover,
 .nav-admin.router-link-active {
-  background: rgba(155, 89, 182, 0.2) !important;
-  color: #9b59b6 !important;
+  background: var(--color-secondary-light) !important;
+  color: var(--color-secondary) !important;
 }
 
-.user-info {
-  color: #888;
-  padding: 0 1rem;
+.user-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.user-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--gradient-primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.user-name {
+  color: var(--text-primary);
+  font-weight: 500;
+  font-size: 0.95rem;
 }
 
 .btn-logout {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
   background: transparent;
-  border: 1px solid #e74c3c;
-  color: #e74c3c;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
   padding: 0.5rem 1rem;
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   transition: all 0.2s;
+  font-weight: 500;
+  font-size: 0.95rem;
 }
 
 .btn-logout:hover {
-  background: #e74c3c;
-  color: white;
+  border-color: var(--text-muted);
+  color: var(--text-primary);
 }
 
 .main-content {
@@ -167,7 +212,7 @@ const logout = () => {
     padding: 0.4rem 0.75rem;
   }
 
-  .user-info {
+  .user-name {
     display: none;
   }
 

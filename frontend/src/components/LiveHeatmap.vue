@@ -187,14 +187,15 @@ function drawCourtLines(ctx, w, h) {
 
 <style scoped>
 .live-heatmap {
-  background: #16213e;
-  border-radius: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
   padding: 1rem;
 }
 
 .live-heatmap h4 {
   margin: 0 0 0.75rem 0;
-  color: #888;
+  color: var(--text-muted);
   font-size: 0.9rem;
   font-weight: normal;
 }
@@ -204,7 +205,7 @@ function drawCourtLines(ctx, w, h) {
   width: 100%;
   aspect-ratio: 3/2;
   background: #0f0f1a;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   overflow: hidden;
 }
 
@@ -219,7 +220,7 @@ function drawCourtLines(ctx, w, h) {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #666;
+  color: var(--text-muted);
   font-size: 0.9rem;
 }
 
@@ -238,13 +239,13 @@ function drawCourtLines(ctx, w, h) {
   justify-content: space-between;
   margin-top: 0.25rem;
   font-size: 0.75rem;
-  color: #888;
+  color: var(--text-muted);
 }
 
 .heatmap-stats {
   margin-top: 0.5rem;
   text-align: center;
   font-size: 0.8rem;
-  color: #666;
+  color: var(--text-muted);
 }
 </style>

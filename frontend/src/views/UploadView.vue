@@ -150,25 +150,27 @@ async function uploadFile() {
 }
 
 h1 {
-  color: #4ecca3;
+  color: var(--color-primary);
   margin-bottom: 0.5rem;
 }
 
 .subtitle {
-  color: #888;
+  color: var(--text-muted);
   margin-bottom: 2rem;
 }
 
 .upload-area {
-  background: #16213e;
-  border-radius: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
   padding: 1rem;
   transition: all 0.2s;
+  box-shadow: var(--shadow-md);
 }
 
 .upload-area.dragover {
-  border-color: #4ecca3;
-  background: rgba(78, 204, 163, 0.1);
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
 }
 
 .file-input {
@@ -176,15 +178,15 @@ h1 {
 }
 
 .drop-zone {
-  border: 2px dashed #3a3a5a;
-  border-radius: 8px;
+  border: 2px dashed var(--border-input);
+  border-radius: var(--radius-md);
   padding: 3rem;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .drop-zone:hover {
-  border-color: #4ecca3;
+  border-color: var(--color-primary);
 }
 
 .drop-content {
@@ -194,12 +196,12 @@ h1 {
 .upload-icon {
   width: 64px;
   height: 64px;
-  color: #4ecca3;
+  color: var(--color-primary);
   margin-bottom: 1rem;
 }
 
 .drop-content p {
-  color: #888;
+  color: var(--text-muted);
   margin-bottom: 0.5rem;
 }
 
@@ -209,17 +211,17 @@ h1 {
 
 .btn-browse {
   display: inline-block;
-  background: #4ecca3;
-  color: #1a1a2e;
+  background: var(--color-primary);
+  color: var(--text-on-primary);
   padding: 0.5rem 1.5rem;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-weight: bold;
   margin: 0.5rem 0;
 }
 
 .formats {
   font-size: 0.8rem;
-  color: #666;
+  color: var(--text-muted);
   margin-top: 1rem;
 }
 
@@ -232,7 +234,7 @@ h1 {
 .file-icon {
   width: 48px;
   height: 48px;
-  color: #4ecca3;
+  color: var(--color-primary);
 }
 
 .file-info {
@@ -240,36 +242,36 @@ h1 {
 }
 
 .filename {
-  color: #eee;
+  color: var(--text-primary);
   font-weight: bold;
   word-break: break-word;
 }
 
 .filesize {
-  color: #888;
+  color: var(--text-muted);
   font-size: 0.9rem;
 }
 
 .btn-clear {
   background: transparent;
-  border: 1px solid #e74c3c;
-  color: #e74c3c;
+  border: 1px solid var(--color-destructive);
+  color: var(--color-destructive);
   padding: 0.5rem 1rem;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .btn-clear:hover {
-  background: #e74c3c;
+  background: var(--color-destructive);
   color: white;
 }
 
 .error-message {
-  background: rgba(231, 76, 60, 0.2);
-  color: #e74c3c;
+  background: var(--color-destructive-light);
+  color: var(--color-destructive);
   padding: 1rem;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   margin-top: 1rem;
 }
 
@@ -279,19 +281,19 @@ h1 {
 }
 
 .upload-progress p {
-  color: #888;
+  color: var(--text-muted);
   margin-bottom: 0.5rem;
 }
 
 .progress-bar {
-  background: #2a2a4a;
-  border-radius: 10px;
+  background: var(--border-color);
+  border-radius: var(--radius-full);
   height: 10px;
   overflow: hidden;
 }
 
 .progress-fill {
-  background: linear-gradient(90deg, #4ecca3, #3498db);
+  background: var(--gradient-primary);
   height: 100%;
   transition: width 0.3s;
 }
@@ -301,17 +303,17 @@ h1 {
   width: 100%;
   margin-top: 1.5rem;
   padding: 1rem;
-  background: #4ecca3;
-  color: #1a1a2e;
+  background: var(--gradient-primary);
+  color: var(--text-on-primary);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-size: 1rem;
-  font-weight: bold;
+  font-weight: 600;
   cursor: pointer;
   transition: background 0.2s;
 }
 
 .btn-upload:hover {
-  background: #3db892;
+  background: var(--color-primary-hover);
 }
 </style>

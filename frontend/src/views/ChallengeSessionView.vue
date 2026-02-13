@@ -2,8 +2,23 @@
   <div class="challenge-session">
     <!-- Placement guide overlay (first-time users) -->
     <div v-if="showPlacementGuide" class="placement-overlay" @click="dismissPlacementGuide">
-      <img src="/mobileplacement.png" alt="Phone placement guide" class="placement-img" />
-      <p class="placement-tap">Tap anywhere to continue</p>
+      <div class="placement-card">
+        <h2 class="placement-title">Phone Placement Guide</h2>
+        <p class="placement-subtitle">Place your phone on the ground to the side, like this:</p>
+        <div class="placement-img-wrap">
+          <img src="/mobileplacement.png" alt="Phone placement guide" class="placement-img" />
+          <div class="placement-highlight">
+            <span class="highlight-ring"></span>
+            <span class="highlight-label">Place phone here</span>
+          </div>
+        </div>
+        <ul class="placement-tips">
+          <li>Position at ground level, to your side</li>
+          <li>Angle the camera so your full body is visible</li>
+          <li>Keep ~1-2 meters distance</li>
+        </ul>
+        <button class="placement-btn" @click="dismissPlacementGuide">Got it, let's go!</button>
+      </div>
     </div>
 
     <!-- Setup phase -->
@@ -12,10 +27,13 @@
       <h1>{{ challengeTitle }}</h1>
       <p class="hint">{{ challengeHint }}</p>
 
-      <div class="camera-preview-wrap">
+      <div class="camera-preview-wrap" @click="cameraReady && !starting && startSession()">
         <video ref="previewVideo" autoplay playsinline muted class="camera-preview"></video>
         <div v-if="!cameraReady" class="camera-placeholder">
           <p>{{ cameraError || 'Initialising camera...' }}</p>
+        </div>
+        <div v-if="cameraReady && !starting" class="camera-tap-hint">
+          <span>Tap here to start</span>
         </div>
       </div>
 
@@ -28,6 +46,7 @@
         </select>
 
         <button @click="startSession" :disabled="!cameraReady || starting" class="start-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
           {{ starting ? 'Starting...' : 'Start Challenge' }}
         </button>
       </div>
@@ -142,12 +161,22 @@ const challengeTitle = computed(() => meta.value.title)
 const challengeHint = computed(() => meta.value.hint)
 const scoreLabel = computed(() => meta.value.scoreLabel)
 
-// Placement guide
-const showPlacementGuide = ref(!localStorage.getItem('seen_placement_guide'))
+// Placement guide — show until user has completed at least 1 challenge
+const showPlacementGuide = ref(false)
+
+async function checkPlacementGuide() {
+  try {
+    await challengesStore.fetchSessions()
+    if (challengesStore.sessions.length === 0) {
+      showPlacementGuide.value = true
+    }
+  } catch {
+    // If fetch fails, don't block the user
+  }
+}
 
 function dismissPlacementGuide() {
   showPlacementGuide.value = false
-  localStorage.setItem('seen_placement_guide', '1')
 }
 
 // Camera state
@@ -564,6 +593,7 @@ function cleanup() {
 }
 
 onMounted(() => {
+  checkPlacementGuide()
   enumerateCameras()
 })
 
@@ -580,26 +610,27 @@ onUnmounted(() => {
 }
 
 .back-link {
-  color: #888;
+  color: var(--text-muted);
   text-decoration: none;
   font-size: 0.9rem;
 }
-.back-link:hover { color: #4ecca3; }
+.back-link:hover { color: var(--color-primary); }
 
 .setup-phase h1 {
-  color: #eee;
+  color: var(--color-primary);
   margin: 0.5rem 0 0.25rem;
+  font-size: 1.8rem;
 }
 
 .hint {
-  color: #888;
+  color: var(--text-muted);
   margin-bottom: 1.5rem;
 }
 
 .camera-preview-wrap {
   position: relative;
   background: #000;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   overflow: hidden;
   aspect-ratio: 4/3;
   margin-bottom: 1rem;
@@ -618,7 +649,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #888;
+  color: var(--text-muted);
   background: rgba(0,0,0,0.7);
 }
 
@@ -631,30 +662,61 @@ onUnmounted(() => {
 .camera-select {
   flex: 1;
   padding: 0.6rem;
-  background: rgba(22, 33, 62, 0.8);
-  border: 1px solid rgba(255,255,255,0.1);
-  color: #eee;
-  border-radius: 6px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-input);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
 }
 
 .start-btn {
-  background: #4ecca3;
-  color: #0a0a1a;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--gradient-primary);
+  color: var(--text-on-primary);
   border: none;
-  padding: 0.7rem 1.5rem;
-  border-radius: 8px;
+  padding: 0.9rem 2rem;
+  border-radius: var(--radius-md);
   font-weight: 600;
+  font-size: 1.05rem;
   cursor: pointer;
-  transition: opacity 0.2s;
+  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 4px 14px rgba(124, 58, 237, 0.3);
 }
-.start-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.start-btn:hover:not(:disabled) { opacity: 0.9; }
+.start-btn:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+.start-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(124, 58, 237, 0.4);
+}
+
+.camera-preview-wrap {
+  cursor: pointer;
+}
+
+.camera-tap-hint {
+  position: absolute;
+  bottom: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.5);
+  color: rgba(255, 255, 255, 0.8);
+  padding: 0.4rem 1rem;
+  border-radius: var(--radius-full);
+  font-size: 0.8rem;
+  pointer-events: none;
+  animation: tap-pulse 2.5s ease-in-out infinite;
+}
+
+@keyframes tap-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
 
 /* Active phase */
 .video-container {
   position: relative;
   background: #000;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   overflow: hidden;
   aspect-ratio: 4/3;
 }
@@ -678,26 +740,26 @@ onUnmounted(() => {
 .hud-metric {
   background: rgba(0, 0, 0, 0.7);
   padding: 0.5rem 1rem;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   text-align: center;
 }
 
 .hud-metric.primary {
-  border: 1px solid #4ecca3;
+  border: 1px solid var(--color-primary);
 }
 
 .hud-metric.time-warn {
-  border: 1px solid #e74c3c;
+  border: 1px solid var(--color-destructive);
 }
 
 .hud-metric.time-warn .metric-value {
-  color: #e74c3c;
+  color: var(--color-destructive);
   animation: pulse-warn 1s ease-in-out infinite;
 }
 
 .metric-value {
   display: block;
-  color: #4ecca3;
+  color: var(--color-primary);
   font-size: 1.8rem;
   font-weight: 700;
   line-height: 1;
@@ -705,8 +767,9 @@ onUnmounted(() => {
 
 .metric-label {
   display: block;
-  color: #888;
+  color: #ccc;
   font-size: 0.75rem;
+  font-weight: 500;
   margin-top: 0.25rem;
 }
 
@@ -716,7 +779,7 @@ onUnmounted(() => {
   left: 50%;
   transform: translateX(-50%);
   padding: 0.5rem 1.25rem;
-  border-radius: 20px;
+  border-radius: var(--radius-full);
   font-size: 0.9rem;
   font-weight: 500;
   white-space: nowrap;
@@ -748,17 +811,17 @@ onUnmounted(() => {
   justify-content: center;
   gap: 0.5rem;
   padding: 0.75rem;
-  background: #16213e;
-  border: 2px solid #e74c3c;
-  border-radius: 8px;
-  color: #e74c3c;
+  background: var(--bg-card);
+  border: 2px solid var(--color-destructive);
+  border-radius: var(--radius-md);
+  color: var(--color-destructive);
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
 }
-.btn-record:hover { background: rgba(231, 76, 60, 0.1); }
+.btn-record:hover { background: var(--color-destructive-light); }
 .btn-record.recording {
-  background: #e74c3c;
+  background: var(--color-destructive);
   color: white;
   animation: pulse-record 1s infinite;
 }
@@ -775,16 +838,16 @@ onUnmounted(() => {
 .stop-btn {
   flex: 1;
   background: transparent;
-  border: 1px solid #e74c3c;
-  color: #e74c3c;
+  border: 1px solid var(--color-destructive);
+  color: var(--color-destructive);
   padding: 0.75rem;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   font-size: 1rem;
   transition: all 0.2s;
 }
 .stop-btn:hover {
-  background: #e74c3c;
+  background: var(--color-destructive);
   color: #fff;
 }
 
@@ -798,13 +861,13 @@ onUnmounted(() => {
   gap: 0.5rem;
   padding: 0.4rem 0.8rem;
   background: rgba(231, 76, 60, 0.2);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 .recording-dot {
   width: 10px;
   height: 10px;
-  background: #e74c3c;
-  border-radius: 50%;
+  background: var(--color-destructive);
+  border-radius: var(--radius-full);
   animation: recording-pulse 1s infinite;
 }
 @keyframes recording-pulse {
@@ -812,13 +875,13 @@ onUnmounted(() => {
   50% { opacity: 0.4; }
 }
 .recording-time {
-  color: #e74c3c;
+  color: var(--color-destructive);
   font-family: monospace;
   font-weight: bold;
   font-size: 0.85rem;
 }
 
-/* Position overlay (before ready) */
+/* Position overlay (before ready) — dark overlay for camera feed visibility */
 .position-overlay {
   position: absolute;
   inset: 0;
@@ -835,7 +898,7 @@ onUnmounted(() => {
 }
 
 .position-icon {
-  color: #4ecca3;
+  color: var(--color-primary);
   margin-bottom: 1rem;
   animation: pulse-glow 2s ease-in-out infinite;
 }
@@ -853,18 +916,18 @@ onUnmounted(() => {
 }
 
 .position-detected {
-  color: #4ecca3;
+  color: var(--color-primary);
   font-size: 0.85rem;
   font-weight: 500;
 }
 
-/* Leg status indicator */
+/* Leg status indicator — overlaid on camera feed */
 .leg-status {
   position: absolute;
   top: 1rem;
   right: 1rem;
   padding: 0.35rem 0.75rem;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-size: 0.75rem;
   font-weight: 600;
   z-index: 4;
@@ -934,37 +997,130 @@ onUnmounted(() => {
 .placement-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.85);
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
   z-index: 200;
-  cursor: pointer;
+  padding: 1rem;
+}
+
+.placement-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  padding: 2rem;
+  max-width: 420px;
+  width: 100%;
+  text-align: center;
+}
+
+.placement-title {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 0.25rem;
+}
+
+.placement-subtitle {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin-bottom: 1.25rem;
+}
+
+.placement-img-wrap {
+  position: relative;
+  margin-bottom: 1.25rem;
 }
 
 .placement-img {
-  max-width: 90vw;
-  max-height: 70vh;
-  object-fit: contain;
-  border-radius: 12px;
+  width: 100%;
+  border-radius: var(--radius-md);
+  display: block;
 }
 
-.placement-tap {
-  color: #888;
-  font-size: 0.95rem;
-  margin-top: 1.5rem;
-  animation: pulse-glow 2s ease-in-out infinite;
+.placement-highlight {
+  position: absolute;
+  bottom: 28%;
+  left: 0%;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
+
+.highlight-ring {
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-full);
+  border: 3px solid var(--color-primary);
+  box-shadow: 0 0 0 6px rgba(79, 70, 229, 0.25);
+  animation: ring-breathe 2s ease-in-out infinite;
+}
+
+@keyframes ring-breathe {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.2); }
+  50% { box-shadow: 0 0 0 10px rgba(79, 70, 229, 0.35); }
+}
+
+.highlight-label {
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+
+.placement-tips {
+  text-align: left;
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1.5rem;
+}
+
+.placement-tips li {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  padding: 0.3rem 0;
+  padding-left: 1.25rem;
+  position: relative;
+}
+
+.placement-tips li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.6rem;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--color-primary);
+}
+
+.placement-btn {
+  width: 100%;
+  padding: 0.85rem;
+  background: var(--gradient-primary);
+  color: var(--text-on-primary);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.placement-btn:hover { opacity: 0.9; }
 
 .connecting-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(10, 10, 26, 0.85);
+  background: rgba(0, 0, 0, 0.85);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #4ecca3;
+  color: var(--color-primary);
   font-size: 1.2rem;
   z-index: 100;
 }
