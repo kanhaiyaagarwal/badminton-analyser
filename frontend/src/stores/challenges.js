@@ -6,6 +6,9 @@ export const useChallengesStore = defineStore('challenges', () => {
   const sessions = ref([])
   const currentSession = ref(null)
   const personalRecords = ref({})
+  const stats = ref({})
+  const enabledTypes = ref([])
+  const leaderboard = ref(null)
   const loading = ref(false)
   const error = ref(null)
 
@@ -62,6 +65,35 @@ export const useChallengesStore = defineStore('challenges', () => {
     }
   }
 
+  async function fetchStats() {
+    try {
+      const response = await api.get('/api/v1/challenges/stats')
+      stats.value = response.data
+    } catch (err) {
+      // non-critical
+    }
+  }
+
+  async function fetchEnabledChallenges() {
+    try {
+      const response = await api.get('/api/v1/challenges/enabled')
+      enabledTypes.value = response.data
+    } catch (err) {
+      enabledTypes.value = ['pushup']
+    }
+  }
+
+  async function fetchLeaderboard(challengeType = 'pushup') {
+    try {
+      const response = await api.get('/api/v1/challenges/leaderboard', {
+        params: { challenge_type: challengeType }
+      })
+      leaderboard.value = response.data
+    } catch (err) {
+      // non-critical
+    }
+  }
+
   async function startRecording(sessionId) {
     const response = await api.post(`/api/v1/challenges/sessions/${sessionId}/recording/start`)
     return response.data
@@ -76,12 +108,18 @@ export const useChallengesStore = defineStore('challenges', () => {
     sessions,
     currentSession,
     personalRecords,
+    stats,
+    enabledTypes,
+    leaderboard,
     loading,
     error,
     createSession,
     endSession,
     fetchSessions,
     fetchRecords,
+    fetchStats,
+    fetchEnabledChallenges,
+    fetchLeaderboard,
     startRecording,
     stopRecording,
   }

@@ -2,7 +2,7 @@
   <div class="challenge-session">
     <!-- Setup phase -->
     <div v-if="phase === 'setup'" class="setup-phase">
-      <router-link to="/challenges" class="back-link">&larr; Back to Challenges</router-link>
+      <router-link :to="`/challenges/${challengeType}`" class="back-link">&larr; Back</router-link>
       <h1>{{ challengeTitle }}</h1>
       <p class="hint">{{ challengeHint }}</p>
 
@@ -33,21 +33,54 @@
         <video ref="streamVideo" autoplay playsinline muted class="stream-video"></video>
         <canvas ref="overlayCanvas" class="overlay-canvas"></canvas>
 
-        <!-- Overlay HUD -->
-        <div class="hud">
+        <!-- "Get in position" overlay (before ready) -->
+        <div v-if="!playerReady" class="position-overlay">
+          <div class="position-prompt">
+            <div class="position-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
+                <circle cx="12" cy="5" r="2.5"/>
+                <path d="M4 17 L8 12 L12 14 L16 12 L20 17" stroke-linecap="round" stroke-linejoin="round"/>
+                <line x1="8" y1="12" x2="6" y2="16" stroke-linecap="round"/>
+                <line x1="16" y1="12" x2="18" y2="16" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <p class="position-text" v-if="!playerDetected">Step into frame — full body visible</p>
+            <p class="position-text" v-else>{{ formFeedback || 'Get into position...' }}</p>
+            <div v-if="playerDetected" class="position-detected">Body detected</div>
+          </div>
+        </div>
+
+        <!-- Overlay HUD (only when ready) -->
+        <div class="hud" v-if="playerReady">
           <div class="hud-metric primary">
             <span class="metric-value">{{ displayScore }}</span>
             <span class="metric-label">{{ scoreLabel }}</span>
           </div>
-          <div class="hud-metric">
-            <span class="metric-value">{{ elapsedDisplay }}</span>
-            <span class="metric-label">Elapsed</span>
+          <div :class="['hud-metric', { 'time-warn': timeWarning }]">
+            <span class="metric-value">{{ timeRemainingDisplay }}</span>
+            <span class="metric-label">Remaining</span>
           </div>
         </div>
 
-        <div class="form-feedback" v-if="formFeedback" :class="feedbackClass">
+        <!-- Leg status indicator (pushup only, when ready) -->
+        <div
+          v-if="playerReady && challengeType === 'pushup'"
+          class="leg-status"
+          :class="legsStraight ? 'legs-ok' : 'legs-warn'"
+        >
+          {{ legsStraight ? 'Legs straight' : 'Straighten legs' }}
+        </div>
+
+        <div class="form-feedback" v-if="playerReady && formFeedback" :class="feedbackClass">
           {{ formFeedback }}
         </div>
+
+        <!-- Big rep counter popup -->
+        <transition name="rep-pop">
+          <div v-if="showRepPop" class="rep-pop-overlay" :key="repPopKey">
+            <span class="rep-pop-number">{{ repPopValue }}</span>
+          </div>
+        </transition>
 
         <!-- Recording indicator -->
         <div v-if="isRecording" class="recording-status">
@@ -127,12 +160,22 @@ const reps = ref(0)
 const holdSeconds = ref(0)
 const formFeedback = ref('')
 const elapsed = ref(0)
+const playerDetected = ref(false)
+const playerReady = ref(false)
+const legsStraight = ref(true)
+const timeRemaining = ref(0)
 
 // Recording state
 const isRecording = ref(false)
 const hasRecording = ref(false)
 const recordingDuration = ref(0)
 let recordingTimer = null
+
+// Rep pop animation
+const showRepPop = ref(false)
+const repPopValue = ref(0)
+const repPopKey = ref(0)
+let repPopTimeout = null
 
 const displayScore = computed(() => {
   if (challengeType.value === 'plank') return holdSeconds.value
@@ -145,11 +188,31 @@ const elapsedDisplay = computed(() => {
   return `${m}:${String(s).padStart(2, '0')}`
 })
 
+const timeRemainingDisplay = computed(() => {
+  const t = Math.ceil(timeRemaining.value)
+  if (t <= 0) return '0:00'
+  const m = Math.floor(t / 60)
+  const s = t % 60
+  return `${m}:${String(s).padStart(2, '0')}`
+})
+
+const timeWarning = computed(() => timeRemaining.value > 0 && timeRemaining.value <= 30)
+
 const feedbackClass = computed(() => {
   const fb = formFeedback.value.toLowerCase()
-  if (fb.includes('good') || fb.includes('rep')) return 'positive'
+  if (fb.includes('good') || fb.includes('rep') || fb.includes('ready')) return 'positive'
   return 'corrective'
 })
+
+function triggerRepPop(count) {
+  repPopValue.value = count
+  repPopKey.value++
+  showRepPop.value = true
+  if (repPopTimeout) clearTimeout(repPopTimeout)
+  repPopTimeout = setTimeout(() => {
+    showRepPop.value = false
+  }, 800)
+}
 
 // ---------- Camera ----------
 
@@ -244,10 +307,26 @@ async function connectWebSocket(sid) {
     try {
       const data = JSON.parse(event.data)
       if (data.type === 'challenge_update') {
-        reps.value = data.reps || 0
+        const newReps = data.reps || 0
+        if (newReps > reps.value && challengeType.value !== 'plank') {
+          triggerRepPop(newReps)
+        }
+        reps.value = newReps
         holdSeconds.value = data.hold_seconds || 0
         formFeedback.value = data.form_feedback || ''
+        playerDetected.value = !!data.player_detected
+        playerReady.value = !!data.ready
+        timeRemaining.value = data.time_remaining ?? 0
+        if (data.exercise) {
+          legsStraight.value = data.exercise.legs_straight !== false
+        }
         if (data.pose) drawPose(data.pose)
+
+        // Auto-end: backend says session is over
+        if (data.auto_end) {
+          endSession()
+          return
+        }
       } else if (data.type === 'session_ended') {
         handleSessionEnded(data.report)
       }
@@ -321,7 +400,7 @@ async function endSession() {
       const result = await challengesStore.endSession(sessionId.value)
       navigateToResults(sessionId.value, result)
     } catch (e) {
-      router.push('/challenges')
+      router.push(`/challenges/${challengeType.value}`)
     }
   }
 }
@@ -388,6 +467,28 @@ function formatRecordingTime(seconds) {
 
 // ---------- Pose drawing ----------
 
+// Body-part color map for skeleton drawing
+const ARM_IDS = new Set([13, 14, 15, 16])
+const LEG_IDS = new Set([25, 26, 27, 28])
+const TORSO_IDS = new Set([11, 12, 23, 24])
+const COLORS = { arms: '#42a5f5', torso: '#f9ca24', legs: '#ab47bc' }
+
+function connectionColor(a, b) {
+  // Arms: any connection involving elbow (13/14) or wrist (15/16)
+  if (ARM_IDS.has(a) || ARM_IDS.has(b)) return COLORS.arms
+  // Legs: any connection involving knee (25/26) or ankle (27/28)
+  if (LEG_IDS.has(a) || LEG_IDS.has(b)) return COLORS.legs
+  // Torso: shoulders / hips
+  return COLORS.torso
+}
+
+function jointColor(idx) {
+  if (ARM_IDS.has(idx)) return COLORS.arms
+  if (LEG_IDS.has(idx)) return COLORS.legs
+  if (TORSO_IDS.has(idx)) return COLORS.torso
+  return '#aaa'
+}
+
 function drawPose(poseData) {
   const canvas = overlayCanvas.value
   if (!canvas || !poseData) return
@@ -407,25 +508,26 @@ function drawPose(poseData) {
   const sx = canvas.width / poseData.width
   const sy = canvas.height / poseData.height
 
-  // Draw connections
-  ctx.strokeStyle = '#4ecca3'
-  ctx.lineWidth = 2
+  // Draw connections with body-part colors
+  ctx.lineWidth = 3
   for (const [a, b] of poseData.connections) {
     const la = landmarks[a]
     const lb = landmarks[b]
     if (!la || !lb || la.visibility < 0.3 || lb.visibility < 0.3) continue
+    ctx.strokeStyle = connectionColor(a, b)
     ctx.beginPath()
     ctx.moveTo(la.x * sx, la.y * sy)
     ctx.lineTo(lb.x * sx, lb.y * sy)
     ctx.stroke()
   }
 
-  // Draw joints
-  ctx.fillStyle = '#4ecca3'
-  for (const lm of landmarks) {
+  // Draw joints with body-part colors
+  for (let i = 0; i < landmarks.length; i++) {
+    const lm = landmarks[i]
     if (lm.visibility < 0.3) continue
+    ctx.fillStyle = jointColor(i)
     ctx.beginPath()
-    ctx.arc(lm.x * sx, lm.y * sy, 4, 0, 2 * Math.PI)
+    ctx.arc(lm.x * sx, lm.y * sy, 5, 0, 2 * Math.PI)
     ctx.fill()
   }
 }
@@ -435,6 +537,7 @@ function drawPose(poseData) {
 function cleanup() {
   stopFrameCapture()
   stopRecordingTimer()
+  if (repPopTimeout) { clearTimeout(repPopTimeout); repPopTimeout = null }
   if (ws) {
     if (ws._pingId) clearInterval(ws._pingId)
     ws.close()
@@ -569,6 +672,15 @@ onUnmounted(() => {
   border: 1px solid #4ecca3;
 }
 
+.hud-metric.time-warn {
+  border: 1px solid #e74c3c;
+}
+
+.hud-metric.time-warn .metric-value {
+  color: #e74c3c;
+  animation: pulse-warn 1s ease-in-out infinite;
+}
+
 .metric-value {
   display: block;
   color: #4ecca3;
@@ -665,7 +777,7 @@ onUnmounted(() => {
 /* Recording indicator */
 .recording-status {
   position: absolute;
-  top: 1rem;
+  top: 3.5rem;
   right: 1rem;
   display: flex;
   align-items: center;
@@ -692,6 +804,118 @@ onUnmounted(() => {
   font-size: 0.85rem;
 }
 
+/* Position overlay (before ready) */
+.position-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 5;
+}
+
+.position-prompt {
+  text-align: center;
+  padding: 2rem;
+}
+
+.position-icon {
+  color: #4ecca3;
+  margin-bottom: 1rem;
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.position-text {
+  color: #fff;
+  font-size: 1.3rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+}
+
+.position-detected {
+  color: #4ecca3;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+/* Leg status indicator */
+.leg-status {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  z-index: 4;
+}
+
+.leg-status.legs-ok {
+  background: rgba(78, 204, 163, 0.2);
+  color: #4ecca3;
+  border: 1px solid rgba(78, 204, 163, 0.3);
+}
+
+.leg-status.legs-warn {
+  background: rgba(231, 76, 60, 0.2);
+  color: #e74c3c;
+  border: 1px solid rgba(231, 76, 60, 0.3);
+  animation: pulse-warn 1s ease-in-out infinite;
+}
+
+@keyframes pulse-warn {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
+/* Rep pop animation */
+.rep-pop-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.rep-pop-number {
+  font-size: 8rem;
+  font-weight: 900;
+  color: #4ecca3;
+  text-shadow: 0 0 40px rgba(78, 204, 163, 0.6), 0 4px 20px rgba(0, 0, 0, 0.8);
+  line-height: 1;
+}
+
+.rep-pop-enter-active {
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.rep-pop-leave-active {
+  transition: all 0.5s ease-out;
+}
+.rep-pop-enter-from {
+  opacity: 0;
+  transform: scale(0.3);
+}
+.rep-pop-enter-to {
+  opacity: 1;
+  transform: scale(1);
+}
+.rep-pop-leave-from {
+  opacity: 1;
+  transform: scale(1);
+}
+.rep-pop-leave-to {
+  opacity: 0;
+  transform: scale(1.5);
+}
+
 .connecting-overlay {
   position: fixed;
   inset: 0;
@@ -702,5 +926,38 @@ onUnmounted(() => {
   color: #4ecca3;
   font-size: 1.2rem;
   z-index: 100;
+}
+
+@media (max-width: 640px) {
+  .controls {
+    flex-direction: column;
+  }
+
+  .camera-select,
+  .start-btn {
+    width: 100%;
+  }
+
+  .hud {
+    gap: 0.75rem;
+  }
+
+  .metric-value {
+    font-size: 1.3rem;
+  }
+
+  .form-feedback {
+    font-size: 0.8rem;
+    padding: 0.4rem 1rem;
+  }
+
+  .session-actions {
+    flex-direction: column;
+  }
+
+  .position-text {
+    font-size: 1rem;
+    padding: 0 1rem;
+  }
 }
 </style>

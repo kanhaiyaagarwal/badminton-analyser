@@ -21,13 +21,14 @@ class SquatAnalyzer(RepCounterAnalyzer):
     """
 
     def __init__(self, config=None):
-        super().__init__(challenge_type="squat")
+        super().__init__(challenge_type="squat", config=config)
         cfg = config or {}
         self.down_angle = cfg.get("down_angle", 100)
         self.up_angle = cfg.get("up_angle", 160)
         self._state = "up"  # "up" | "down"
 
     def _process_pose(self, landmarks: list, timestamp: float) -> Dict:
+        self.mark_active(timestamp)
         # Average both legs for robustness
         left_angle = PoseDetector.angle_between(
             (landmarks[L_HIP]["nx"], landmarks[L_HIP]["ny"]),

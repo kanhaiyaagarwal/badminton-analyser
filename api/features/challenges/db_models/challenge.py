@@ -50,4 +50,5 @@ class ChallengeConfig(Base):
     id = Column(Integer, primary_key=True, index=True)
     challenge_type = Column(String(32), unique=True, nullable=False)
     thresholds = Column(JSON, nullable=False)
+    enabled = Column(Boolean, default=False, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

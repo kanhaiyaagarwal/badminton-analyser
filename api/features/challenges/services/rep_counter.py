@@ -18,9 +18,9 @@ from ....core.streaming.pose_detector import PoseDetector, SKELETON_CONNECTIONS
 logger = logging.getLogger(__name__)
 
 CHALLENGE_DEFAULTS = {
-    "squat":  {"down_angle": 100, "up_angle": 160},
-    "pushup": {"down_angle": 90, "up_angle": 155},
-    "plank":  {"good_angle_min": 150, "good_angle_max": 195},
+    "squat":  {"down_angle": 100, "up_angle": 160, "max_duration": 300, "inactivity_timeout": 0},
+    "pushup": {"down_angle": 90, "up_angle": 155, "max_duration": 300, "inactivity_timeout": 10, "collapse_hold_time": 3.0, "collapse_gap": 0.03, "collapse_hip_gap": 0.06, "half_pushup_gap": 0.05, "stood_up_timeout": 1.5, "first_rep_grace": 30.0},
+    "plank":  {"good_angle_min": 150, "good_angle_max": 195, "max_duration": 300, "inactivity_timeout": 10},
 }
 
 
@@ -32,7 +32,7 @@ class RepCounterAnalyzer(BaseStreamAnalyzer):
     logic (angle thresholds, state machines, etc.).
     """
 
-    def __init__(self, challenge_type: str):
+    def __init__(self, challenge_type: str, config: dict = None):
         self.challenge_type = challenge_type
         self.detector = PoseDetector(model_complexity=1)
         self.reps = 0
@@ -42,13 +42,36 @@ class RepCounterAnalyzer(BaseStreamAnalyzer):
         self._start_time = datetime.now()
         self._last_timestamp = 0.0
         self.frame_timeline: List[Dict] = []
+        self._ready = True  # subclasses can override (e.g. pushup)
+
+        # Session limits (configurable via admin)
+        cfg = config or {}
+        defaults = CHALLENGE_DEFAULTS.get(challenge_type, {})
+        self.max_duration = cfg.get("max_duration", defaults.get("max_duration", 300))
+        self.inactivity_timeout = cfg.get("inactivity_timeout", defaults.get("inactivity_timeout", 10))
+
+        # Auto-end tracking
+        self._last_active_ts = 0.0   # last time user was actively exercising
+        self._activity_started = False  # has user been active at least once?
+        self._session_ended = False
+        self._end_reason = ""
 
         # Recording state
         self.is_recording = False
         self.recorded_frames: List[bytes] = []
 
+    def mark_active(self, timestamp: float):
+        """Called by subclasses when the user is actively exercising."""
+        self._last_active_ts = timestamp
+        if not self._activity_started:
+            self._activity_started = True
+
     def process_frame(self, frame_data: bytes, timestamp: float) -> Dict:
         self._frame_counter += 1
+
+        # If session already auto-ended, keep returning the ended state
+        if self._session_ended:
+            return self._auto_end_result()
 
         # Decode JPEG
         try:
@@ -86,6 +109,41 @@ class RepCounterAnalyzer(BaseStreamAnalyzer):
 
         self._last_timestamp = timestamp
 
+        # --- Auto-end checks (only after ready) ---
+        auto_end = False
+        end_reason = ""
+
+        if self._ready and not self._session_ended:
+            # Max duration
+            if self.max_duration > 0 and timestamp >= self.max_duration:
+                auto_end = True
+                end_reason = "time_limit"
+
+            # Inactivity / posture break
+            elif (self.inactivity_timeout > 0
+                  and self._activity_started
+                  and self._last_active_ts > 0
+                  and (timestamp - self._last_active_ts) >= self.inactivity_timeout):
+                auto_end = True
+                end_reason = "inactivity"
+
+        # Check if subclass triggered session end (e.g. collapse detection)
+        if self._session_ended and not auto_end:
+            auto_end = True
+            end_reason = self._end_reason
+
+        if auto_end and not self._session_ended:
+            self._session_ended = True
+            self._end_reason = end_reason
+
+        if auto_end:
+            logger.info(
+                f"Challenge {self.challenge_type} auto-ended: {end_reason} "
+                f"(score={self.reps}, hold={self.hold_seconds:.1f}s, t={timestamp:.1f}s)"
+            )
+
+        time_remaining = max(0, round(self.max_duration - timestamp, 1)) if self.max_duration > 0 else 0
+
         return {
             "type": "challenge_update",
             "challenge_type": self.challenge_type,
@@ -96,6 +154,10 @@ class RepCounterAnalyzer(BaseStreamAnalyzer):
             "exercise": exercise_data,
             "frames_processed": self._frame_counter,
             "player_detected": pose_result.player_detected,
+            "ready": self._ready,
+            "auto_end": auto_end,
+            "end_reason": end_reason,
+            "time_remaining": time_remaining,
         }
 
     @abstractmethod
@@ -120,6 +182,8 @@ class RepCounterAnalyzer(BaseStreamAnalyzer):
             "hold_seconds": round(self.hold_seconds, 1),
             "duration_seconds": round(duration, 1),
             "frames_processed": self._frame_counter,
+            "end_reason": self._end_reason,
+            "max_duration": self.max_duration,
             "frame_timeline": self.frame_timeline,
         }
 
@@ -131,11 +195,16 @@ class RepCounterAnalyzer(BaseStreamAnalyzer):
         self._start_time = datetime.now()
         self._last_timestamp = 0.0
         self.frame_timeline = []
+        self._last_active_ts = 0.0
+        self._activity_started = False
+        self._session_ended = False
+        self._end_reason = ""
 
     def close(self):
         self.detector.close()
 
     def _empty_result(self) -> Dict:
+        time_remaining = max(0, round(self.max_duration - self._last_timestamp, 1)) if self.max_duration > 0 else 0
         return {
             "type": "challenge_update",
             "challenge_type": self.challenge_type,
@@ -146,6 +215,27 @@ class RepCounterAnalyzer(BaseStreamAnalyzer):
             "exercise": {},
             "frames_processed": self._frame_counter,
             "player_detected": False,
+            "ready": self._ready,
+            "auto_end": False,
+            "end_reason": "",
+            "time_remaining": time_remaining,
+        }
+
+    def _auto_end_result(self) -> Dict:
+        return {
+            "type": "challenge_update",
+            "challenge_type": self.challenge_type,
+            "reps": self.reps,
+            "hold_seconds": round(self.hold_seconds, 1),
+            "form_feedback": f"Session ended — {self._end_reason.replace('_', ' ')}",
+            "pose": None,
+            "exercise": {},
+            "frames_processed": self._frame_counter,
+            "player_detected": False,
+            "ready": self._ready,
+            "auto_end": True,
+            "end_reason": self._end_reason,
+            "time_remaining": 0,
         }
 
     # ---------- Recording ----------

@@ -3,13 +3,14 @@
 import cv2
 import numpy as np
 import logging
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from pathlib import Path
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse, JSONResponse, Response
-from sqlalchemy.orm import Session
+from sqlalchemy import func as sa_func
+from sqlalchemy.orm import Session, defer
 
 from ....config import get_settings
 from ....database import get_db
@@ -32,6 +33,14 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/challenges", tags=["challenges"])
 
 VALID_TYPES = {"plank", "squat", "pushup"}
+
+
+def _anonymize_email(email: str) -> str:
+    """Mask email for leaderboard display: show first 3 chars of local part."""
+    local, domain = email.rsplit("@", 1)
+    visible = min(3, len(local))
+    return f"{local[:visible]}***@{domain}"
+
 
 ANALYZER_MAP = {
     "plank": PlankAnalyzer,
@@ -107,6 +116,13 @@ def _save_recording(frames: list, session: ChallengeSession, user_id: int):
         logger.error(f"Failed to create challenge recording: {e}")
 
 
+@router.get("/enabled")
+def get_enabled_challenges(db: Session = Depends(get_db)):
+    """Return list of enabled challenge types (public, no auth required)."""
+    rows = db.query(ChallengeConfig).filter(ChallengeConfig.enabled == True).all()
+    return [r.challenge_type for r in rows]
+
+
 @router.post("/sessions", response_model=ChallengeSessionStart)
 def create_challenge_session(
     body: ChallengeCreate,
@@ -116,6 +132,14 @@ def create_challenge_session(
     """Create a new challenge session and return a WebSocket URL."""
     if body.challenge_type not in VALID_TYPES:
         raise HTTPException(status_code=400, detail=f"Invalid challenge type. Must be one of: {VALID_TYPES}")
+
+    # Non-admin users can only start enabled challenge types
+    if not user.is_admin:
+        config_row = db.query(ChallengeConfig).filter(
+            ChallengeConfig.challenge_type == body.challenge_type
+        ).first()
+        if not config_row or not config_row.enabled:
+            raise HTTPException(status_code=403, detail="This challenge type is not currently enabled")
 
     session = ChallengeSession(
         user_id=user.id,
@@ -306,17 +330,22 @@ def download_recording(
 
 @router.get("/sessions", response_model=List[ChallengeResponse])
 def list_challenge_sessions(
+    challenge_type: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     user=Depends(get_current_user),
 ):
-    """List all challenge sessions for the current user."""
-    sessions = (
+    """List completed challenge sessions for the current user."""
+    q = (
         db.query(ChallengeSession)
-        .filter(ChallengeSession.user_id == user.id)
-        .order_by(ChallengeSession.created_at.desc())
-        .limit(50)
-        .all()
+        .options(defer(ChallengeSession.extra_data))
+        .filter(
+            ChallengeSession.user_id == user.id,
+            ChallengeSession.status == ChallengeStatus.ENDED,
+        )
     )
+    if challenge_type and challenge_type in VALID_TYPES:
+        q = q.filter(ChallengeSession.challenge_type == challenge_type)
+    sessions = q.order_by(ChallengeSession.created_at.desc()).limit(50).all()
 
     results = []
     for s in sessions:
@@ -344,6 +373,149 @@ def get_personal_records(
     return {r.challenge_type: r.best_score for r in records}
 
 
+@router.get("/stats")
+def get_challenge_stats(
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """
+    Get aggregated stats per challenge type for the current user.
+
+    Returns for each type:
+    - personal_best: highest single-session score ever
+    - weekly_total: sum of scores this week (Monday–Sunday)
+    - daily_best: highest single-session score today
+    """
+    # Personal bests
+    records = db.query(ChallengeRecord).filter(
+        ChallengeRecord.user_id == user.id
+    ).all()
+    pb_map = {r.challenge_type: r.best_score for r in records}
+
+    # Week start (Monday 00:00)
+    today = date.today()
+    monday = today - timedelta(days=today.weekday())  # weekday(): Mon=0
+    week_start = datetime.combine(monday, datetime.min.time())
+
+    # Day start (today 00:00)
+    day_start = datetime.combine(today, datetime.min.time())
+
+    # Weekly totals per type
+    weekly_rows = (
+        db.query(
+            ChallengeSession.challenge_type,
+            sa_func.sum(ChallengeSession.score).label("total"),
+        )
+        .filter(
+            ChallengeSession.user_id == user.id,
+            ChallengeSession.status == ChallengeStatus.ENDED,
+            ChallengeSession.created_at >= week_start,
+        )
+        .group_by(ChallengeSession.challenge_type)
+        .all()
+    )
+    weekly_map = {row.challenge_type: int(row.total or 0) for row in weekly_rows}
+
+    # Daily best per type
+    daily_rows = (
+        db.query(
+            ChallengeSession.challenge_type,
+            sa_func.max(ChallengeSession.score).label("best"),
+        )
+        .filter(
+            ChallengeSession.user_id == user.id,
+            ChallengeSession.status == ChallengeStatus.ENDED,
+            ChallengeSession.created_at >= day_start,
+        )
+        .group_by(ChallengeSession.challenge_type)
+        .all()
+    )
+    daily_map = {row.challenge_type: int(row.best or 0) for row in daily_rows}
+
+    result = {}
+    for ctype in VALID_TYPES:
+        result[ctype] = {
+            "personal_best": pb_map.get(ctype, 0),
+            "weekly_total": weekly_map.get(ctype, 0),
+            "daily_best": daily_map.get(ctype, 0),
+        }
+    return result
+
+
+@router.get("/leaderboard")
+def get_leaderboard(
+    challenge_type: str = Query("pushup"),
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """
+    Get daily and weekly leaderboards for a challenge type.
+
+    Returns top 3 entries plus the current user's rank for both periods.
+    Emails are anonymized for other users.
+    """
+    if challenge_type not in VALID_TYPES:
+        raise HTTPException(status_code=400, detail=f"Invalid challenge type. Must be one of: {VALID_TYPES}")
+
+    today = date.today()
+    monday = today - timedelta(days=today.weekday())
+    day_start = datetime.combine(today, datetime.min.time())
+    week_start = datetime.combine(monday, datetime.min.time())
+
+    def _build_board(since: datetime):
+        """Build leaderboard entries and user rank for a time period."""
+        # Subquery: best score per user in the period
+        rows = (
+            db.query(
+                ChallengeSession.user_id,
+                sa_func.max(ChallengeSession.score).label("best_score"),
+            )
+            .filter(
+                ChallengeSession.status == ChallengeStatus.ENDED,
+                ChallengeSession.challenge_type == challenge_type,
+                ChallengeSession.created_at >= since,
+                ChallengeSession.score > 0,
+            )
+            .group_by(ChallengeSession.user_id)
+            .order_by(sa_func.max(ChallengeSession.score).desc())
+            .all()
+        )
+
+        # Build ranked list
+        ranked = []
+        user_rank = None
+        for idx, row in enumerate(rows, start=1):
+            u = db.query(User).filter(User.id == row.user_id).first()
+            if not u:
+                continue
+            is_self = u.id == user.id
+            ranked.append({
+                "rank": idx,
+                "username": u.username,
+                "email": u.email if is_self else _anonymize_email(u.email),
+                "score": int(row.best_score),
+                "is_self": is_self,
+            })
+            if is_self:
+                user_rank = idx
+
+        # Return top 3 entries
+        top = ranked[:3]
+
+        # If user is outside top 3, append their entry
+        if user_rank and user_rank > 3:
+            user_entry = next(e for e in ranked if e["is_self"])
+            top.append(user_entry)
+
+        return {"entries": top, "user_rank": user_rank}
+
+    return {
+        "challenge_type": challenge_type,
+        "daily": _build_board(day_start),
+        "weekly": _build_board(week_start),
+    }
+
+
 # ---------- Admin endpoints ----------
 
 
@@ -355,7 +527,9 @@ def admin_list_sessions(
     admin=Depends(require_admin),
 ):
     """List all challenge sessions (admin only)."""
-    q = db.query(ChallengeSession, User.username).join(
+    q = db.query(ChallengeSession, User.username).options(
+        defer(ChallengeSession.extra_data)
+    ).join(
         User, User.id == ChallengeSession.user_id
     )
     if challenge_type:
@@ -426,12 +600,14 @@ def admin_get_config(
             row = saved[ctype]
             result[ctype] = {
                 "thresholds": row.thresholds,
+                "enabled": row.enabled,
                 "updated_at": row.updated_at.isoformat() if row.updated_at else None,
                 "is_custom": True,
             }
         else:
             result[ctype] = {
                 "thresholds": defaults,
+                "enabled": False,
                 "updated_at": None,
                 "is_custom": False,
             }
@@ -458,11 +634,12 @@ def admin_update_config(
         row = ChallengeConfig(
             challenge_type=challenge_type,
             thresholds=body.thresholds,
+            enabled=False,
         )
         db.add(row)
     db.commit()
     db.refresh(row)
-    return {"challenge_type": row.challenge_type, "thresholds": row.thresholds, "updated_at": row.updated_at.isoformat()}
+    return {"challenge_type": row.challenge_type, "thresholds": row.thresholds, "enabled": row.enabled, "updated_at": row.updated_at.isoformat()}
 
 
 @router.post("/admin/config/{challenge_type}/reset")
@@ -471,7 +648,7 @@ def admin_reset_config(
     db: Session = Depends(get_db),
     admin=Depends(require_admin),
 ):
-    """Delete config row to revert to defaults (admin only)."""
+    """Reset thresholds to defaults, preserving the enabled flag (admin only)."""
     if challenge_type not in CHALLENGE_DEFAULTS:
         raise HTTPException(status_code=400, detail=f"Invalid challenge type. Must be one of: {list(CHALLENGE_DEFAULTS.keys())}")
 
@@ -479,6 +656,34 @@ def admin_reset_config(
         ChallengeConfig.challenge_type == challenge_type
     ).first()
     if row:
-        db.delete(row)
+        row.thresholds = CHALLENGE_DEFAULTS[challenge_type]
         db.commit()
-    return {"challenge_type": challenge_type, "thresholds": CHALLENGE_DEFAULTS[challenge_type], "is_custom": False}
+        db.refresh(row)
+    return {"challenge_type": challenge_type, "thresholds": CHALLENGE_DEFAULTS[challenge_type], "enabled": row.enabled if row else False, "is_custom": False}
+
+
+@router.patch("/admin/config/{challenge_type}/toggle-enabled")
+def admin_toggle_enabled(
+    challenge_type: str,
+    db: Session = Depends(get_db),
+    admin=Depends(require_admin),
+):
+    """Toggle the enabled flag for a challenge type (admin only)."""
+    if challenge_type not in CHALLENGE_DEFAULTS:
+        raise HTTPException(status_code=400, detail=f"Invalid challenge type. Must be one of: {list(CHALLENGE_DEFAULTS.keys())}")
+
+    row = db.query(ChallengeConfig).filter(
+        ChallengeConfig.challenge_type == challenge_type
+    ).first()
+    if not row:
+        row = ChallengeConfig(
+            challenge_type=challenge_type,
+            thresholds=CHALLENGE_DEFAULTS[challenge_type],
+            enabled=True,
+        )
+        db.add(row)
+    else:
+        row.enabled = not row.enabled
+    db.commit()
+    db.refresh(row)
+    return {"challenge_type": row.challenge_type, "enabled": row.enabled}

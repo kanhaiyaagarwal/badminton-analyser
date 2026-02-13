@@ -25,9 +25,20 @@
             placeholder="Your password"
             required
           />
+          <router-link
+            :to="{ path: '/forgot-password', query: $route.query }"
+            class="forgot-link"
+          >Forgot password?</router-link>
         </div>
 
-        <div v-if="error" class="error-message">{{ error }}</div>
+        <div v-if="error" class="error-message">
+          {{ error }}
+          <router-link
+            v-if="isLocked"
+            :to="{ path: '/forgot-password', query: $route.query }"
+            class="reset-link"
+          >Reset Password</router-link>
+        </div>
 
         <button type="submit" class="btn-primary" :disabled="loading">
           {{ loading ? 'Logging in...' : 'Login' }}
@@ -36,7 +47,7 @@
 
       <p class="auth-switch">
         Don't have an account?
-        <router-link to="/signup">Sign up</router-link>
+        <router-link :to="{ path: '/signup', query: $route.query }">Sign up</router-link>
       </p>
     </div>
   </div>
@@ -44,26 +55,45 @@
 
 <script setup>
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 
 const email = ref('')
 const password = ref('')
 const loading = ref(false)
 const error = ref('')
+const isLocked = ref(false)
 
 async function handleLogin() {
   loading.value = true
   error.value = ''
+  isLocked.value = false
 
   try {
     await authStore.login(email.value, password.value)
-    router.push('/dashboard')
+    const redirect = route.query.redirect
+    if (redirect) {
+      router.push(redirect)
+    } else if (authStore.user?.is_admin) {
+      router.push('/hub')
+    } else if (route.query.new === '1') {
+      router.push('/challenges/pushup/session')
+    } else {
+      router.push('/challenges/pushup')
+    }
   } catch (err) {
-    error.value = err.response?.data?.detail || 'Login failed. Please try again.'
+    const status = err.response?.status
+    const detail = err.response?.data?.detail || ''
+    if (status === 403 && detail.includes('Account locked')) {
+      isLocked.value = true
+      error.value = detail
+    } else {
+      error.value = detail || 'Login failed. Please try again.'
+    }
   } finally {
     loading.value = false
   }
@@ -125,6 +155,19 @@ input:focus {
   border-color: #4ecca3;
 }
 
+.forgot-link {
+  display: block;
+  text-align: right;
+  margin-top: 0.5rem;
+  color: #888;
+  font-size: 0.85rem;
+  text-decoration: none;
+}
+
+.forgot-link:hover {
+  color: #4ecca3;
+}
+
 .btn-primary {
   width: 100%;
   padding: 1rem;
@@ -154,6 +197,14 @@ input:focus {
   border-radius: 8px;
   margin-bottom: 1rem;
   font-size: 0.9rem;
+}
+
+.reset-link {
+  display: block;
+  margin-top: 0.5rem;
+  color: #4ecca3;
+  font-weight: bold;
+  text-decoration: underline;
 }
 
 .auth-switch {

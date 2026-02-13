@@ -181,6 +181,59 @@ If you didn't create an account, you can safely ignore this email.
 
         return self.provider.send_email(to_email, subject, body_html, body_text)
 
+    def send_password_reset_email(self, to_email: str, otp_code: str, username: str) -> bool:
+        """Send password reset OTP email."""
+        subject = "Reset your password - Badminton Analyzer"
+
+        body_html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .header {{ background: #4ecca3; color: #1a1a2e; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }}
+                .content {{ background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }}
+                .otp-code {{ font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #4ecca3; text-align: center; padding: 20px; background: #1a1a2e; border-radius: 8px; margin: 20px 0; }}
+                .footer {{ text-align: center; margin-top: 20px; color: #888; font-size: 12px; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>Badminton Analyzer</h1>
+                </div>
+                <div class="content">
+                    <p>Hi {username},</p>
+                    <p>We received a request to reset your password. Use the following code to set a new password:</p>
+                    <div class="otp-code">{otp_code}</div>
+                    <p>This code will expire in {settings.otp_expire_minutes} minutes.</p>
+                    <p>If you didn't request a password reset, you can safely ignore this email.</p>
+                </div>
+                <div class="footer">
+                    <p>&copy; Badminton Analyzer. All rights reserved.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+
+        body_text = f"""
+Hi {username},
+
+We received a request to reset your password. Use the following code to set a new password:
+
+{otp_code}
+
+This code will expire in {settings.otp_expire_minutes} minutes.
+
+If you didn't request a password reset, you can safely ignore this email.
+
+- Badminton Analyzer Team
+        """
+
+        return self.provider.send_email(to_email, subject, body_html, body_text)
+
 
 # Singleton instance
 _email_service: Optional[EmailService] = None

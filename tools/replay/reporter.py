@@ -33,6 +33,22 @@ class ResultReporter:
         else:
             print("  (No final report received)")
 
+        # Challenge-specific: show last known state from results
+        if s.config.feature == "challenge" and s.results:
+            last = s.results[-1]
+            print("\n--- Challenge Result ---")
+            print(f"  Challenge type: {last.get('challenge_type', '?')}")
+            print(f"  Reps:           {last.get('reps', 0)}")
+            print(f"  Hold seconds:   {last.get('hold_seconds', 0)}")
+            print(f"  Auto-ended:     {last.get('auto_end', False)}")
+            if last.get("end_reason"):
+                print(f"  End reason:     {last['end_reason']}")
+            print(f"  Form feedback:  {last.get('form_feedback', '')}")
+            ex = last.get("exercise", {})
+            if ex:
+                for k, v in ex.items():
+                    print(f"  {k}: {v}")
+
     def save_json(self, path: str):
         s = self.sender
         data = {

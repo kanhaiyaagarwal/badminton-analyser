@@ -2,10 +2,12 @@
   <div id="app">
     <nav v-if="authStore.isAuthenticated && !isLandingPage" class="navbar">
       <div class="nav-brand">
-        <router-link to="/hub">🏸 vision.neymo.ai</router-link>
+        <router-link :to="isAdmin ? '/hub' : '/challenges'">
+          {{ isAdmin ? '🏸 vision.neymo.ai' : 'Challenges' }}
+        </router-link>
       </div>
       <div class="nav-links">
-        <router-link to="/hub">Home</router-link>
+        <router-link v-if="isAdmin" to="/hub">Home</router-link>
         <router-link v-if="isAdmin" to="/admin" class="nav-admin">Admin</router-link>
         <span class="user-info">{{ authStore.user?.username }}</span>
         <button @click="logout" class="btn-logout">Logout</button>
@@ -142,5 +144,19 @@ const logout = () => {
 .main-content.full-width {
   padding: 0;
   max-width: 100%;
+}
+
+@media (max-width: 640px) {
+  .navbar {
+    padding: 0.75rem 1rem;
+  }
+
+  .user-info {
+    display: none;
+  }
+
+  .main-content {
+    padding: 1rem;
+  }
 }
 </style>

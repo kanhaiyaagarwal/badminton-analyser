@@ -76,3 +76,27 @@ class ResendOTPResponse(BaseModel):
     success: bool
     message: str
     cooldown_seconds: int = 0
+
+
+class ForgotPasswordRequest(BaseModel):
+    """Schema for forgot password request."""
+    email: EmailStr
+
+
+class ForgotPasswordResponse(BaseModel):
+    """Schema for forgot password response."""
+    success: bool
+    message: str
+
+
+class ResetPasswordRequest(BaseModel):
+    """Schema for reset password request."""
+    email: EmailStr
+    code: str = Field(..., min_length=6, max_length=6)
+    new_password: str = Field(..., min_length=8, max_length=100)
+
+
+class ResetPasswordResponse(BaseModel):
+    """Schema for reset password response."""
+    success: bool
+    message: str

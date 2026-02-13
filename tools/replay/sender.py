@@ -26,6 +26,7 @@ class FrameSender:
         self.frames_sent = 0
         self.start_time = 0.0
         self.end_time = 0.0
+        self._auto_ended = asyncio.Event()  # server signalled session over
 
     async def run(self, reader: VideoFrameReader):
         # REST setup
@@ -54,11 +55,19 @@ class FrameSender:
             )
 
             for b64, ts, w, h, idx in frame_gen:
+                # Stop sending if server signalled auto-end (collapse, time limit, etc.)
+                if self._auto_ended.is_set():
+                    last = self.results[-1] if self.results else {}
+                    reason = last.get("end_reason", "auto_end")
+                    logger.info(f"Server auto-ended session: {reason} — stopping send loop")
+                    break
+
                 msg = self.protocol.make_frame_message(b64, ts, w, h)
                 await ws.send(msg)
                 self.frames_sent += 1
 
-                if self.config.verbose and self.frames_sent % 30 == 0:
+                log_interval = 10 if self.config.feature == "challenge" else 30
+                if self.config.verbose and self.frames_sent % log_interval == 0:
                     pct = (
                         f"{idx / reader.total_frames * 100:.0f}%"
                         if reader.total_frames > 0
@@ -78,11 +87,11 @@ class FrameSender:
                     delay = 1.0 / self.config.fps / self.config.playback_speed
                     await asyncio.sleep(delay)
 
-            # REST end-session BEFORE WS end — saves recording while session
-            # is still STREAMING (the WS end_stream sets status to ENDED).
+            # REST end-session — saves recording (badminton) or persists score (challenges)
             rest_report = None
-            if self.config.record:
-                logger.info("Ending session via REST (saves recording)...")
+            should_end_rest = self.config.record or self.config.feature == "challenge"
+            if should_end_rest:
+                logger.info("Ending session via REST...")
                 try:
                     rest_report = self.protocol.end_session(self.client, session_id)
                 except Exception as e:
@@ -122,6 +131,12 @@ class FrameSender:
 
                 if msg_type in ("analysis_result", "challenge_update"):
                     self.results.append(msg)
+                    # Check if challenge auto-ended (collapse, time limit, etc.)
+                    if msg_type == "challenge_update" and msg.get("auto_end"):
+                        reason = msg.get("end_reason", "unknown")
+                        reps = msg.get("reps", 0)
+                        logger.info(f"Challenge auto-ended: {reason} (reps={reps})")
+                        self._auto_ended.set()
                 elif msg_type == self.protocol.END_RESPONSE_TYPE:
                     self.final_report = msg.get("report", {})
                     done_event.set()

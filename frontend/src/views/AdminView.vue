@@ -271,7 +271,15 @@
 
         <div v-else class="config-grid">
           <div v-for="(cfg, ctype) in challengeConfig" :key="ctype" class="config-card">
-            <h3>{{ ctype }}</h3>
+            <div class="config-card-header">
+              <h3>{{ ctype }}</h3>
+              <button
+                :class="['enabled-pill', cfg.enabled ? 'enabled' : 'disabled']"
+                @click="toggleChallengeEnabled(ctype)"
+              >
+                {{ cfg.enabled ? 'Enabled' : 'Disabled' }}
+              </button>
+            </div>
             <div v-for="(val, key) in cfg.thresholds" :key="key" class="config-field">
               <label>{{ formatThresholdLabel(key) }}</label>
               <input
@@ -618,6 +626,15 @@ async function resetChallengeConfig(ctype) {
     await loadChallengeConfig()
   } catch (err) {
     console.error('Failed to reset challenge config:', err)
+  }
+}
+
+async function toggleChallengeEnabled(ctype) {
+  try {
+    await api.patch(`/api/v1/challenges/admin/config/${ctype}/toggle-enabled`)
+    await loadChallengeConfig()
+  } catch (err) {
+    console.error('Failed to toggle challenge enabled:', err)
   }
 }
 
@@ -975,10 +992,45 @@ select {
   padding: 1.25rem;
 }
 
+.config-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
 .config-card h3 {
   color: #4ecca3;
-  margin: 0 0 1rem 0;
+  margin: 0;
   text-transform: capitalize;
+}
+
+.enabled-pill {
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.enabled-pill.enabled {
+  background: rgba(78, 204, 163, 0.2);
+  color: #4ecca3;
+}
+
+.enabled-pill.enabled:hover {
+  background: rgba(78, 204, 163, 0.35);
+}
+
+.enabled-pill.disabled {
+  background: rgba(136, 136, 136, 0.2);
+  color: #888;
+}
+
+.enabled-pill.disabled:hover {
+  background: rgba(136, 136, 136, 0.35);
 }
 
 .config-field {

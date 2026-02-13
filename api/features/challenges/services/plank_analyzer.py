@@ -21,14 +21,19 @@ class PlankAnalyzer(RepCounterAnalyzer):
     The angle formed by (shoulder, hip, ankle) should be close to 180
     degrees when in a proper plank.  If the angle drops below the
     threshold the hold timer pauses and form feedback is given.
+
+    Auto-end triggers:
+    - max_duration (default 5 min)
+    - inactivity_timeout: user breaks plank form for 10s
     """
 
     def __init__(self, config=None):
-        super().__init__(challenge_type="plank")
+        super().__init__(challenge_type="plank", config=config)
         cfg = config or {}
         self.good_angle_min = cfg.get("good_angle_min", 150)
         self.good_angle_max = cfg.get("good_angle_max", 195)
         self._in_plank = False
+        self._ready = False  # require user to get into plank first
 
     def _process_pose(self, landmarks: list, timestamp: float) -> Dict:
         # Use the side with better visibility
@@ -54,8 +59,29 @@ class PlankAnalyzer(RepCounterAnalyzer):
 
         angle = PoseDetector.angle_between(shoulder, hip, ankle)
 
+        # Horizontal check (same concept as pushup)
+        shoulder_y = (landmarks[L_SHOULDER]["ny"] + landmarks[R_SHOULDER]["ny"]) / 2
+        hip_y = (landmarks[L_HIP]["ny"] + landmarks[R_HIP]["ny"]) / 2
+        ankle_y = (landmarks[L_ANKLE]["ny"] + landmarks[R_ANKLE]["ny"]) / 2
+        y_spread = max(shoulder_y, hip_y, ankle_y) - min(shoulder_y, hip_y, ankle_y)
+        is_horizontal = y_spread < 0.25
+
         good_form = self.good_angle_min <= angle <= self.good_angle_max
 
+        # Ready gate: latch on once user gets into plank
+        if not self._ready:
+            if is_horizontal and good_form:
+                self._ready = True
+                self.form_feedback = "Plank detected — hold it!"
+                self.mark_active(timestamp)
+            else:
+                self.form_feedback = "Get into plank position"
+                return {
+                    "angle": round(angle, 1),
+                    "in_plank": False,
+                }
+
+        # Hold time tracking
         if good_form:
             if self._last_timestamp > 0:
                 dt = timestamp - self._last_timestamp
@@ -63,6 +89,7 @@ class PlankAnalyzer(RepCounterAnalyzer):
                     self.hold_seconds += dt
             self._in_plank = True
             self.form_feedback = "Good plank form!"
+            self.mark_active(timestamp)
         else:
             self._in_plank = False
             if angle < self.good_angle_min:

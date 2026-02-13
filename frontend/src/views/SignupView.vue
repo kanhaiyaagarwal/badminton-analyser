@@ -18,18 +18,6 @@
         </div>
 
         <div class="form-group">
-          <label for="username">Username</label>
-          <input
-            id="username"
-            v-model="username"
-            type="text"
-            placeholder="Choose a username"
-            minlength="3"
-            required
-          />
-        </div>
-
-        <div class="form-group">
           <label for="password">Password</label>
           <input
             id="password"
@@ -73,7 +61,7 @@
 
       <p class="auth-switch">
         Already have an account?
-        <router-link to="/login">Login</router-link>
+        <router-link :to="{ path: '/login', query: $route.query }">Login</router-link>
       </p>
 
       <div class="waitlist-section">
@@ -180,16 +168,16 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import api from '../api/client'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 
 // Step 1: Signup form
 const email = ref('')
-const username = ref('')
 const password = ref('')
 const confirmPassword = ref('')
 const inviteCode = ref('')
@@ -259,7 +247,8 @@ async function handleSignup() {
   loading.value = true
 
   try {
-    const response = await authStore.signup(email.value, username.value, password.value, inviteCode.value)
+    const username = email.value.split('@')[0]
+    const response = await authStore.signup(email.value, username, password.value, inviteCode.value)
 
     if (response.requires_verification) {
       // Show OTP verification step
@@ -270,7 +259,8 @@ async function handleSignup() {
     } else {
       // Email verification disabled - redirect to login
       success.value = response.message || 'Account created! Redirecting to login...'
-      setTimeout(() => router.push('/login'), 1500)
+      const loginQuery = route.query.redirect ? { redirect: route.query.redirect } : {}
+      setTimeout(() => router.push({ path: '/login', query: loginQuery }), 1500)
     }
   } catch (err) {
     error.value = err.response?.data?.detail || 'Signup failed. Please try again.'
@@ -288,7 +278,8 @@ async function handleVerifyOtp() {
     const response = await authStore.verifyEmail(pendingUserId.value, otpCode.value)
     if (response.success) {
       otpSuccess.value = 'Email verified! Redirecting to login...'
-      setTimeout(() => router.push('/login'), 1500)
+      const loginQuery = route.query.redirect ? { redirect: route.query.redirect } : { new: '1' }
+      setTimeout(() => router.push({ path: '/login', query: loginQuery }), 1500)
     } else {
       otpError.value = response.message
     }

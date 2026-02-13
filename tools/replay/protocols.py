@@ -92,7 +92,10 @@ class ChallengeProtocol:
         reader: VideoFrameReader,
     ) -> int:
         """Create challenge session via REST; return session_id."""
-        return client.create_challenge_session()
+        session_id = client.create_challenge_session()
+        if config.record:
+            client.start_challenge_recording(session_id)
+        return session_id
 
     @staticmethod
     def end_session(client: AuthenticatedClient, session_id: int) -> dict:
@@ -104,7 +107,25 @@ class ChallengeProtocol:
         """Pull key metrics from a challenge_update for progress logging."""
         reps = result.get("reps", result.get("rep_count", "?"))
         hold = result.get("hold_seconds", "?")
-        return f"reps={reps} hold={hold}s"
+        detected = result.get("player_detected", False)
+        ready = result.get("ready", False)
+        feedback = result.get("form_feedback", "")
+        ex = result.get("exercise", {})
+        angle = ex.get("angle", "?")
+        state = ex.get("state", ex.get("in_plank", "?"))
+
+        parts = [f"reps={reps}"]
+        if hold and hold != "?" and float(hold) > 0:
+            parts.append(f"hold={hold}s")
+        parts.append(f"pose={'Y' if detected else 'N'}")
+        parts.append(f"ready={'Y' if ready else 'N'}")
+        if angle != "?":
+            parts.append(f"angle={angle}")
+        if state != "?":
+            parts.append(f"state={state}")
+        if feedback:
+            parts.append(f"fb=\"{feedback}\"")
+        return " ".join(parts)
 
 
 def get_protocol(feature: str):

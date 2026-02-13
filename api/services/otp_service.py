@@ -23,11 +23,12 @@ class OTPService:
         return "".join(secrets.choice("0123456789") for _ in range(6))
 
     @staticmethod
-    def create_otp(db: Session, user: User) -> EmailOTP:
-        """Create a new OTP for a user, invalidating any existing ones."""
-        # Invalidate existing unverified OTPs for this user
+    def create_otp(db: Session, user: User, purpose: str = "verify") -> EmailOTP:
+        """Create a new OTP for a user, invalidating any existing ones with the same purpose."""
+        # Invalidate existing unverified OTPs for this user and purpose
         db.query(EmailOTP).filter(
             EmailOTP.user_id == user.id,
+            EmailOTP.purpose == purpose,
             EmailOTP.verified_at.is_(None)
         ).delete()
 
@@ -35,6 +36,7 @@ class OTPService:
         otp = EmailOTP(
             user_id=user.id,
             code=OTPService.generate_otp_code(),
+            purpose=purpose,
             expires_at=datetime.utcnow() + timedelta(minutes=settings.otp_expire_minutes)
         )
         db.add(otp)
@@ -45,27 +47,28 @@ class OTPService:
     @staticmethod
     def send_otp(db: Session, user: User) -> bool:
         """Generate OTP and send via email. Returns True on success."""
-        otp = OTPService.create_otp(db, user)
+        otp = OTPService.create_otp(db, user, purpose="verify")
         email_service = get_email_service()
         return email_service.send_otp_email(user.email, otp.code, user.username)
 
     @staticmethod
-    def get_latest_otp(db: Session, user_id: int) -> Optional[EmailOTP]:
-        """Get the latest unverified OTP for a user."""
+    def get_latest_otp(db: Session, user_id: int, purpose: str = "verify") -> Optional[EmailOTP]:
+        """Get the latest unverified OTP for a user with the given purpose."""
         return db.query(EmailOTP).filter(
             EmailOTP.user_id == user_id,
+            EmailOTP.purpose == purpose,
             EmailOTP.verified_at.is_(None)
         ).order_by(EmailOTP.created_at.desc()).first()
 
     @staticmethod
     def verify_otp(db: Session, user_id: int, code: str) -> Tuple[bool, str, Optional[int]]:
         """
-        Verify an OTP code.
+        Verify an OTP code (email verification purpose).
 
         Returns:
             Tuple of (success, message, remaining_attempts or None)
         """
-        otp = OTPService.get_latest_otp(db, user_id)
+        otp = OTPService.get_latest_otp(db, user_id, purpose="verify")
 
         if not otp:
             return False, "No OTP found. Please request a new one.", None
@@ -101,14 +104,14 @@ class OTPService:
         return True, "Email verified successfully.", None
 
     @staticmethod
-    def can_resend_otp(db: Session, user_id: int) -> Tuple[bool, int]:
+    def can_resend_otp(db: Session, user_id: int, purpose: str = "verify") -> Tuple[bool, int]:
         """
         Check if user can request a new OTP.
 
         Returns:
             Tuple of (can_resend, seconds_until_can_resend)
         """
-        otp = OTPService.get_latest_otp(db, user_id)
+        otp = OTPService.get_latest_otp(db, user_id, purpose=purpose)
 
         if not otp:
             return True, 0
@@ -139,3 +142,43 @@ class OTPService:
         if success:
             return True, "A new verification code has been sent to your email.", 0
         return False, "Failed to send verification email. Please try again.", 0
+
+    @staticmethod
+    def send_password_reset_otp(db: Session, user: User) -> bool:
+        """Generate password reset OTP and send via email. Returns True on success."""
+        otp = OTPService.create_otp(db, user, purpose="reset")
+        email_service = get_email_service()
+        return email_service.send_password_reset_email(user.email, otp.code, user.username)
+
+    @staticmethod
+    def verify_password_reset_otp(db: Session, user_id: int, code: str) -> Tuple[bool, str, Optional[int]]:
+        """
+        Verify a password reset OTP code. Does NOT mark email as verified.
+
+        Returns:
+            Tuple of (success, message, remaining_attempts or None)
+        """
+        otp = OTPService.get_latest_otp(db, user_id, purpose="reset")
+
+        if not otp:
+            return False, "No reset code found. Please request a new one.", None
+
+        if datetime.utcnow() > otp.expires_at:
+            return False, "Reset code has expired. Please request a new one.", None
+
+        if otp.attempts >= settings.otp_max_attempts:
+            return False, "Maximum attempts exceeded. Please request a new reset code.", None
+
+        if otp.code != code:
+            otp.attempts += 1
+            db.commit()
+            remaining = settings.otp_max_attempts - otp.attempts
+            if remaining <= 0:
+                return False, "Maximum attempts exceeded. Please request a new reset code.", 0
+            return False, f"Invalid reset code. {remaining} attempt(s) remaining.", remaining
+
+        # Success - mark as verified (but don't touch email_verified)
+        otp.verified_at = datetime.utcnow()
+        db.commit()
+
+        return True, "Code verified successfully.", None

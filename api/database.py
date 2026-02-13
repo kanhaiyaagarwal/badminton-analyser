@@ -35,7 +35,11 @@ def init_db():
     """Initialize database tables."""
     Base.metadata.create_all(bind=engine)
     _migrate_stream_session_post_analysis()
+    _migrate_challenge_config_enabled()
+    _migrate_user_lockout()
+    _migrate_otp_purpose()
     seed_default_tuning_data()
+    seed_challenge_defaults()
 
 
 def _migrate_stream_session_post_analysis():
@@ -75,6 +79,97 @@ def _migrate_stream_session_post_analysis():
                     logger.info(f"Added column stream_sessions.{col_name}")
     except Exception as e:
         logger.debug(f"stream_sessions migration skipped: {e}")
+
+
+def _migrate_challenge_config_enabled():
+    """Add 'enabled' column to challenge_configs if missing."""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    from sqlalchemy import text, inspect
+    try:
+        inspector = inspect(engine)
+        existing = {c["name"] for c in inspector.get_columns("challenge_configs")}
+        if "enabled" not in existing:
+            with engine.begin() as conn:
+                conn.execute(text(
+                    "ALTER TABLE challenge_configs ADD COLUMN enabled BOOLEAN DEFAULT 0 NOT NULL"
+                ))
+                logger.info("Added column challenge_configs.enabled")
+    except Exception as e:
+        logger.debug(f"challenge_configs migration skipped: {e}")
+
+
+def _migrate_user_lockout():
+    """Add lockout columns to users table if missing."""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    from sqlalchemy import text, inspect
+    try:
+        inspector = inspect(engine)
+        existing = {c["name"] for c in inspector.get_columns("users")}
+        with engine.begin() as conn:
+            if "failed_login_attempts" not in existing:
+                conn.execute(text(
+                    "ALTER TABLE users ADD COLUMN failed_login_attempts INTEGER DEFAULT 0"
+                ))
+                logger.info("Added column users.failed_login_attempts")
+            if "locked_until" not in existing:
+                conn.execute(text(
+                    "ALTER TABLE users ADD COLUMN locked_until DATETIME"
+                ))
+                logger.info("Added column users.locked_until")
+    except Exception as e:
+        logger.debug(f"users lockout migration skipped: {e}")
+
+
+def _migrate_otp_purpose():
+    """Add purpose column to email_otps table if missing."""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    from sqlalchemy import text, inspect
+    try:
+        inspector = inspect(engine)
+        existing = {c["name"] for c in inspector.get_columns("email_otps")}
+        if "purpose" not in existing:
+            with engine.begin() as conn:
+                conn.execute(text(
+                    "ALTER TABLE email_otps ADD COLUMN purpose VARCHAR(20) DEFAULT 'verify'"
+                ))
+                logger.info("Added column email_otps.purpose")
+    except Exception as e:
+        logger.debug(f"email_otps purpose migration skipped: {e}")
+
+
+def seed_challenge_defaults():
+    """Ensure ChallengeConfig rows exist for all challenge types with defaults."""
+    from .features.challenges.db_models.challenge import ChallengeConfig
+    from .features.challenges.services.rep_counter import CHALLENGE_DEFAULTS
+    import logging
+
+    logger = logging.getLogger(__name__)
+    db = SessionLocal()
+    try:
+        for ctype, defaults in CHALLENGE_DEFAULTS.items():
+            existing = db.query(ChallengeConfig).filter(
+                ChallengeConfig.challenge_type == ctype
+            ).first()
+            if not existing:
+                row = ChallengeConfig(
+                    challenge_type=ctype,
+                    thresholds=defaults,
+                    enabled=(ctype == "pushup"),
+                )
+                db.add(row)
+                logger.info(f"Seeded challenge config for {ctype} (enabled={ctype == 'pushup'})")
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.warning(f"Failed to seed challenge defaults: {e}")
+    finally:
+        db.close()
 
 
 def seed_default_tuning_data():

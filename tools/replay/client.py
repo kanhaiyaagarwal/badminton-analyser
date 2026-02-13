@@ -102,6 +102,14 @@ class AuthenticatedClient:
         logger.info(f"Created challenge session {session_id} ({self.config.challenge_type})")
         return session_id
 
+    def start_challenge_recording(self, session_id: int):
+        """POST /api/v1/challenges/sessions/{id}/recording/start."""
+        resp = self.session.post(
+            self._url(f"/api/v1/challenges/sessions/{session_id}/recording/start"),
+        )
+        resp.raise_for_status()
+        logger.info(f"Challenge recording started for session {session_id}")
+
     def end_challenge_session(self, session_id: int) -> dict:
         """POST /api/v1/challenges/sessions/{id}/end — persists score + personal best."""
         resp = self.session.post(

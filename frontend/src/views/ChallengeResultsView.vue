@@ -1,7 +1,7 @@
 <template>
   <div class="challenge-results">
     <div class="results-header">
-      <router-link to="/challenges" class="back-link">&larr; Back to Challenges</router-link>
+      <router-link :to="backLink" class="back-link">&larr; Back to Challenge</router-link>
       <h1>Challenge Complete</h1>
     </div>
 
@@ -65,6 +65,7 @@ const TYPE_LABELS = {
   pushup: 'Max Pushups',
 }
 
+const backLink = computed(() => result.value?.challenge_type ? `/challenges/${result.value.challenge_type}` : '/challenges')
 const typeLabel = computed(() => TYPE_LABELS[result.value?.challenge_type] || 'Challenge')
 const scoreUnit = computed(() => result.value?.challenge_type === 'plank' ? 's' : 'reps')
 const isNewPB = computed(() => result.value && result.value.score === result.value.personal_best)
@@ -106,14 +107,27 @@ async function downloadRecording() {
   }
 }
 
-onMounted(() => {
-  // Try loading from sessionStorage (set by ChallengeSessionView)
+onMounted(async () => {
+  // Try loading from sessionStorage (set by ChallengeSessionView after live session)
   const stored = sessionStorage.getItem(`challenge_result_${sessionId.value}`)
   if (stored) {
     const data = JSON.parse(stored)
     result.value = data
     hasRecording.value = !!data.has_recording
     sessionStorage.removeItem(`challenge_result_${sessionId.value}`)
+    return
+  }
+
+  // Fallback: fetch from API (for history navigation)
+  try {
+    const response = await api.get('/api/v1/challenges/sessions')
+    const session = response.data.find(s => s.id === Number(sessionId.value))
+    if (session) {
+      result.value = session
+      hasRecording.value = !!session.has_recording
+    }
+  } catch (err) {
+    console.error('Failed to load session results:', err)
   }
 })
 </script>

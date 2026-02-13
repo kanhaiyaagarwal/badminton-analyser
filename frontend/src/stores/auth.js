@@ -83,6 +83,20 @@ export const useAuthStore = defineStore('auth', () => {
     pendingVerification.value = null
   }
 
+  async function forgotPassword(email) {
+    const response = await api.post('/api/v1/auth/forgot-password', { email })
+    return response.data
+  }
+
+  async function resetPassword(email, code, newPassword) {
+    const response = await api.post('/api/v1/auth/reset-password', {
+      email,
+      code,
+      new_password: newPassword
+    })
+    return response.data
+  }
+
   async function fetchUser() {
     if (!accessToken.value) return null
 
@@ -168,6 +182,8 @@ export const useAuthStore = defineStore('auth', () => {
     verifyEmail,
     resendOTP,
     clearPendingVerification,
+    forgotPassword,
+    resetPassword,
     fetchUser,
     refreshAccessToken,
     ensureValidToken,
