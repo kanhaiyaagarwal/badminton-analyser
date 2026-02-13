@@ -28,6 +28,8 @@ class ChallengeSession(Base):
     recording_s3_key = Column(String(512), nullable=True)
     recording_local_path = Column(String(512), nullable=True)
     is_recording = Column(Boolean, default=False)
+    screenshots_s3_prefix = Column(String(512), nullable=True)
+    screenshot_count = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
     ended_at = Column(DateTime, nullable=True)
 

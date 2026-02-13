@@ -116,6 +116,20 @@ def _save_recording(frames: list, session: ChallengeSession, user_id: int):
         logger.error(f"Failed to create challenge recording: {e}")
 
 
+def _save_screenshots(screenshots: List[bytes], session: ChallengeSession, user_id: int):
+    """Save per-second annotated screenshots to S3."""
+    if not screenshots:
+        return
+    storage = get_storage_service()
+    prefix = f"challenges/{user_id}/challenge_{session.id}/screenshots/"
+    for i, jpg_bytes in enumerate(screenshots):
+        key = f"{prefix}{i:04d}.jpg"
+        storage.outputs.save(key, jpg_bytes, content_type="image/jpeg")
+    session.screenshots_s3_prefix = prefix
+    session.screenshot_count = len(screenshots)
+    logger.info(f"Saved {len(screenshots)} screenshots for session {session.id}")
+
+
 @router.get("/enabled")
 def get_enabled_challenges(db: Session = Depends(get_db)):
     """Return list of enabled challenge types (public, no auth required)."""
@@ -181,15 +195,23 @@ def end_challenge_session(
         raise HTTPException(status_code=404, detail="Session not found")
 
     gsm = get_generic_session_manager()
+    analyzer = gsm.get_session(session_id)
+
+    # Grab screenshots before ending session (end_session pops the analyzer)
+    screenshots = []
+    if analyzer:
+        screenshots = analyzer.get_screenshots()
 
     # Auto-save recording if still active
-    analyzer = gsm.get_session(session_id)
     if analyzer and getattr(analyzer, 'is_recording', False):
         frames = analyzer.stop_recording()
         _save_recording(frames, session, user.id)
         session.is_recording = False
 
     report = gsm.end_session(session_id) or {}
+
+    # Save per-second screenshots
+    _save_screenshots(screenshots, session, user.id)
 
     session.status = ChallengeStatus.ENDED
     session.ended_at = datetime.utcnow()
@@ -551,6 +573,8 @@ def admin_list_sessions(
             duration_seconds=session.duration_seconds,
             has_pose_data=bool(extra.get("frame_timeline")),
             has_recording=_has_recording(session),
+            has_screenshots=bool(session.screenshots_s3_prefix),
+            screenshot_count=session.screenshot_count or 0,
             created_at=session.created_at,
             ended_at=session.ended_at,
         ))
@@ -583,6 +607,65 @@ def admin_get_pose_data(
         "frame_count": len(timeline),
         "frame_timeline": timeline,
     })
+
+
+@router.get("/admin/sessions/{session_id}/screenshots")
+def admin_list_screenshots(
+    session_id: int,
+    db: Session = Depends(get_db),
+    admin=Depends(require_admin),
+):
+    """List screenshot URLs for a session (admin only)."""
+    session = db.query(ChallengeSession).filter(
+        ChallengeSession.id == session_id
+    ).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if not session.screenshots_s3_prefix or not session.screenshot_count:
+        return {"count": 0, "urls": []}
+
+    storage = get_storage_service()
+    urls = []
+    for i in range(session.screenshot_count):
+        key = f"{session.screenshots_s3_prefix}{i:04d}.jpg"
+        urls.append(storage.outputs.get_url(key))
+
+    return {"count": session.screenshot_count, "urls": urls}
+
+
+@router.get("/admin/sessions/{session_id}/screenshots/{index}")
+def admin_get_screenshot(
+    session_id: int,
+    index: int,
+    db: Session = Depends(get_db),
+    admin=Depends(require_admin),
+):
+    """Download a single screenshot by index (admin only)."""
+    session = db.query(ChallengeSession).filter(
+        ChallengeSession.id == session_id
+    ).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if not session.screenshots_s3_prefix or not session.screenshot_count:
+        raise HTTPException(status_code=404, detail="No screenshots available")
+
+    if index < 0 or index >= session.screenshot_count:
+        raise HTTPException(status_code=404, detail=f"Screenshot index out of range (0-{session.screenshot_count - 1})")
+
+    storage = get_storage_service()
+    key = f"{session.screenshots_s3_prefix}{index:04d}.jpg"
+    try:
+        data = storage.outputs.load(key)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Screenshot not found in storage")
+
+    return Response(
+        content=data,
+        media_type="image/jpeg",
+        headers={"Content-Disposition": f'inline; filename="session_{session_id}_screenshot_{index:04d}.jpg"'},
+    )
 
 
 @router.get("/admin/config")

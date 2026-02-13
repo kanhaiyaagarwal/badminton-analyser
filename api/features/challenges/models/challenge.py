@@ -54,6 +54,8 @@ class AdminSessionResponse(BaseModel):
     duration_seconds: float
     has_pose_data: bool
     has_recording: bool
+    has_screenshots: bool = False
+    screenshot_count: int = 0
     created_at: datetime
     ended_at: Optional[datetime] = None
 

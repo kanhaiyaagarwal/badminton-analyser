@@ -60,6 +60,10 @@ class RepCounterAnalyzer(BaseStreamAnalyzer):
         self.is_recording = False
         self.recorded_frames: List[bytes] = []
 
+        # Per-second screenshots (always captured, for admin review)
+        self._screenshots: List[bytes] = []
+        self._last_screenshot_ts: float = -1.0
+
     def mark_active(self, timestamp: float):
         """Called by subclasses when the user is actively exercising."""
         self._last_active_ts = timestamp
@@ -106,6 +110,13 @@ class RepCounterAnalyzer(BaseStreamAnalyzer):
             annotated = self._draw_annotations(frame, pose_result, timestamp)
             _, buf = cv2.imencode('.jpg', annotated, [cv2.IMWRITE_JPEG_QUALITY, 90])
             self.recorded_frames.append(buf.tobytes())
+
+        # Capture 1 screenshot per second (always, regardless of recording)
+        if pose_result.player_detected and timestamp - self._last_screenshot_ts >= 1.0:
+            annotated = self._draw_annotations(frame, pose_result, timestamp)
+            _, buf = cv2.imencode('.jpg', annotated, [cv2.IMWRITE_JPEG_QUALITY, 80])
+            self._screenshots.append(buf.tobytes())
+            self._last_screenshot_ts = timestamp
 
         self._last_timestamp = timestamp
 
@@ -199,6 +210,8 @@ class RepCounterAnalyzer(BaseStreamAnalyzer):
         self._activity_started = False
         self._session_ended = False
         self._end_reason = ""
+        self._screenshots = []
+        self._last_screenshot_ts = -1.0
 
     def close(self):
         self.detector.close()
@@ -251,6 +264,9 @@ class RepCounterAnalyzer(BaseStreamAnalyzer):
         self.recorded_frames = []
         logger.info(f"Recording stopped: {len(frames)} frames captured")
         return frames
+
+    def get_screenshots(self) -> List[bytes]:
+        return self._screenshots
 
     def _draw_annotations(self, frame: np.ndarray, pose_result, timestamp: float) -> np.ndarray:
         """Draw skeleton overlay and HUD onto the frame."""

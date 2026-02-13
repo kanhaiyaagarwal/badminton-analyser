@@ -1,5 +1,11 @@
 <template>
   <div class="challenge-session">
+    <!-- Placement guide overlay (first-time users) -->
+    <div v-if="showPlacementGuide" class="placement-overlay" @click="dismissPlacementGuide">
+      <img src="/mobileplacement.png" alt="Phone placement guide" class="placement-img" />
+      <p class="placement-tap">Tap anywhere to continue</p>
+    </div>
+
     <!-- Setup phase -->
     <div v-if="phase === 'setup'" class="setup-phase">
       <router-link :to="`/challenges/${challengeType}`" class="back-link">&larr; Back</router-link>
@@ -135,6 +141,14 @@ const meta = computed(() => CHALLENGE_META[challengeType.value] || CHALLENGE_MET
 const challengeTitle = computed(() => meta.value.title)
 const challengeHint = computed(() => meta.value.hint)
 const scoreLabel = computed(() => meta.value.scoreLabel)
+
+// Placement guide
+const showPlacementGuide = ref(!localStorage.getItem('seen_placement_guide'))
+
+function dismissPlacementGuide() {
+  showPlacementGuide.value = false
+  localStorage.setItem('seen_placement_guide', '1')
+}
 
 // Camera state
 const cameras = ref([])
@@ -914,6 +928,33 @@ onUnmounted(() => {
 .rep-pop-leave-to {
   opacity: 0;
   transform: scale(1.5);
+}
+
+/* Placement guide overlay */
+.placement-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  cursor: pointer;
+}
+
+.placement-img {
+  max-width: 90vw;
+  max-height: 70vh;
+  object-fit: contain;
+  border-radius: 12px;
+}
+
+.placement-tap {
+  color: #888;
+  font-size: 0.95rem;
+  margin-top: 1.5rem;
+  animation: pulse-glow 2s ease-in-out infinite;
 }
 
 .connecting-overlay {

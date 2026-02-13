@@ -9,6 +9,12 @@ const routes = [
     meta: { guest: true }
   },
   {
+    path: '/landing-full',
+    name: 'LandingFull',
+    component: () => import('../views/LandingViewFull.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true }
+  },
+  {
     path: '/login',
     name: 'Login',
     component: () => import('../views/LoginView.vue'),

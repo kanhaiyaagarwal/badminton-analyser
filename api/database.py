@@ -36,6 +36,7 @@ def init_db():
     Base.metadata.create_all(bind=engine)
     _migrate_stream_session_post_analysis()
     _migrate_challenge_config_enabled()
+    _migrate_challenge_session_screenshots()
     _migrate_user_lockout()
     _migrate_otp_purpose()
     seed_default_tuning_data()
@@ -98,6 +99,31 @@ def _migrate_challenge_config_enabled():
                 logger.info("Added column challenge_configs.enabled")
     except Exception as e:
         logger.debug(f"challenge_configs migration skipped: {e}")
+
+
+def _migrate_challenge_session_screenshots():
+    """Add screenshot columns to challenge_sessions if missing."""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    new_columns = {
+        "screenshots_s3_prefix": "VARCHAR(512)",
+        "screenshot_count": "INTEGER DEFAULT 0",
+    }
+
+    from sqlalchemy import text, inspect
+    try:
+        inspector = inspect(engine)
+        existing = {c["name"] for c in inspector.get_columns("challenge_sessions")}
+        with engine.begin() as conn:
+            for col_name, col_type in new_columns.items():
+                if col_name not in existing:
+                    conn.execute(text(
+                        f"ALTER TABLE challenge_sessions ADD COLUMN {col_name} {col_type}"
+                    ))
+                    logger.info(f"Added column challenge_sessions.{col_name}")
+    except Exception as e:
+        logger.debug(f"challenge_sessions screenshot migration skipped: {e}")
 
 
 def _migrate_user_lockout():

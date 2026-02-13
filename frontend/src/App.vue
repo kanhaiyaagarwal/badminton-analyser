@@ -29,7 +29,7 @@ const router = useRouter()
 const route = useRoute()
 
 const isAdmin = computed(() => authStore.user?.is_admin)
-const isLandingPage = computed(() => route.name === 'Landing')
+const isLandingPage = computed(() => route.name === 'Landing' || route.name === 'LandingFull')
 const isAuthPage = computed(() => ['Login', 'Signup'].includes(route.name))
 
 const logout = () => {
@@ -149,6 +149,22 @@ const logout = () => {
 @media (max-width: 640px) {
   .navbar {
     padding: 0.75rem 1rem;
+  }
+
+  .nav-brand a {
+    font-size: 1.1rem;
+  }
+
+  .nav-links {
+    gap: 0.75rem;
+  }
+
+  .nav-links a {
+    padding: 0.4rem 0.6rem;
+  }
+
+  .btn-logout {
+    padding: 0.4rem 0.75rem;
   }
 
   .user-info {
