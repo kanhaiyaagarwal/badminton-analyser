@@ -407,6 +407,40 @@ async def websocket_challenge(
     except Exception as e:
         logger.error(f"Challenge session {session_id}: Error: {e}")
 
+    # ---- Cleanup: end session if still active (e.g. user pressed back) ----
+    try:
+        from .features.challenges.db_models.challenge import ChallengeSession as CS, ChallengeStatus
+        from .features.challenges.routers.challenges import _save_recording, _save_screenshots
+
+        db2 = SessionLocal()
+        try:
+            sess = db2.query(CS).filter(CS.id == session_id).first()
+            if sess and sess.status != ChallengeStatus.ENDED:
+                # Save recording if active
+                if analyzer and getattr(analyzer, 'is_recording', False):
+                    frames = analyzer.stop_recording()
+                    _save_recording(frames, sess, sess.user_id)
+                    sess.is_recording = False
+
+                # Save screenshots
+                screenshots = analyzer.get_screenshots() if analyzer else []
+
+                report = gsm.end_session(session_id) or {}
+
+                _save_screenshots(screenshots, sess, sess.user_id)
+
+                sess.status = ChallengeStatus.ENDED
+                sess.ended_at = datetime.utcnow()
+                sess.score = report.get("score", 0)
+                sess.duration_seconds = report.get("duration_seconds", 0.0)
+                sess.extra_data = report
+                db2.commit()
+                logger.info(f"Challenge session {session_id}: auto-ended on disconnect (score={sess.score})")
+        finally:
+            db2.close()
+    except Exception as cleanup_err:
+        logger.error(f"Challenge session {session_id}: cleanup error: {cleanup_err}")
+
 
 if __name__ == "__main__":
     import uvicorn

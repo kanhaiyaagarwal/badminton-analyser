@@ -168,7 +168,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useChallengesStore } from '../stores/challenges'
 import api from '../api/client'
@@ -619,6 +619,19 @@ function drawPose(poseData) {
 
 // ---------- Cleanup ----------
 
+/** End session + stop recording over WS before tearing down resources. */
+function gracefulEnd() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    // Stop recording first so backend saves the video
+    if (isRecording.value) {
+      try { api.post(`/api/v1/challenges/sessions/${sessionId.value}/recording/stop`) } catch {}
+      isRecording.value = false
+      hasRecording.value = true
+    }
+    ws.send(JSON.stringify({ type: 'end_session' }))
+  }
+}
+
 function cleanup() {
   stopFrameCapture()
   stopRecordingTimer()
@@ -634,12 +647,25 @@ function cleanup() {
   }
 }
 
+// Intercept back-button / any navigation away from an active session
+onBeforeRouteLeave((to, from, next) => {
+  if (phase.value === 'active' || phase.value === 'connecting') {
+    gracefulEnd()
+    cleanup()
+  }
+  next()
+})
+
 onMounted(() => {
   checkPlacementGuide()
   enumerateCameras()
 })
 
 onUnmounted(() => {
+  // Safety net — gracefulEnd + cleanup if component is destroyed without route change
+  if (phase.value === 'active' || phase.value === 'connecting') {
+    gracefulEnd()
+  }
   cleanup()
 })
 </script>

@@ -156,7 +156,10 @@ const weekly = computed(() => store.leaderboard?.weekly)
 const hasRank = computed(() => daily.value?.user_rank || weekly.value?.user_rank)
 
 const typeSessions = computed(() =>
-  store.sessions.filter(s => s.challenge_type === challengeType.value)
+  store.sessions
+    .filter(s => s.challenge_type === challengeType.value)
+    .slice()
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
 )
 
 function ordinal(n) {
@@ -182,7 +185,9 @@ function formatDuration(seconds) {
 
 function formatDate(dateString) {
   if (!dateString) return 'N/A'
-  return new Date(dateString).toLocaleDateString()
+  const d = new Date(dateString)
+  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) +
+    ', ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
 }
 
 function startSession() {
