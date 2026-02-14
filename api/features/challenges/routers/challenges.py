@@ -589,14 +589,16 @@ def get_leaderboard(
 # ---------- Admin endpoints ----------
 
 
-@router.get("/admin/sessions", response_model=List[AdminSessionResponse])
+@router.get("/admin/sessions")
 def admin_list_sessions(
     challenge_type: Optional[str] = Query(None),
     user_id: Optional[int] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
     admin=Depends(require_admin),
 ):
-    """List all challenge sessions (admin only)."""
+    """List all challenge sessions with pagination (admin only)."""
     q = db.query(ChallengeSession, User.username).options(
         defer(ChallengeSession.extra_data)
     ).join(
@@ -606,12 +608,14 @@ def admin_list_sessions(
         q = q.filter(ChallengeSession.challenge_type == challenge_type)
     if user_id:
         q = q.filter(ChallengeSession.user_id == user_id)
-    rows = q.order_by(ChallengeSession.created_at.desc()).limit(200).all()
 
-    results = []
+    total = q.count()
+    rows = q.order_by(ChallengeSession.created_at.desc()).offset(skip).limit(limit).all()
+
+    sessions = []
     for session, username in rows:
         extra = session.extra_data or {}
-        results.append(AdminSessionResponse(
+        sessions.append(AdminSessionResponse(
             id=session.id,
             user_id=session.user_id,
             username=username,
@@ -626,7 +630,7 @@ def admin_list_sessions(
             created_at=session.created_at,
             ended_at=session.ended_at,
         ))
-    return results
+    return {"sessions": sessions, "total": total, "skip": skip, "limit": limit}
 
 
 @router.get("/admin/sessions/{session_id}/pose-data")

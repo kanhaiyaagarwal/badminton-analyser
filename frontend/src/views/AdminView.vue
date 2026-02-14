@@ -3,7 +3,7 @@
     <div class="header">
       <div class="header-nav">
         <router-link to="/dashboard" class="back-link">Back to Dashboard</router-link>
-        <router-link to="/tuning" class="tuning-link">Tuning Dashboard</router-link>
+        <router-link to="/tuning" class="tuning-link">Badminton Tuning</router-link>
       </div>
       <h1>Admin Panel</h1>
     </div>
@@ -207,11 +207,11 @@
       </div>
 
       <!-- Challenges Tab -->
-      <div v-if="activeTab === 'challenges'" class="tab-content">
-        <!-- Sessions Browser -->
+      <!-- Sessions Tab -->
+      <div v-if="activeTab === 'sessions'" class="tab-content">
         <div class="section-header">
           <h2>Challenge Sessions</h2>
-          <select v-model="challengeTypeFilter" @change="loadChallengeSessions">
+          <select v-model="challengeTypeFilter" @change="challengePage = 0; loadChallengeSessions()">
             <option value="">All Types</option>
             <option value="plank">Plank</option>
             <option value="squat">Squat</option>
@@ -271,8 +271,16 @@
           </tbody>
         </table>
 
-        <!-- Tolerance Config -->
-        <h2 class="config-heading">Tolerance Config</h2>
+        <div v-if="challengeTotal > PAGE_SIZE" class="pagination">
+          <button @click="challengePageChange(-1)" :disabled="challengePage === 0" class="btn-small">Prev</button>
+          <span class="page-info">{{ challengePage * PAGE_SIZE + 1 }}–{{ Math.min((challengePage + 1) * PAGE_SIZE, challengeTotal) }} of {{ challengeTotal }}</span>
+          <button @click="challengePageChange(1)" :disabled="(challengePage + 1) * PAGE_SIZE >= challengeTotal" class="btn-small">Next</button>
+        </div>
+      </div>
+
+      <!-- Challenge Config Tab -->
+      <div v-if="activeTab === 'challenge-config'" class="tab-content">
+        <h2>Challenge Tolerance Config</h2>
 
         <div v-if="loadingConfig" class="loading">Loading...</div>
 
@@ -311,6 +319,51 @@
               Updated: {{ formatDate(cfg.updated_at) }}
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- Badminton Sessions Tab -->
+      <div v-if="activeTab === 'badminton'" class="tab-content">
+        <h2>Badminton Stream Sessions</h2>
+
+        <div v-if="loadingBadminton" class="loading">Loading...</div>
+
+        <table v-else class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>User</th>
+              <th>Title</th>
+              <th>Shots</th>
+              <th>Mode</th>
+              <th>Date</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="s in badmintonSessions" :key="s.id">
+              <td>{{ s.id }}</td>
+              <td>{{ s.username }}</td>
+              <td>{{ s.title || '-' }}</td>
+              <td>{{ s.post_analysis_shots ?? s.total_shots }}</td>
+              <td>{{ s.stream_mode }}</td>
+              <td>{{ formatDate(s.created_at) }}</td>
+              <td>
+                <span :class="['status', s.status === 'ended' ? 'active' : 'pending']">
+                  {{ s.status }}
+                </span>
+              </td>
+            </tr>
+            <tr v-if="badmintonSessions.length === 0">
+              <td colspan="7" class="empty">No badminton sessions found</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div v-if="badmintonTotal > PAGE_SIZE" class="pagination">
+          <button @click="badmintonPageChange(-1)" :disabled="badmintonPage === 0" class="btn-small">Prev</button>
+          <span class="page-info">{{ badmintonPage * PAGE_SIZE + 1 }}–{{ Math.min((badmintonPage + 1) * PAGE_SIZE, badmintonTotal) }} of {{ badmintonTotal }}</span>
+          <button @click="badmintonPageChange(1)" :disabled="(badmintonPage + 1) * PAGE_SIZE >= badmintonTotal" class="btn-small">Next</button>
         </div>
       </div>
 
@@ -375,6 +428,22 @@
         </div>
       </div>
     </template>
+    <!-- Screenshots modal -->
+    <div v-if="screenshotModal.open" class="modal-overlay" @click.self="screenshotModal.open = false">
+      <div class="modal-panel screenshots-panel">
+        <div class="modal-header">
+          <h3>Session #{{ screenshotModal.sessionId }} Screenshots</h3>
+          <button class="modal-close" @click="screenshotModal.open = false">&times;</button>
+        </div>
+        <div v-if="screenshotModal.loading" class="modal-loading">Loading screenshots...</div>
+        <div v-else class="screenshots-grid">
+          <div v-for="(src, i) in screenshotModal.images" :key="i" class="screenshot-item">
+            <img :src="src" :alt="`Screenshot ${i}`" loading="lazy" />
+            <span class="screenshot-index">{{ i + 1 }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -392,7 +461,9 @@ const tabs = [
   { id: 'whitelist', label: 'Whitelist' },
   { id: 'waitlist', label: 'Waitlist' },
   { id: 'users', label: 'Users' },
-  { id: 'challenges', label: 'Challenges' }
+  { id: 'sessions', label: 'Challenge Sessions' },
+  { id: 'challenge-config', label: 'Challenge Config' },
+  { id: 'badminton', label: 'Badminton Sessions' },
 ]
 const activeTab = ref('codes')
 
@@ -405,6 +476,8 @@ const creating = ref(false)
 const createError = ref('')
 
 // Whitelist
+const screenshotModal = ref({ open: false, sessionId: null, images: [], loading: false })
+
 const whitelist = ref([])
 const loadingWhitelist = ref(false)
 const showAddWhitelist = ref(false)
@@ -421,12 +494,23 @@ const waitlistFilter = ref('')
 const users = ref([])
 const loadingUsers = ref(false)
 
-// Challenges
+// Challenge Sessions (paginated)
 const challengeSessions = ref([])
 const loadingSessions = ref(false)
 const challengeTypeFilter = ref('')
+const challengePage = ref(0)
+const challengeTotal = ref(0)
+const PAGE_SIZE = 20
+
+// Challenge Config
 const challengeConfig = ref({})
 const loadingConfig = ref(false)
+
+// Badminton Sessions (paginated)
+const badmintonSessions = ref([])
+const loadingBadminton = ref(false)
+const badmintonPage = ref(0)
+const badmintonTotal = ref(0)
 
 onMounted(async () => {
   if (isAdmin.value) {
@@ -435,9 +519,14 @@ onMounted(async () => {
 })
 
 watch(activeTab, (tab) => {
-  if (tab === 'challenges' && challengeSessions.value.length === 0) {
+  if (tab === 'sessions' && challengeSessions.value.length === 0) {
     loadChallengeSessions()
+  }
+  if (tab === 'challenge-config' && Object.keys(challengeConfig.value).length === 0) {
     loadChallengeConfig()
+  }
+  if (tab === 'badminton' && badmintonSessions.value.length === 0) {
+    loadBadmintonSessions()
   }
 })
 
@@ -593,14 +682,40 @@ async function toggleAdmin(user) {
 async function loadChallengeSessions() {
   loadingSessions.value = true
   try {
-    const params = challengeTypeFilter.value ? { challenge_type: challengeTypeFilter.value } : {}
+    const params = { skip: challengePage.value * PAGE_SIZE, limit: PAGE_SIZE }
+    if (challengeTypeFilter.value) params.challenge_type = challengeTypeFilter.value
     const response = await api.get('/api/v1/challenges/admin/sessions', { params })
-    challengeSessions.value = response.data
+    challengeSessions.value = response.data.sessions
+    challengeTotal.value = response.data.total
   } catch (err) {
     console.error('Failed to load challenge sessions:', err)
   } finally {
     loadingSessions.value = false
   }
+}
+
+async function loadBadmintonSessions() {
+  loadingBadminton.value = true
+  try {
+    const params = { skip: badmintonPage.value * PAGE_SIZE, limit: PAGE_SIZE }
+    const response = await api.get('/api/v1/admin/stream-sessions', { params })
+    badmintonSessions.value = response.data.sessions
+    badmintonTotal.value = response.data.total
+  } catch (err) {
+    console.error('Failed to load badminton sessions:', err)
+  } finally {
+    loadingBadminton.value = false
+  }
+}
+
+function challengePageChange(dir) {
+  challengePage.value += dir
+  loadChallengeSessions()
+}
+
+function badmintonPageChange(dir) {
+  badmintonPage.value += dir
+  loadBadmintonSessions()
 }
 
 async function loadChallengeConfig() {
@@ -660,11 +775,22 @@ async function downloadPoseData(sessionId) {
   }
 }
 
-function viewScreenshots(sessionId, count) {
-  // Open each screenshot via the direct API endpoint (serves inline JPEG)
-  for (let i = 0; i < count; i++) {
-    window.open(`/api/v1/challenges/admin/sessions/${sessionId}/screenshots/${i}`, '_blank')
+async function viewScreenshots(sessionId, count) {
+  screenshotModal.value = { open: true, sessionId, images: [], loading: true }
+  try {
+    const urls = []
+    for (let i = 0; i < count; i++) {
+      const res = await api.get(
+        `/api/v1/challenges/admin/sessions/${sessionId}/screenshots/${i}`,
+        { responseType: 'blob' }
+      )
+      urls.push(URL.createObjectURL(res.data))
+    }
+    screenshotModal.value.images = urls
+  } catch (err) {
+    console.error('Failed to load screenshots:', err)
   }
+  screenshotModal.value.loading = false
 }
 
 function formatThresholdLabel(key) {
@@ -730,10 +856,13 @@ h1 {
   margin-bottom: 1.5rem;
   border-bottom: 1px solid var(--border-color);
   padding-bottom: 0.5rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .tab {
   padding: 0.75rem 1.5rem;
+  white-space: nowrap;
   background: transparent;
   border: none;
   color: var(--text-muted);
@@ -1091,5 +1220,93 @@ select {
   color: var(--text-muted);
   font-size: 0.75rem;
   margin-top: 0.5rem;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding: 0.75rem 0;
+}
+
+.page-info {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.modal-panel {
+  background: var(--bg-card);
+  padding: 1.5rem;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Screenshots modal */
+.screenshots-panel {
+  max-width: 900px;
+  width: 95vw;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.modal-header h3 {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  line-height: 1;
+}
+
+.modal-loading {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 2rem;
+}
+
+.screenshots-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.75rem;
+}
+
+.screenshot-item {
+  position: relative;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: #000;
+}
+
+.screenshot-item img {
+  width: 100%;
+  display: block;
+}
+
+.screenshot-index {
+  position: absolute;
+  top: 0.25rem;
+  left: 0.25rem;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--radius-sm);
 }
 </style>

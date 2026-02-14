@@ -3,13 +3,14 @@
 import secrets
 from datetime import datetime
 from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 
 from ..database import get_db
 from ..db_models.user import User
 from ..db_models.invite import InviteCode, Waitlist, WhitelistEmail
+from ..db_models.stream_session import StreamSession
 from .auth import get_current_user
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
@@ -371,3 +372,42 @@ async def remove_whitelist_email(
     db.delete(entry)
     db.commit()
     return {"status": "deleted"}
+
+
+# --- Badminton Stream Sessions ---
+
+@router.get("/stream-sessions")
+async def admin_list_stream_sessions(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+    status_filter: Optional[str] = Query(None),
+    admin=Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    """List all badminton stream sessions with pagination (admin only)."""
+    q = db.query(StreamSession, User.username).join(
+        User, User.id == StreamSession.user_id
+    )
+    if status_filter:
+        q = q.filter(StreamSession.status == status_filter)
+
+    total = q.count()
+    rows = q.order_by(StreamSession.created_at.desc()).offset(skip).limit(limit).all()
+
+    sessions = []
+    for s, username in rows:
+        sessions.append({
+            "id": s.id,
+            "user_id": s.user_id,
+            "username": username,
+            "title": s.title,
+            "status": s.status.value if s.status else "unknown",
+            "total_shots": s.total_shots or 0,
+            "shot_distribution": s.shot_distribution,
+            "stream_mode": s.stream_mode or "basic",
+            "created_at": s.created_at.isoformat() if s.created_at else None,
+            "ended_at": s.ended_at.isoformat() if s.ended_at else None,
+            "has_recording": bool(s.recording_s3_key or s.recording_local_path),
+            "post_analysis_shots": s.post_analysis_shots,
+        })
+    return {"sessions": sessions, "total": total, "skip": skip, "limit": limit}

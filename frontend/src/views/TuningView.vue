@@ -2,7 +2,7 @@
   <div class="tuning-view">
     <div class="header">
       <router-link to="/dashboard" class="back-link">Back to Dashboard</router-link>
-      <h1>Tuning Dashboard</h1>
+      <h1>Badminton Tuning Dashboard</h1>
       <p class="subtitle">Fine-tune shot detection thresholds with real-time preview</p>
     </div>
 

@@ -3,7 +3,7 @@
     <nav v-if="authStore.isAuthenticated && !isLandingPage" class="navbar">
       <div class="nav-brand">
         <router-link :to="isAdmin ? '/hub' : '/challenges/pushup'">
-          <svg v-if="!isAdmin" class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5C7 4 7 7 7 7"/>
             <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5C17 4 17 7 17 7"/>
             <path d="M4 22h16"/>
@@ -11,7 +11,7 @@
             <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20 17 22"/>
             <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>
           </svg>
-          {{ isAdmin ? '🏸 pushup.neymo.ai' : 'PushUp Pro' }}
+          PushUp Pro
         </router-link>
       </div>
       <div class="nav-links">
@@ -27,7 +27,7 @@
             <polyline points="16 17 21 12 16 7"/>
             <line x1="21" y1="12" x2="9" y2="12"/>
           </svg>
-          Logout
+          <span class="logout-text">Logout</span>
         </button>
       </div>
     </nav>
@@ -204,19 +204,36 @@ const logout = () => {
   }
 
   .nav-links {
-    gap: 0.75rem;
+    gap: 0.5rem;
   }
 
   .nav-links a {
-    padding: 0.4rem 0.6rem;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.8rem;
   }
 
   .btn-logout {
-    padding: 0.4rem 0.75rem;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.8rem;
+  }
+
+  .btn-logout svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .logout-text {
+    display: none;
   }
 
   .user-name {
     display: none;
+  }
+
+  .user-avatar {
+    width: 30px;
+    height: 30px;
+    font-size: 0.8rem;
   }
 
   .main-content {
