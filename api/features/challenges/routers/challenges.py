@@ -234,6 +234,14 @@ def end_challenge_session(
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
+    # If already ended (e.g. by WebSocket disconnect handler), return existing data
+    if session.status == ChallengeStatus.ENDED:
+        record = db.query(ChallengeRecord).filter(
+            ChallengeRecord.user_id == user.id,
+            ChallengeRecord.challenge_type == session.challenge_type,
+        ).first()
+        return _build_response(session, record.best_score if record else session.score)
+
     gsm = get_generic_session_manager()
     analyzer = gsm.get_session(session_id)
 

@@ -249,13 +249,20 @@
               </td>
               <td class="actions">
                 <button
+                  v-if="s.has_screenshots"
+                  @click="viewScreenshots(s.id, s.screenshot_count)"
+                  class="btn-small"
+                >
+                  Screenshots ({{ s.screenshot_count }})
+                </button>
+                <button
                   v-if="s.has_pose_data"
                   @click="downloadPoseData(s.id)"
                   class="btn-small btn-success"
                 >
-                  Download Pose Data
+                  Pose Data
                 </button>
-                <span v-else class="no-data">No pose data</span>
+                <span v-if="!s.has_pose_data && !s.has_screenshots" class="no-data">No data</span>
               </td>
             </tr>
             <tr v-if="challengeSessions.length === 0">
@@ -650,6 +657,13 @@ async function downloadPoseData(sessionId) {
     URL.revokeObjectURL(url)
   } catch (err) {
     console.error('Failed to download pose data:', err)
+  }
+}
+
+function viewScreenshots(sessionId, count) {
+  // Open each screenshot via the direct API endpoint (serves inline JPEG)
+  for (let i = 0; i < count; i++) {
+    window.open(`/api/v1/challenges/admin/sessions/${sessionId}/screenshots/${i}`, '_blank')
   }
 }
 

@@ -409,7 +409,9 @@ async def websocket_challenge(
 
     # ---- Cleanup: end session if still active (e.g. user pressed back) ----
     try:
-        from .features.challenges.db_models.challenge import ChallengeSession as CS, ChallengeStatus
+        from .features.challenges.db_models.challenge import (
+            ChallengeSession as CS, ChallengeStatus, ChallengeRecord,
+        )
         from .features.challenges.routers.challenges import _save_recording, _save_screenshots
 
         db2 = SessionLocal()
@@ -434,6 +436,22 @@ async def websocket_challenge(
                 sess.score = report.get("score", 0)
                 sess.duration_seconds = report.get("duration_seconds", 0.0)
                 sess.extra_data = report
+
+                # Update personal best
+                record = db2.query(ChallengeRecord).filter(
+                    ChallengeRecord.user_id == sess.user_id,
+                    ChallengeRecord.challenge_type == sess.challenge_type,
+                ).first()
+                if record:
+                    if sess.score > record.best_score:
+                        record.best_score = sess.score
+                else:
+                    db2.add(ChallengeRecord(
+                        user_id=sess.user_id,
+                        challenge_type=sess.challenge_type,
+                        best_score=sess.score,
+                    ))
+
                 db2.commit()
                 logger.info(f"Challenge session {session_id}: auto-ended on disconnect (score={sess.score})")
         finally:
