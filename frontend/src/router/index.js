@@ -132,9 +132,15 @@ const router = createRouter({
   routes
 })
 
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
   const isAuth = authStore.isAuthenticated
+
+  // Wait for user data to load on refresh before checking guards
+  if (isAuth) {
+    await authStore.initReady
+  }
+
   const isAdmin = authStore.user?.is_admin
 
   // 1. Auth required but not logged in

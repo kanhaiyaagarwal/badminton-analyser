@@ -175,12 +175,18 @@ export const useAuthStore = defineStore('auth', () => {
     setTokens(null, null)
   }
 
-  // Initialize user on store creation
+  // Initialize user on store creation — expose promise so router can await it
+  let _initResolve
+  const initReady = new Promise(resolve => { _initResolve = resolve })
+
   if (accessToken.value) {
-    fetchUser().catch(() => {})
+    fetchUser().catch(() => {}).finally(() => _initResolve())
+  } else {
+    _initResolve()
   }
 
   return {
+    initReady,
     user,
     accessToken,
     refreshToken,
