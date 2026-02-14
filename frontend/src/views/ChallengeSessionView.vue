@@ -1,10 +1,42 @@
 <template>
   <div class="challenge-session">
-    <!-- Placement guide overlay (first-time users) -->
+    <!-- Placement guide overlay (users with < 5 total pushups) -->
     <div v-if="showPlacementGuide" class="placement-overlay" @click="dismissPlacementGuide">
-      <div class="placement-card">
-        <h2 class="placement-title">Phone Placement Guide</h2>
-        <p class="placement-subtitle">Place your phone on the ground to the side, like this:</p>
+      <div class="placement-card" @click.stop>
+        <h2 class="placement-title">How It Works</h2>
+        <p class="placement-subtitle">Follow these steps for the best experience:</p>
+
+        <div class="guide-steps">
+          <div class="guide-step">
+            <span class="step-number">1</span>
+            <div class="step-content">
+              <strong>Tap "Start Challenge"</strong>
+              <p>Start the session first, then place your phone.</p>
+            </div>
+          </div>
+          <div class="guide-step">
+            <span class="step-number">2</span>
+            <div class="step-content">
+              <strong>Place your phone</strong>
+              <p>Set it on the ground to your side, 1-2m away. Your <em>entire body</em> must be visible in the frame.</p>
+            </div>
+          </div>
+          <div class="guide-step">
+            <span class="step-number">3</span>
+            <div class="step-content">
+              <strong>Get in position</strong>
+              <p>The app detects you automatically. No need to tap anything — just start your reps!</p>
+            </div>
+          </div>
+          <div class="guide-step">
+            <span class="step-number">4</span>
+            <div class="step-content">
+              <strong>Challenge auto-ends</strong>
+              <p>When you stand up or drop out of position, the session ends on its own. Want more reps? Start a new challenge!</p>
+            </div>
+          </div>
+        </div>
+
         <div class="placement-img-wrap">
           <img src="/mobileplacement.png" alt="Phone placement guide" class="placement-img" />
           <div class="placement-highlight">
@@ -12,11 +44,9 @@
             <span class="highlight-label">Place phone here</span>
           </div>
         </div>
-        <ul class="placement-tips">
-          <li>Position at ground level, to your side</li>
-          <li>Angle the camera so your full body is visible</li>
-          <li>Keep ~1-2 meters distance</li>
-        </ul>
+
+        <p class="guide-key-tip">Make sure the camera captures your <strong>full body</strong> — head to feet!</p>
+
         <button class="placement-btn" @click="dismissPlacementGuide">Got it, let's go!</button>
       </div>
     </div>
@@ -59,10 +89,19 @@
         </button>
       </div>
 
-      <label class="annotation-toggle">
-        <input type="checkbox" v-model="showAnnotations" />
-        <span class="toggle-label">Show skeleton overlay</span>
-      </label>
+      <div class="setup-toggles">
+        <label class="setup-toggle-item">
+          <input type="checkbox" v-model="recordOnStart" />
+          <svg class="toggle-icon" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+            <circle cx="12" cy="12" r="7"/>
+          </svg>
+          <span class="toggle-label">Record session</span>
+        </label>
+        <label class="setup-toggle-item">
+          <input type="checkbox" v-model="showAnnotations" />
+          <span class="toggle-label">Skeleton overlay</span>
+        </label>
+      </div>
     </div>
 
     <!-- Active phase -->
@@ -203,7 +242,11 @@ const showPlacementGuide = ref(false)
 async function checkPlacementGuide() {
   try {
     await challengesStore.fetchSessions()
-    if (challengesStore.sessions.length === 0) {
+    // Sum scores for this challenge type across all completed sessions
+    const totalScore = challengesStore.sessions
+      .filter(s => s.challenge_type === challengeType.value && s.status === 'ended')
+      .reduce((sum, s) => sum + (s.score || 0), 0)
+    if (totalScore < 5) {
       showPlacementGuide.value = true
     }
   } catch {
@@ -245,6 +288,7 @@ const legsStraight = ref(true)
 const timeRemaining = ref(0)
 
 // Recording state
+const recordOnStart = ref(false)
 const isRecording = ref(false)
 const hasRecording = ref(false)
 const recordingDuration = ref(0)
@@ -380,6 +424,18 @@ async function connectWebSocket(sid) {
         }, { once: true })
       }
     }
+
+    // Auto-start recording if user toggled it on in setup
+    if (recordOnStart.value && sessionId.value) {
+      try {
+        await api.post(`/api/v1/challenges/sessions/${sessionId.value}/recording/start`)
+        isRecording.value = true
+        recordingDuration.value = 0
+        startRecordingTimer()
+      } catch (e) {
+        console.error('Auto-start recording failed:', e)
+      }
+    }
   }
 
   ws.onmessage = (event) => {
@@ -468,7 +524,26 @@ function stopFrameCapture() {
   }
 }
 
+let endingSession = false
+
 async function endSession() {
+  // Guard against multiple calls (auto_end can fire while awaiting recording stop)
+  if (endingSession) return
+  endingSession = true
+
+  // Stop frame capture immediately so no more frames flow through WS
+  stopFrameCapture()
+
+  // Stop recording first so backend saves the video before session closes
+  if (isRecording.value && sessionId.value) {
+    try {
+      await api.post(`/api/v1/challenges/sessions/${sessionId.value}/recording/stop`)
+    } catch { /* best-effort */ }
+    isRecording.value = false
+    hasRecording.value = true
+    stopRecordingTimer()
+  }
+
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'end_session' }))
   }
@@ -757,18 +832,38 @@ onUnmounted(() => {
   box-shadow: 0 6px 20px rgba(124, 58, 237, 0.4);
 }
 
-.annotation-toggle {
+.setup-toggles {
+  display: flex;
+  gap: 1.5rem;
+  margin-top: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.setup-toggle-item {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin-top: 0.75rem;
   cursor: pointer;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-md);
+  transition: border-color 0.2s;
 }
 
-.annotation-toggle input {
+.setup-toggle-item:has(input:checked) {
+  border-color: var(--color-primary);
+}
+
+.setup-toggle-item input {
   accent-color: var(--color-primary);
   width: 18px;
   height: 18px;
+  cursor: pointer;
+}
+
+.setup-toggle-item .toggle-icon {
+  color: var(--color-destructive);
+  flex-shrink: 0;
 }
 
 .toggle-label {
@@ -1175,30 +1270,55 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-.placement-tips {
+.guide-steps {
   text-align: left;
-  list-style: none;
-  padding: 0;
-  margin: 0 0 1.5rem;
+  margin-bottom: 1.25rem;
 }
 
-.placement-tips li {
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-  padding: 0.3rem 0;
-  padding-left: 1.25rem;
-  position: relative;
+.guide-step {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 0.5rem 0;
 }
 
-.placement-tips li::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0.6rem;
-  width: 6px;
-  height: 6px;
-  border-radius: var(--radius-full);
+.step-number {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
   background: var(--color-primary);
+  color: #fff;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  margin-top: 0.1rem;
+}
+
+.step-content strong {
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  display: block;
+  margin-bottom: 0.1rem;
+}
+
+.step-content p {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.guide-key-tip {
+  color: var(--color-primary);
+  font-size: 0.85rem;
+  margin: 0 0 1.25rem;
+  padding: 0.6rem 1rem;
+  background: var(--color-primary-light);
+  border-radius: var(--radius-md);
+  text-align: center;
 }
 
 .placement-btn {
