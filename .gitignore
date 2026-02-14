@@ -50,3 +50,8 @@ poc/
 
 # macOS
 .DS_Store
+
+# Misc
+results.json
+todo.txt
+tools/pushup_math_reference.html
