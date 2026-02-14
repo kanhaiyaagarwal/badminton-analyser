@@ -1197,10 +1197,12 @@ onUnmounted(() => {
   background: rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(4px);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   z-index: 200;
   padding: 1rem;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .placement-card {
@@ -1211,6 +1213,8 @@ onUnmounted(() => {
   max-width: 420px;
   width: 100%;
   text-align: center;
+  margin: auto 0;
+  flex-shrink: 0;
 }
 
 .placement-title {
