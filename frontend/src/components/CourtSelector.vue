@@ -90,7 +90,10 @@ function setupCanvas() {
   if (!canvas.value || !canvasWrapper.value || !image.value) return
 
   const wrapper = canvasWrapper.value
-  const maxWidth = wrapper.clientWidth
+  // Subtract padding to get actual content area width
+  const style = getComputedStyle(wrapper)
+  const paddingX = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight)
+  const maxWidth = wrapper.clientWidth - paddingX
   const maxHeight = window.innerHeight * 0.6
 
   // Calculate scale to fit image in container
@@ -371,5 +374,26 @@ canvas {
 
 .coord-item .value {
   color: var(--text-muted);
+}
+
+@media (max-width: 640px) {
+  .canvas-wrapper {
+    padding: 0.5rem;
+  }
+
+  .instructions {
+    font-size: 0.85rem;
+    padding: 0.5rem 0.75rem;
+  }
+
+  .coordinates {
+    grid-template-columns: 1fr;
+    padding: 0.75rem;
+    gap: 0.4rem;
+  }
+
+  .coord-item {
+    font-size: 0.8rem;
+  }
 }
 </style>

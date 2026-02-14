@@ -74,7 +74,7 @@
           </p>
         </div>
 
-        <div class="tuning-option">
+        <div v-if="authStore.user?.is_admin" class="tuning-option">
           <label class="toggle-label">
             <input
               type="checkbox"
@@ -119,11 +119,13 @@ import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '../api/client'
 import { useJobsStore } from '../stores/jobs'
+import { useAuthStore } from '../stores/auth'
 import CourtSelector from '../components/CourtSelector.vue'
 
 const route = useRoute()
 const router = useRouter()
 const jobsStore = useJobsStore()
+const authStore = useAuthStore()
 
 const jobId = parseInt(route.params.jobId)
 
@@ -493,6 +495,42 @@ h1 {
 @media (max-width: 900px) {
   .setup-container {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .court-setup {
+    padding: 0.75rem;
+  }
+
+  .header {
+    margin-bottom: 1rem;
+  }
+
+  h1 {
+    font-size: 1.3rem;
+  }
+
+  .canvas-container {
+    padding: 0.5rem;
+  }
+
+  .controls-panel {
+    padding: 1rem;
+    gap: 1rem;
+  }
+
+  .video-info {
+    padding: 0.75rem;
+  }
+
+  .boundary-preview {
+    padding: 0.75rem;
+  }
+
+  .coordinates {
+    grid-template-columns: 1fr;
+    padding: 0.75rem;
   }
 }
 </style>

@@ -290,6 +290,10 @@ async def end_stream(
             session.total_shots = report['summary'].get('total_shots', 0)
         if 'shot_distribution' in report:
             session.shot_distribution = report['shot_distribution']
+        if 'heatmap_data' in report:
+            session.foot_positions = report['heatmap_data']
+        if 'shot_timeline' in report:
+            session.shot_timeline = report['shot_timeline']
 
     # Save raw video path from analyzer
     if analyzer:
@@ -485,13 +489,13 @@ async def stop_recording(
 
 
 @router.get("/{session_id}/recording")
-async def download_recording(
+def download_recording(
     session_id: int,
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Download the recorded video for a session."""
-    from fastapi.responses import FileResponse, Response
+    from fastapi.responses import FileResponse, StreamingResponse
     from pathlib import Path
     from ..services.storage_service import get_storage_service
     import logging
@@ -519,11 +523,18 @@ async def download_recording(
             logger.info(f"Loading recording from S3: {session.recording_s3_key}")
             video_data = storage.outputs.load(session.recording_s3_key)
             logger.info(f"S3 recording loaded, size: {len(video_data)} bytes")
-            return Response(
-                content=video_data,
+
+            def iter_data():
+                chunk_size = 1024 * 1024  # 1MB chunks
+                for i in range(0, len(video_data), chunk_size):
+                    yield video_data[i:i + chunk_size]
+
+            return StreamingResponse(
+                iter_data(),
                 media_type="video/mp4",
                 headers={
-                    "Content-Disposition": f'attachment; filename="{filename}"'
+                    "Content-Disposition": f'attachment; filename="{filename}"',
+                    "Content-Length": str(len(video_data)),
                 }
             )
         except Exception as e:
@@ -1010,7 +1021,7 @@ async def get_analysis_status(
 
 
 @router.get("/{session_id}/annotated-video")
-async def get_annotated_video(
+def get_annotated_video(
     session_id: int,
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db)

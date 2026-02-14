@@ -790,4 +790,43 @@ watch(() => props.poseData, () => {
 .stop-btn:hover {
   background: #c0392b;
 }
+
+/* ---- Mobile Responsive ---- */
+@media (max-width: 640px) {
+  .fps-options {
+    flex-wrap: wrap;
+  }
+
+  .fps-btn {
+    flex: 1 1 calc(50% - 0.25rem);
+    min-width: 0;
+    font-size: 0.85rem;
+    padding: 0.5rem 0.25rem;
+  }
+
+  .control-group select {
+    font-size: 0.9rem;
+    padding: 0.6rem;
+  }
+
+  .start-btn,
+  .stop-btn {
+    padding: 0.85rem;
+    font-size: 0.95rem;
+  }
+
+  .stream-badge {
+    top: 0.5rem;
+    left: 0.5rem;
+    padding: 0.3rem 0.6rem;
+    font-size: 0.75rem;
+  }
+
+  .fps-badge {
+    top: 0.5rem;
+    right: 0.5rem;
+    padding: 0.3rem 0.6rem;
+    font-size: 0.75rem;
+  }
+}
 </style>

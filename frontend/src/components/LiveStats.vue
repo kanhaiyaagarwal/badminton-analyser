@@ -327,4 +327,52 @@ function formatShotType(type) {
   font-style: italic;
   font-size: 0.85rem;
 }
+
+/* ---- Mobile Responsive ---- */
+@media (max-width: 640px) {
+  .live-stats {
+    padding: 1rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+  }
+
+  .stat-value {
+    font-size: 1.2rem;
+  }
+
+  .stat-label {
+    font-size: 0.7rem;
+  }
+
+  .shot-bar {
+    grid-template-columns: 65px 1fr 30px;
+    gap: 0.4rem;
+  }
+
+  .bar-label {
+    font-size: 0.75rem;
+  }
+
+  .bar-count {
+    font-size: 0.8rem;
+  }
+
+  .last-shot-section {
+    padding: 0.75rem;
+    min-height: 60px;
+  }
+
+  .shot-type-badge {
+    font-size: 0.95rem;
+    padding: 0.4rem 0.75rem;
+  }
+
+  .coaching-section {
+    padding: 0.75rem;
+    min-height: 65px;
+  }
+}
 </style>

@@ -291,4 +291,30 @@ function downloadHeatmap(heatmap) {
 .download-btn:hover {
   background: var(--color-primary-hover);
 }
+
+/* ---- Mobile Responsive ---- */
+@media (max-width: 640px) {
+  .gallery {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+
+  .heatmap-item img {
+    height: 110px;
+  }
+
+  .heatmap-label {
+    font-size: 0.8rem;
+    padding: 0.4rem 0.5rem 0;
+  }
+
+  .heatmap-desc {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.5rem 0.5rem;
+  }
+
+  .enlarged-view {
+    padding: 1rem;
+  }
+}
 </style>

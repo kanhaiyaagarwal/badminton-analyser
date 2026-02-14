@@ -1,7 +1,11 @@
 <template>
   <div class="results-view">
     <div class="header">
-      <router-link to="/dashboard" class="back-link">Back to Dashboard</router-link>
+      <div class="back-links">
+        <router-link to="/hub" class="back-link">Home</router-link>
+        <span class="back-sep">/</span>
+        <router-link to="/dashboard" class="back-link">Dashboard</router-link>
+      </div>
       <h1>Live Session Results</h1>
       <p v-if="report?.title" class="session-title">{{ report.title }}</p>
     </div>
@@ -12,18 +16,18 @@
 
     <template v-else-if="report">
       <!-- Session Info -->
-      <div class="session-info">
-        <div class="info-item" v-if="report.started_at">
-          <span class="label">Started:</span>
-          <span class="value">{{ formatDate(report.started_at) }}</span>
+      <div class="session-info-cards">
+        <div class="info-card" v-if="report.started_at">
+          <div class="info-card-label">Started</div>
+          <div class="info-card-value">{{ formatDate(report.started_at) }}</div>
         </div>
-        <div class="info-item" v-if="report.ended_at">
-          <span class="label">Ended:</span>
-          <span class="value">{{ formatDate(report.ended_at) }}</span>
+        <div class="info-card" v-if="report.ended_at">
+          <div class="info-card-label">Ended</div>
+          <div class="info-card-value">{{ formatDate(report.ended_at) }}</div>
         </div>
-        <div class="info-item" v-if="report.summary?.session_duration">
-          <span class="label">Duration:</span>
-          <span class="value">{{ formatDuration(report.summary.session_duration) }}</span>
+        <div class="info-card" v-if="report.summary?.session_duration">
+          <div class="info-card-label">Duration</div>
+          <div class="info-card-value info-card-highlight">{{ formatDuration(report.summary.session_duration) }}</div>
         </div>
       </div>
 
@@ -445,16 +449,26 @@ async function downloadAnnotatedVideo() {
   margin-bottom: 2rem;
 }
 
+.back-links {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
 .back-link {
   color: var(--text-muted);
   text-decoration: none;
   font-size: 0.9rem;
-  display: inline-block;
-  margin-bottom: 1rem;
 }
 
 .back-link:hover {
   color: var(--color-primary);
+}
+
+.back-sep {
+  color: var(--text-muted);
+  font-size: 0.85rem;
 }
 
 h1 {
@@ -477,24 +491,39 @@ h1 {
   color: var(--color-destructive);
 }
 
-.session-info {
-  display: flex;
-  gap: 2rem;
+.session-info-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
   margin-bottom: 1.5rem;
-  flex-wrap: wrap;
 }
 
-.info-item {
-  display: flex;
-  gap: 0.5rem;
+.info-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 1rem 1.25rem;
+  box-shadow: var(--shadow-md);
 }
 
-.info-item .label {
+.info-card-label {
   color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 0.35rem;
 }
 
-.info-item .value {
+.info-card-value {
   color: var(--text-primary);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.info-card-highlight {
+  color: var(--color-primary);
+  font-size: 1.1rem;
 }
 
 .summary-cards {
@@ -596,26 +625,30 @@ h1 {
 }
 
 .post-analysis-stats {
-  display: flex;
-  gap: 2rem;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
 }
 
 .pa-stat {
   display: flex;
   flex-direction: column;
   align-items: center;
+  background: var(--bg-input);
+  border-radius: var(--radius-md);
+  padding: 1rem;
 }
 
 .pa-value {
   color: var(--color-primary);
-  font-size: 1.8rem;
+  font-size: 1.4rem;
   font-weight: bold;
 }
 
 .pa-label {
   color: var(--text-muted);
-  font-size: 0.85rem;
+  font-size: 0.8rem;
+  text-align: center;
 }
 
 .download-actions {
@@ -848,5 +881,138 @@ h1 {
   font-size: 0.75rem;
   font-weight: 500;
   border: 1px solid;
+}
+
+/* ---- Mobile Responsive ---- */
+@media (max-width: 640px) {
+  .results-view {
+    padding: 0.75rem;
+  }
+
+  .header {
+    margin-bottom: 1rem;
+  }
+
+  h1 {
+    font-size: 1.3rem;
+  }
+
+  .session-info-cards {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .info-card {
+    padding: 0.75rem 1rem;
+  }
+
+  .info-card-value {
+    font-size: 0.9rem;
+  }
+
+  .summary-cards {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+
+  .card {
+    padding: 1rem;
+  }
+
+  .card .value {
+    font-size: 1.5rem;
+  }
+
+  .section {
+    padding: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .section h2 {
+    font-size: 1.05rem;
+  }
+
+  .chart-container {
+    height: 220px;
+  }
+
+  /* Shot list */
+  .shot-item {
+    gap: 0.5rem;
+  }
+
+  .shot-type {
+    width: 70px;
+    font-size: 0.8rem;
+  }
+
+  .shot-count {
+    width: 30px;
+    font-size: 0.85rem;
+  }
+
+  /* Post-analysis */
+  .pa-stat {
+    padding: 0.75rem;
+  }
+
+  .pa-value {
+    font-size: 1.2rem;
+  }
+
+  .pa-label {
+    font-size: 0.7rem;
+  }
+
+  /* Timeline */
+  .timeline {
+    height: 50px;
+  }
+
+  .timeline-dot {
+    width: 12px;
+    height: 12px;
+  }
+
+  .timeline-list-item {
+    gap: 0.5rem;
+    padding: 0.4rem;
+    font-size: 0.85rem;
+  }
+
+  .list-time {
+    width: 40px;
+    font-size: 0.8rem;
+  }
+
+  /* Rally breakdown */
+  .rally-card {
+    padding: 0.75rem;
+  }
+
+  .rally-details {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    font-size: 0.8rem;
+  }
+
+  .rally-time {
+    font-size: 0.75rem;
+  }
+
+  /* Downloads */
+  .download-actions {
+    flex-direction: column;
+  }
+
+  .btn-download {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .section-desc {
+    font-size: 0.85rem;
+  }
 }
 </style>

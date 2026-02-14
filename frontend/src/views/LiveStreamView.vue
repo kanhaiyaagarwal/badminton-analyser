@@ -195,27 +195,7 @@
             @error="handleError"
           />
 
-          <!-- Stream Controls Bar -->
-          <div class="stream-controls-bar">
-            <div class="session-info-bar">
-              <span class="info-label">Session #{{ sessionId }}</span>
-              <span class="frames-label">{{ liveStats.framesProcessed }} frames</span>
-            </div>
-
-            <div class="controls-right">
-              <label class="toggle-control">
-                <input type="checkbox" v-model="showAnnotations" />
-                <span class="toggle-slider"></span>
-                <span class="toggle-text">Skeleton</span>
-              </label>
-
-              <div v-if="isRecording" class="recording-status">
-                <span class="recording-dot"></span>
-                <span class="recording-time">{{ formatRecordingTime(recordingDuration) }}</span>
-              </div>
-            </div>
-          </div>
-
+          <!-- Action Buttons -->
           <div class="stream-actions">
             <button
               @click="toggleRecording"
@@ -237,6 +217,27 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
             </svg>
             <span>Recording saved - will be available for download when session ends</span>
+          </div>
+
+          <!-- Stream Controls Bar -->
+          <div class="stream-controls-bar">
+            <div class="session-info-bar">
+              <span class="info-label">Session #{{ sessionId }}</span>
+              <span class="frames-label">{{ liveStats.framesProcessed }} frames</span>
+            </div>
+
+            <div class="controls-right">
+              <label class="toggle-control">
+                <input type="checkbox" v-model="showAnnotations" />
+                <span class="toggle-slider"></span>
+                <span class="toggle-text">Skeleton</span>
+              </label>
+
+              <div v-if="isRecording" class="recording-status">
+                <span class="recording-dot"></span>
+                <span class="recording-time">{{ formatRecordingTime(recordingDuration) }}</span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -272,6 +273,13 @@
             @error="handleError"
           />
 
+          <!-- Action Button -->
+          <div class="stream-actions">
+            <button @click="endSession" class="btn-end" :disabled="finalizingInProgress">
+              {{ finalizingInProgress ? 'Finalizing...' : 'End Session' }}
+            </button>
+          </div>
+
           <!-- Advanced Controls Bar -->
           <div class="stream-controls-bar">
             <div class="session-info-bar">
@@ -295,12 +303,6 @@
               <span>{{ formatTime(advancedStatus.secondsProcessed) }} processed</span>
               <span>{{ formatTime(advancedStatus.secondsBuffered) }} buffered</span>
             </div>
-          </div>
-
-          <div class="stream-actions">
-            <button @click="endSession" class="btn-end" :disabled="finalizingInProgress">
-              {{ finalizingInProgress ? 'Finalizing...' : 'End Session' }}
-            </button>
           </div>
         </div>
 
@@ -344,6 +346,12 @@
     <!-- Session Ended / Results -->
     <div v-else-if="step === 'ended'" class="results-section">
       <div class="section-card">
+        <router-link to="/hub" class="back-home-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+          Back to Home
+        </router-link>
         <h2>Session Complete</h2>
 
         <div v-if="finalReport" class="report-summary">
@@ -370,70 +378,6 @@
             </div>
           </div>
           <p v-else class="no-shots-msg">No shots were detected during this session.</p>
-        </div>
-
-        <!-- Post-Analysis Section -->
-        <div class="post-analysis-section" v-if="analysisAvailable || analysisStatus !== 'none'">
-          <h3>Detailed Analysis</h3>
-
-          <!-- Not started -->
-          <div v-if="analysisStatus === 'pending'" class="analysis-pending">
-            <p class="analysis-desc">
-              Run the full analysis pipeline (hit detection, shot classification, rally building)
-              on your recorded stream for accurate results.
-            </p>
-            <button @click="triggerPostAnalysis" class="btn-primary" :disabled="analysisRunning">
-              Run Detailed Analysis
-            </button>
-          </div>
-
-          <!-- Running -->
-          <div v-else-if="analysisStatus === 'running'" class="analysis-running">
-            <p class="analysis-desc">Analysis in progress...</p>
-            <div class="progress-bar-container">
-              <div class="progress-bar" :style="{ width: analysisProgress + '%' }"></div>
-            </div>
-            <span class="progress-text">{{ analysisProgress }}%</span>
-          </div>
-
-          <!-- Complete -->
-          <div v-else-if="analysisStatus === 'complete'" class="analysis-complete">
-            <div class="post-analysis-stats" v-if="postAnalysisResults">
-              <div class="stat">
-                <span class="value">{{ postAnalysisResults.shots || 0 }}</span>
-                <span class="label">Shots (Accurate)</span>
-              </div>
-              <div class="stat">
-                <span class="value">{{ postAnalysisResults.rallies || 0 }}</span>
-                <span class="label">Rallies</span>
-              </div>
-              <div class="stat">
-                <span class="value">{{ postAnalysisResults.shuttle_hits || 0 }}</span>
-                <span class="label">Shuttle Hits</span>
-              </div>
-            </div>
-
-            <div class="analysis-actions">
-              <button @click="downloadAnnotatedVideo" class="btn-download" :disabled="downloading">
-                Download Annotated Video
-              </button>
-              <router-link
-                v-if="hasFrameData"
-                :to="`/stream/${sessionId}/tuning`"
-                class="btn-secondary"
-              >
-                Open in Frame Viewer
-              </router-link>
-            </div>
-          </div>
-
-          <!-- Failed -->
-          <div v-else-if="analysisStatus === 'failed'" class="analysis-failed">
-            <p class="analysis-desc error-text">Analysis failed. Please try again.</p>
-            <button @click="retryPostAnalysis" class="btn-secondary">
-              Retry Analysis
-            </button>
-          </div>
         </div>
 
         <!-- Recording Download -->
@@ -2112,6 +2056,22 @@ h1 {
   justify-content: center;
 }
 
+/* Back Home Link */
+.back-home-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+  transition: color 0.2s;
+}
+
+.back-home-link:hover {
+  color: var(--color-primary);
+}
+
 /* Loading and Resume Sections */
 .loading-section .section-card,
 .resume-section .section-card {
@@ -2580,9 +2540,197 @@ h1 {
   text-align: right;
 }
 
-@media (max-width: 600px) {
+/* ---- Mobile Responsive ---- */
+@media (max-width: 640px) {
+  .live-stream-view {
+    padding: 0.75rem;
+  }
+
+  .header {
+    margin-bottom: 1rem;
+  }
+
+  h1 {
+    font-size: 1.3rem;
+  }
+
+  .section-card {
+    padding: 1rem;
+  }
+
+  /* Mode selector */
   .mode-cards {
     grid-template-columns: 1fr;
+  }
+
+  .mode-card {
+    padding: 0.75rem;
+  }
+
+  /* Court section */
+  .camera-controls {
+    padding: 0.75rem;
+  }
+
+  .camera-select-row,
+  .zoom-control-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  .camera-select-row label,
+  .zoom-control-row label {
+    min-width: unset;
+  }
+
+  .court-actions {
+    flex-wrap: wrap;
+  }
+
+  .court-actions .btn-secondary,
+  .court-actions .btn-fullframe {
+    flex: 1;
+    min-width: 0;
+    text-align: center;
+    font-size: 0.85rem;
+    padding: 0.5rem 0.75rem;
+  }
+
+  .court-status {
+    grid-template-columns: 1fr;
+    padding: 0.75rem;
+  }
+
+  .corner-label {
+    font-size: 0.8rem;
+    padding: 0.15rem 0.4rem;
+  }
+
+  .hint {
+    font-size: 0.85rem;
+    line-height: 1.6;
+  }
+
+  /* Stream controls bar */
+  .stream-controls-bar {
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+  }
+
+  .session-info-bar {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .controls-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  /* Stream actions */
+  .stream-actions {
+    flex-direction: column;
+  }
+
+  .btn-record,
+  .btn-end {
+    width: 100%;
+    text-align: center;
+    justify-content: center;
+  }
+
+  .recording-info {
+    font-size: 0.8rem;
+  }
+
+  .recording-info span {
+    font-size: 0.8rem;
+  }
+
+  /* Seek bar */
+  .seek-bar-container {
+    padding: 0.5rem 0.75rem;
+  }
+
+  .seek-labels {
+    font-size: 0.75rem;
+  }
+
+  /* Summary / ended section */
+  .summary-stats {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: center;
+  }
+
+  .stat .value {
+    font-size: 1.5rem;
+  }
+
+  .shot-breakdown {
+    max-width: 100%;
+    padding: 0 0.5rem;
+  }
+
+  .post-analysis-section {
+    padding: 1rem;
+  }
+
+  .post-analysis-stats {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: center;
+  }
+
+  .analysis-actions {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .analysis-actions .btn-secondary,
+  .analysis-actions .btn-primary {
+    width: 100%;
+    text-align: center;
+    justify-content: center;
+  }
+
+  .ended-actions {
+    flex-direction: column;
+  }
+
+  .ended-actions .btn-primary,
+  .ended-actions .btn-secondary {
+    width: 100%;
+    text-align: center;
+    padding: 0.75rem;
+  }
+
+  .recording-download {
+    padding: 1rem;
+  }
+
+  .btn-download {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Resume section */
+  .resume-actions {
+    flex-direction: column;
+  }
+
+  .resume-actions .btn-primary,
+  .resume-actions .btn-secondary {
+    width: 100%;
+    text-align: center;
+    padding: 0.75rem;
+  }
+
+  /* Advanced sidebar */
+  .advanced-results-card {
+    padding: 1rem;
   }
 }
 </style>
