@@ -34,6 +34,8 @@
         </div>
       </div>
 
+      <div class="verified-badge">Posture & form verified by neymo.ai</div>
+
       <!-- QR Code -->
       <div class="card-footer">
         <span class="card-cta">Think you can beat me?</span>
@@ -356,6 +358,15 @@ onMounted(async () => {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  margin-top: 0.25rem;
+}
+
+/* Verified badge */
+.verified-badge {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.4);
+  font-weight: 500;
+  letter-spacing: 0.02em;
   margin-top: 0.25rem;
 }
 
