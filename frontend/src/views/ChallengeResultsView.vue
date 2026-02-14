@@ -34,8 +34,6 @@
         </div>
       </div>
 
-      <div class="verified-badge">Posture & form verified by neymo.ai</div>
-
       <!-- QR Code -->
       <div class="card-footer">
         <span class="card-cta">Think you can beat me?</span>
@@ -44,10 +42,22 @@
           <span class="qr-label">Scan to join</span>
         </div>
       </div>
+
+      <div class="verified-badge">Posture & form verified by neymo.ai</div>
     </div>
     <!-- end results-card -->
 
     <div v-if="result">
+      <div class="actions">
+        <button @click="retry" class="retry-btn">Try Again</button>
+        <button @click="shareResult" class="share-btn" :disabled="sharing">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
+          </svg>
+          {{ sharing ? 'Sharing...' : 'Share' }}
+        </button>
+      </div>
+
       <!-- Recording Download -->
       <div v-if="hasRecording" class="recording-download">
         <p class="recording-desc">Your annotated session recording is ready.</p>
@@ -56,16 +66,6 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
           </svg>
           {{ downloading ? 'Downloading...' : 'Download Recording' }}
-        </button>
-      </div>
-
-      <div class="actions">
-        <button @click="retry" class="retry-btn">Try Again</button>
-        <button @click="shareResult" class="share-btn" :disabled="sharing">
-          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
-          </svg>
-          {{ sharing ? 'Sharing...' : 'Share' }}
         </button>
       </div>
     </div>
@@ -367,7 +367,7 @@ onMounted(async () => {
   color: rgba(255, 255, 255, 0.4);
   font-weight: 500;
   letter-spacing: 0.02em;
-  margin-top: 0.25rem;
+  margin-top: 1rem;
 }
 
 /* Footer with CTA + QR */
