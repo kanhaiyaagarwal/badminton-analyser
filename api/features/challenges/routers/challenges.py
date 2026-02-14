@@ -171,10 +171,19 @@ def _save_screenshots(screenshots: List[bytes], session: ChallengeSession, user_
 
 
 @router.get("/enabled")
-def get_enabled_challenges(db: Session = Depends(get_db)):
-    """Return list of enabled challenge types (public, no auth required)."""
+def get_enabled_challenges(
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """Return list of challenge types that are both globally enabled and enabled for this user."""
     rows = db.query(ChallengeConfig).filter(ChallengeConfig.enabled == True).all()
-    return [r.challenge_type for r in rows]
+    globally_enabled = [r.challenge_type for r in rows]
+
+    if user.is_admin:
+        return globally_enabled
+
+    user_features = user.enabled_features or []
+    return [ct for ct in globally_enabled if ct in user_features]
 
 
 @router.post("/sessions", response_model=ChallengeSessionStart)
@@ -187,8 +196,12 @@ def create_challenge_session(
     if body.challenge_type not in VALID_TYPES:
         raise HTTPException(status_code=400, detail=f"Invalid challenge type. Must be one of: {VALID_TYPES}")
 
-    # Non-admin users can only start enabled challenge types
+    # Check per-user feature enablement
     if not user.is_admin:
+        user_features = user.enabled_features or []
+        if body.challenge_type not in user_features:
+            raise HTTPException(status_code=403, detail="This challenge type is not enabled for your account")
+
         config_row = db.query(ChallengeConfig).filter(
             ChallengeConfig.challenge_type == body.challenge_type
         ).first()

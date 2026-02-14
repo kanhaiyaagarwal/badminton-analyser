@@ -389,4 +389,14 @@ async def reset_password(request: ResetPasswordRequest, db: Session = Depends(ge
 @router.get("/me", response_model=UserResponse)
 async def get_me(current_user=Depends(get_current_user)):
     """Get current user information."""
-    return current_user
+    from ..db_models.user import ALL_FEATURES
+    features = list(ALL_FEATURES) if current_user.is_admin else (current_user.enabled_features or [])
+    return UserResponse(
+        id=current_user.id,
+        email=current_user.email,
+        username=current_user.username,
+        is_active=current_user.is_active,
+        is_admin=current_user.is_admin,
+        enabled_features=features,
+        created_at=current_user.created_at,
+    )

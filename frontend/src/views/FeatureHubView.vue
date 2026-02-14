@@ -6,14 +6,14 @@
     </div>
 
     <div class="feature-grid">
-      <router-link to="/dashboard" class="feature-card">
+      <router-link v-if="authStore.hasFeature('badminton')" to="/dashboard" class="feature-card">
         <div class="card-icon">&#127992;</div>
         <h2>Badminton Analysis</h2>
         <p>Upload videos or stream live for real-time shot detection, movement tracking, and coaching insights.</p>
         <span class="card-action">Open Dashboard &rarr;</span>
       </router-link>
 
-      <router-link to="/challenges" class="feature-card">
+      <router-link v-if="hasAnyChallengeFeature" to="/challenges" class="feature-card">
         <div class="card-icon">&#9889;</div>
         <h2>Challenges</h2>
         <p>Test your fitness with timed plank holds, max squat reps, and pushup challenges using live pose detection.</p>
@@ -31,9 +31,13 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { useAuthStore } from '../stores/auth'
 
 const authStore = useAuthStore()
+const hasAnyChallengeFeature = computed(() =>
+  authStore.hasFeature('pushup') || authStore.hasFeature('squat') || authStore.hasFeature('plank')
+)
 </script>
 
 <style scoped>

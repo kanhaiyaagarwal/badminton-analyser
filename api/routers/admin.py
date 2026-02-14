@@ -292,10 +292,39 @@ async def list_users(
             "username": u.username,
             "is_active": u.is_active,
             "is_admin": u.is_admin,
+            "enabled_features": u.enabled_features or [],
             "created_at": u.created_at
         }
         for u in users
     ]
+
+
+class UpdateFeaturesRequest(BaseModel):
+    enabled_features: List[str]
+
+
+@router.patch("/users/{user_id}/features")
+async def update_user_features(
+    user_id: int,
+    body: UpdateFeaturesRequest,
+    admin=Depends(get_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Update enabled features for a user."""
+    from ..db_models.user import ALL_FEATURES
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Validate feature names
+    invalid = set(body.enabled_features) - set(ALL_FEATURES)
+    if invalid:
+        raise HTTPException(status_code=400, detail=f"Invalid features: {invalid}. Must be from {ALL_FEATURES}")
+
+    user.enabled_features = list(body.enabled_features)
+    db.commit()
+    return {"status": "updated", "enabled_features": user.enabled_features}
 
 
 @router.patch("/users/{user_id}/toggle-admin")

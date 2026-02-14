@@ -31,11 +31,13 @@ class UserService:
     @staticmethod
     def create_user(db: Session, user_data: UserCreate) -> User:
         """Create a new user."""
+        from ..db_models.user import DEFAULT_FEATURES
         hashed_password = UserService.hash_password(user_data.password)
         db_user = User(
             email=user_data.email,
             username=user_data.username,
-            hashed_password=hashed_password
+            hashed_password=hashed_password,
+            enabled_features=list(DEFAULT_FEATURES),
         )
         db.add(db_user)
         db.commit()

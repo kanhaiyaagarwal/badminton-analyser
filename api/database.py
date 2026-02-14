@@ -39,6 +39,7 @@ def init_db():
     _migrate_challenge_session_screenshots()
     _migrate_user_lockout()
     _migrate_otp_purpose()
+    _migrate_user_enabled_features()
     seed_default_tuning_data()
     seed_challenge_defaults()
 
@@ -167,6 +168,34 @@ def _migrate_otp_purpose():
                 logger.info("Added column email_otps.purpose")
     except Exception as e:
         logger.debug(f"email_otps purpose migration skipped: {e}")
+
+
+def _migrate_user_enabled_features():
+    """Add enabled_features JSON column to users table and backfill."""
+    import logging
+    import json
+    logger = logging.getLogger(__name__)
+
+    from sqlalchemy import text, inspect
+    try:
+        inspector = inspect(engine)
+        existing = {c["name"] for c in inspector.get_columns("users")}
+        if "enabled_features" not in existing:
+            with engine.begin() as conn:
+                conn.execute(text(
+                    "ALTER TABLE users ADD COLUMN enabled_features JSON"
+                ))
+                # Backfill: admins get all features, non-admins get pushup only
+                from .db_models.user import ALL_FEATURES, DEFAULT_FEATURES
+                conn.execute(text(
+                    "UPDATE users SET enabled_features = :all_feat WHERE is_admin = 1"
+                ), {"all_feat": json.dumps(ALL_FEATURES)})
+                conn.execute(text(
+                    "UPDATE users SET enabled_features = :default_feat WHERE is_admin = 0 OR is_admin IS NULL"
+                ), {"default_feat": json.dumps(DEFAULT_FEATURES)})
+                logger.info("Added and backfilled users.enabled_features")
+    except Exception as e:
+        logger.debug(f"users enabled_features migration skipped: {e}")
 
 
 def seed_challenge_defaults():

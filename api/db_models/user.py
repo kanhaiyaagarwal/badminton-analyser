@@ -1,10 +1,13 @@
 """User database model."""
 
-from sqlalchemy import Column, Integer, String, DateTime, Boolean
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from ..database import Base
+
+ALL_FEATURES = ["badminton", "pushup", "squat", "plank"]
+DEFAULT_FEATURES = ["pushup"]
 
 
 class User(Base):
@@ -18,6 +21,7 @@ class User(Base):
     hashed_password = Column(String(255), nullable=False)
     is_active = Column(Boolean, default=True)
     is_admin = Column(Boolean, default=False)
+    enabled_features = Column(JSON, default=list, nullable=True)
     email_verified = Column(Boolean, default=False)
     email_verified_at = Column(DateTime(timezone=True), nullable=True)
     failed_login_attempts = Column(Integer, default=0)

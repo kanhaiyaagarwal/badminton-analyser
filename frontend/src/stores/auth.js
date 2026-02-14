@@ -22,6 +22,12 @@ export const useAuthStore = defineStore('auth', () => {
   const pendingVerification = ref(null) // { userId, email }
 
   const isAuthenticated = computed(() => !!accessToken.value)
+  const enabledFeatures = computed(() => user.value?.enabled_features || [])
+
+  function hasFeature(feature) {
+    if (user.value?.is_admin) return true
+    return enabledFeatures.value.includes(feature)
+  }
 
   // Check if token is expired or about to expire (within 2 minutes)
   const isTokenExpiringSoon = computed(() => {
@@ -180,6 +186,8 @@ export const useAuthStore = defineStore('auth', () => {
     refreshToken,
     isAuthenticated,
     isTokenExpiringSoon,
+    enabledFeatures,
+    hasFeature,
     pendingVerification,
     login,
     signup,

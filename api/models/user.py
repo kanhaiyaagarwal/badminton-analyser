@@ -26,6 +26,7 @@ class UserResponse(BaseModel):
     username: str
     is_active: bool
     is_admin: bool = False
+    enabled_features: list = []
     created_at: datetime
 
     class Config:

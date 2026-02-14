@@ -178,6 +178,7 @@
               <th>Email</th>
               <th>Username</th>
               <th>Admin</th>
+              <th>Features</th>
               <th>Created</th>
               <th>Actions</th>
             </tr>
@@ -190,6 +191,21 @@
                 <span :class="['status', user.is_admin ? 'active' : '']">
                   {{ user.is_admin ? 'Yes' : 'No' }}
                 </span>
+              </td>
+              <td class="features-cell">
+                <label
+                  v-for="feat in allFeatures"
+                  :key="feat"
+                  class="feature-check"
+                >
+                  <input
+                    type="checkbox"
+                    :checked="user.is_admin || (user.enabled_features || []).includes(feat)"
+                    :disabled="user.is_admin"
+                    @change="toggleUserFeature(user, feat, $event.target.checked)"
+                  />
+                  {{ feat }}
+                </label>
               </td>
               <td>{{ formatDate(user.created_at) }}</td>
               <td class="actions">
@@ -456,6 +472,8 @@ const authStore = useAuthStore()
 const currentUser = computed(() => authStore.user)
 const isAdmin = computed(() => authStore.user?.is_admin)
 
+const allFeatures = ['badminton', 'pushup', 'squat', 'plank']
+
 const tabs = [
   { id: 'codes', label: 'Invite Codes' },
   { id: 'whitelist', label: 'Whitelist' },
@@ -674,6 +692,27 @@ async function toggleAdmin(user) {
     await loadUsers()
   } catch (err) {
     console.error('Failed to toggle admin:', err)
+  }
+}
+
+async function toggleUserFeature(user, feature, checked) {
+  const current = [...(user.enabled_features || [])]
+  const updated = checked
+    ? [...new Set([...current, feature])]
+    : current.filter(f => f !== feature)
+
+  // Optimistic update
+  user.enabled_features = updated
+
+  try {
+    await api.patch(`/api/v1/admin/users/${user.id}/features`, {
+      enabled_features: updated
+    })
+  } catch (err) {
+    console.error('Failed to update features:', err)
+    // Revert on failure
+    user.enabled_features = current
+    await loadUsers()
   }
 }
 
@@ -1122,6 +1161,33 @@ select {
 .no-data {
   color: var(--text-muted);
   font-size: 0.8rem;
+}
+
+.features-cell {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.feature-check {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  text-transform: capitalize;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.feature-check input[type="checkbox"] {
+  width: auto;
+  cursor: pointer;
+}
+
+.feature-check input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .config-heading {

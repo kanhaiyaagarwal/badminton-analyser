@@ -2,7 +2,7 @@
   <div id="app">
     <nav v-if="authStore.isAuthenticated && !isLandingPage" class="navbar">
       <div class="nav-brand">
-        <router-link :to="isAdmin ? '/hub' : '/challenges/pushup'">
+        <router-link to="/hub">
           <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5C7 4 7 7 7 7"/>
             <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5C17 4 17 7 17 7"/>
@@ -15,7 +15,7 @@
         </router-link>
       </div>
       <div class="nav-links">
-        <router-link v-if="isAdmin" to="/hub">Home</router-link>
+        <router-link to="/hub">Home</router-link>
         <router-link v-if="isAdmin" to="/admin" class="nav-admin">Admin</router-link>
         <div class="user-badge">
           <span class="user-avatar">{{ userInitial }}</span>

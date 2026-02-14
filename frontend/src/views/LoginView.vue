@@ -157,12 +157,8 @@ async function handleLogin() {
     const redirect = route.query.redirect
     if (redirect) {
       router.push(redirect)
-    } else if (authStore.user?.is_admin) {
-      router.push('/hub')
-    } else if (route.query.new === '1') {
-      router.push('/challenges/pushup/session')
     } else {
-      router.push('/challenges/pushup')
+      router.push('/hub')
     }
   } catch (err) {
     const status = err.response?.status
