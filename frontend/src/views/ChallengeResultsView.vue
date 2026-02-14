@@ -30,7 +30,7 @@
         </div>
         <div class="stat" v-if="result.personal_best !== null && result.personal_best !== undefined">
           <span class="stat-value" :class="{ 'new-pb': isNewPB }">{{ result.personal_best }} {{ scoreUnit }}</span>
-          <span class="stat-label">{{ isNewPB ? 'New PB!' : 'Personal Best' }}</span>
+          <span class="stat-label">{{ isNewPB ? 'New PR!' : 'Personal Record' }}</span>
         </div>
       </div>
 

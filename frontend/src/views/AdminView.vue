@@ -464,10 +464,17 @@
           <button class="modal-close" @click="screenshotModal.open = false">&times;</button>
         </div>
         <div v-if="screenshotModal.loading" class="modal-loading">Loading screenshots...</div>
-        <div v-else class="screenshots-grid">
-          <div v-for="(src, i) in screenshotModal.images" :key="i" class="screenshot-item">
-            <img :src="src" :alt="`Screenshot ${i}`" loading="lazy" />
-            <span class="screenshot-index">{{ i + 1 }}</span>
+        <div v-else class="screenshots-scroll">
+          <div class="screenshots-grid">
+            <div v-for="(src, i) in screenshotModal.images" :key="i" class="screenshot-item">
+              <img :src="src" :alt="`Screenshot ${i}`" loading="lazy" />
+              <span class="screenshot-index">{{ i + 1 }}</span>
+            </div>
+          </div>
+          <div v-if="screenshotModal.images.length < screenshotModal.total" class="load-more-row">
+            <button @click="loadMoreScreenshots" class="btn-small" :disabled="screenshotModal.loadingMore">
+              {{ screenshotModal.loadingMore ? 'Loading...' : `Load More (${screenshotModal.images.length}/${screenshotModal.total})` }}
+            </button>
           </div>
         </div>
       </div>
@@ -506,7 +513,7 @@ const creating = ref(false)
 const createError = ref('')
 
 // Whitelist
-const screenshotModal = ref({ open: false, sessionId: null, images: [], loading: false })
+const screenshotModal = ref({ open: false, sessionId: null, images: [], loading: false, loadingMore: false, total: 0 })
 
 const whitelist = ref([])
 const loadingWhitelist = ref(false)
@@ -826,22 +833,40 @@ async function downloadPoseData(sessionId) {
   }
 }
 
+const SCREENSHOTS_PAGE_SIZE = 10
+
 async function viewScreenshots(sessionId, count) {
-  screenshotModal.value = { open: true, sessionId, images: [], loading: true }
+  screenshotModal.value = { open: true, sessionId, images: [], loading: true, loadingMore: false, total: count }
   try {
-    const urls = []
-    for (let i = 0; i < count; i++) {
-      const res = await api.get(
-        `/api/v1/challenges/admin/sessions/${sessionId}/screenshots/${i}`,
-        { responseType: 'blob' }
-      )
-      urls.push(URL.createObjectURL(res.data))
-    }
-    screenshotModal.value.images = urls
+    await loadScreenshotsBatch(sessionId, 0, Math.min(SCREENSHOTS_PAGE_SIZE, count))
   } catch (err) {
     console.error('Failed to load screenshots:', err)
   }
   screenshotModal.value.loading = false
+}
+
+async function loadMoreScreenshots() {
+  const modal = screenshotModal.value
+  if (modal.loadingMore || modal.images.length >= modal.total) return
+  modal.loadingMore = true
+  try {
+    const start = modal.images.length
+    const end = Math.min(start + SCREENSHOTS_PAGE_SIZE, modal.total)
+    await loadScreenshotsBatch(modal.sessionId, start, end)
+  } catch (err) {
+    console.error('Failed to load more screenshots:', err)
+  }
+  modal.loadingMore = false
+}
+
+async function loadScreenshotsBatch(sessionId, start, end) {
+  for (let i = start; i < end; i++) {
+    const res = await api.get(
+      `/api/v1/challenges/admin/sessions/${sessionId}/screenshots/${i}`,
+      { responseType: 'blob' }
+    )
+    screenshotModal.value.images.push(URL.createObjectURL(res.data))
+  }
 }
 
 function formatThresholdLabel(key) {
@@ -1365,10 +1390,20 @@ select {
   padding: 2rem;
 }
 
+.screenshots-scroll {
+  max-height: calc(90vh - 5rem);
+  overflow-y: auto;
+}
+
 .screenshots-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 0.75rem;
+}
+
+.load-more-row {
+  text-align: center;
+  padding: 1rem 0;
 }
 
 .screenshot-item {
