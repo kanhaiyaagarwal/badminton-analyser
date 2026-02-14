@@ -68,7 +68,7 @@ def _has_recording(session: ChallengeSession) -> bool:
     return bool(session.recording_s3_key or session.recording_local_path)
 
 
-def _build_response(session: ChallengeSession, personal_best=None) -> ChallengeResponse:
+def _build_response(session: ChallengeSession, personal_best=None, daily_rank=None) -> ChallengeResponse:
     return ChallengeResponse(
         id=session.id,
         challenge_type=session.challenge_type,
@@ -76,10 +76,35 @@ def _build_response(session: ChallengeSession, personal_best=None) -> ChallengeR
         score=session.score,
         duration_seconds=session.duration_seconds,
         personal_best=personal_best,
+        daily_rank=daily_rank,
         has_recording=_has_recording(session),
         created_at=session.created_at,
         ended_at=session.ended_at,
     )
+
+
+def _compute_daily_rank(db: Session, user_id: int, challenge_type: str) -> Optional[int]:
+    """Compute the user's rank on today's leaderboard for a challenge type."""
+    day_start = datetime.combine(date.today(), datetime.min.time())
+    rows = (
+        db.query(
+            ChallengeSession.user_id,
+            sa_func.max(ChallengeSession.score).label("best_score"),
+        )
+        .filter(
+            ChallengeSession.status == ChallengeStatus.ENDED,
+            ChallengeSession.challenge_type == challenge_type,
+            ChallengeSession.created_at >= day_start,
+            ChallengeSession.score > 0,
+        )
+        .group_by(ChallengeSession.user_id)
+        .order_by(sa_func.max(ChallengeSession.score).desc())
+        .all()
+    )
+    for idx, row in enumerate(rows, start=1):
+        if row.user_id == user_id:
+            return idx
+    return None
 
 
 def _save_recording(frames: list, session: ChallengeSession, user_id: int):
@@ -253,7 +278,8 @@ def end_challenge_session(
             ChallengeRecord.user_id == user.id,
             ChallengeRecord.challenge_type == session.challenge_type,
         ).first()
-        return _build_response(session, record.best_score if record else session.score)
+        daily_rank = _compute_daily_rank(db, user.id, session.challenge_type)
+        return _build_response(session, record.best_score if record else session.score, daily_rank=daily_rank)
 
     gsm = get_generic_session_manager()
     analyzer = gsm.get_session(session_id)
@@ -303,7 +329,8 @@ def end_challenge_session(
     db.commit()
     db.refresh(session)
 
-    return _build_response(session, personal_best)
+    daily_rank = _compute_daily_rank(db, user.id, session.challenge_type)
+    return _build_response(session, personal_best, daily_rank=daily_rank)
 
 
 # ---------- Recording endpoints ----------

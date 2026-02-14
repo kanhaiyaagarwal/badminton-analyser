@@ -5,12 +5,22 @@
       <h1>Challenge Complete</h1>
     </div>
 
-    <div v-if="result" class="results-card">
+    <div v-if="result" class="results-card" ref="shareCard">
+      <div class="card-brand">PushUp Pro</div>
+
       <div class="result-type">{{ typeLabel }}</div>
 
       <div class="score-display">
         <span class="score-value">{{ result.score }}</span>
         <span class="score-unit">{{ scoreUnit }}</span>
+      </div>
+
+      <!-- Daily Rank Badge -->
+      <div v-if="result.daily_rank === 1" class="rank-badge leader-badge">
+        Today's Leader
+      </div>
+      <div v-else-if="result.daily_rank > 1" class="rank-badge rank-text">
+        {{ ordinal(result.daily_rank) }} today
       </div>
 
       <div class="stats-grid">
@@ -24,6 +34,18 @@
         </div>
       </div>
 
+      <!-- QR Code -->
+      <div class="card-footer">
+        <span class="card-cta">Think you can beat me?</span>
+        <div v-if="qrDataUrl" class="qr-section">
+          <img :src="qrDataUrl" alt="QR code" class="qr-code" />
+          <span class="qr-label">Scan to join</span>
+        </div>
+      </div>
+    </div>
+    <!-- end results-card -->
+
+    <div v-if="result">
       <!-- Recording Download -->
       <div v-if="hasRecording" class="recording-download">
         <p class="recording-desc">Your annotated session recording is ready.</p>
@@ -37,7 +59,12 @@
 
       <div class="actions">
         <button @click="retry" class="retry-btn">Try Again</button>
-        <router-link to="/challenges" class="home-btn">All Challenges</router-link>
+        <button @click="shareResult" class="share-btn" :disabled="sharing">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
+          </svg>
+          {{ sharing ? 'Sharing...' : 'Share' }}
+        </button>
       </div>
     </div>
 
@@ -50,7 +77,11 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { toPng } from 'html-to-image'
+import QRCode from 'qrcode'
 import api from '../api/client'
+
+const INVITE_URL = 'https://pushup.neymo.ai/signup?invite=PUSHUP'
 
 const route = useRoute()
 const router = useRouter()
@@ -58,6 +89,9 @@ const sessionId = computed(() => route.params.sessionId)
 const result = ref(null)
 const hasRecording = ref(false)
 const downloading = ref(false)
+const sharing = ref(false)
+const shareCard = ref(null)
+const qrDataUrl = ref(null)
 
 const TYPE_LABELS = {
   plank: 'Plank Hold',
@@ -69,6 +103,12 @@ const backLink = computed(() => result.value?.challenge_type ? `/challenges/${re
 const typeLabel = computed(() => TYPE_LABELS[result.value?.challenge_type] || 'Challenge')
 const scoreUnit = computed(() => result.value?.challenge_type === 'plank' ? 's' : 'reps')
 const isNewPB = computed(() => result.value && result.value.score === result.value.personal_best)
+
+function ordinal(n) {
+  const s = ['th', 'st', 'nd', 'rd']
+  const v = n % 100
+  return n + (s[(v - 20) % 10] || s[v] || s[0])
+}
 
 function formatDuration(seconds) {
   if (!seconds) return '0:00'
@@ -107,7 +147,54 @@ async function downloadRecording() {
   }
 }
 
+async function shareResult() {
+  if (!shareCard.value) return
+  sharing.value = true
+  try {
+    const dataUrl = await toPng(shareCard.value, { pixelRatio: 2 })
+    const res = await fetch(dataUrl)
+    const blob = await res.blob()
+    const file = new File([blob], 'achievement.png', { type: 'image/png' })
+
+    const scoreText = result.value.challenge_type === 'plank'
+      ? `a ${result.value.score}s plank hold`
+      : `${result.value.score} ${result.value.challenge_type}s`
+    const shareText = `I just did ${scoreText}! Join the challenge and beat me: ${INVITE_URL}`
+
+    if (navigator.canShare?.({ files: [file] })) {
+      await navigator.share({
+        files: [file],
+        title: 'My Challenge Result',
+        text: shareText,
+      })
+    } else {
+      // Fallback: download the PNG
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = 'achievement.png'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    }
+  } catch (err) {
+    if (err.name !== 'AbortError') {
+      console.error('Failed to share:', err)
+    }
+  } finally {
+    sharing.value = false
+  }
+}
+
 onMounted(async () => {
+  // Generate QR code
+  try {
+    qrDataUrl.value = await QRCode.toDataURL(INVITE_URL, { width: 80, margin: 1 })
+  } catch (err) {
+    console.error('Failed to generate QR code:', err)
+  }
+
   // Try loading from sessionStorage (set by ChallengeSessionView after live session)
   const stored = sessionStorage.getItem(`challenge_result_${sessionId.value}`)
   if (stored) {
@@ -156,46 +243,95 @@ onMounted(async () => {
 }
 
 .results-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  padding: 2.5rem;
+  background: linear-gradient(145deg, #1a1033 0%, #2d1b69 40%, #4c1d95 100%);
+  border: none;
+  border-radius: 1.25rem;
+  padding: 2rem 2rem 1.5rem;
   text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Subtle decorative glow */
+.results-card::before {
+  content: '';
+  position: absolute;
+  top: -40%;
+  right: -20%;
+  width: 60%;
+  height: 80%;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.3) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.card-brand {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: rgba(255, 255, 255, 0.4);
+  margin-bottom: 1.25rem;
 }
 
 .result-type {
-  color: var(--text-muted);
-  font-size: 1rem;
-  font-weight: 500;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.9rem;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: 1rem;
+  letter-spacing: 0.1em;
+  margin-bottom: 0.75rem;
 }
 
 .score-display {
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
 }
 
 .score-value {
-  font-size: 4rem;
-  font-weight: 700;
-  color: var(--color-primary);
+  font-size: 5rem;
+  font-weight: 800;
+  color: #ffffff;
   line-height: 1;
+  text-shadow: 0 0 40px rgba(139, 92, 246, 0.5);
 }
 
 .score-unit {
-  font-size: 1.2rem;
-  color: var(--text-muted);
-  margin-left: 0.5rem;
+  font-size: 1.3rem;
+  color: rgba(255, 255, 255, 0.5);
+  margin-left: 0.4rem;
+  font-weight: 500;
+}
+
+/* Daily Rank Badges */
+.rank-badge {
+  display: inline-block;
+  padding: 0.35rem 1.25rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.8rem;
+  margin-bottom: 1.25rem;
+  letter-spacing: 0.02em;
+}
+
+.leader-badge {
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+  color: #1a1a1a;
+  box-shadow: 0 2px 12px rgba(245, 158, 11, 0.4);
+}
+
+.rank-text {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .stats-grid {
   display: flex;
   justify-content: center;
   gap: 3rem;
-  margin-bottom: 2rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--border-color);
+  margin-bottom: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .stat {
@@ -204,21 +340,62 @@ onMounted(async () => {
 
 .stat-value {
   display: block;
-  color: var(--text-primary);
+  color: #ffffff;
   font-size: 1.3rem;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .stat-value.new-pb {
-  color: var(--color-warning);
+  color: #fbbf24;
 }
 
 .stat-label {
   display: block;
-  color: var(--text-muted);
-  font-size: 0.8rem;
-  font-weight: 500;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   margin-top: 0.25rem;
+}
+
+/* Footer with CTA + QR */
+.card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.card-cta {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 500;
+  font-style: italic;
+}
+
+.qr-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.qr-code {
+  width: 64px;
+  height: 64px;
+  border-radius: 6px;
+  padding: 4px;
+  background: #ffffff;
+}
+
+.qr-label {
+  font-size: 0.55rem;
+  color: rgba(255, 255, 255, 0.35);
+  margin-top: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .recording-download {
@@ -275,16 +452,25 @@ onMounted(async () => {
 }
 .retry-btn:hover { opacity: 0.9; }
 
-.home-btn {
+.share-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
   background: transparent;
   border: 1px solid var(--border-color);
   color: var(--color-primary);
-  padding: 0.75rem 2rem;
+  padding: 0.75rem 1.5rem;
   border-radius: var(--radius-md);
-  text-decoration: none;
+  font-weight: 600;
+  cursor: pointer;
   transition: all 0.2s;
 }
-.home-btn:hover { background: var(--color-primary-light); }
+.share-btn:hover:not(:disabled) { background: var(--color-primary-light); }
+.share-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.share-btn .btn-icon {
+  width: 18px;
+  height: 18px;
+}
 
 .loading {
   text-align: center;

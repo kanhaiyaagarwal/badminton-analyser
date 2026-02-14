@@ -16,6 +16,7 @@ class ChallengeResponse(BaseModel):
     score: int
     duration_seconds: float
     personal_best: Optional[int] = None
+    daily_rank: Optional[int] = None
     has_recording: bool = False
     created_at: datetime
     ended_at: Optional[datetime] = None
