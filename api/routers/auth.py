@@ -1,5 +1,6 @@
 """Authentication router."""
 
+import random
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -132,12 +133,18 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
             detail="Email already registered"
         )
 
-    # Check if username already exists
+    # Auto-resolve username conflicts by appending a random number
     if UserService.get_user_by_username(db, user_data.username):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username already taken"
-        )
+        for _ in range(10):
+            candidate = f"{user_data.username}{random.randint(1, 100)}"
+            if not UserService.get_user_by_username(db, candidate):
+                user_data.username = candidate
+                break
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Username already taken, please choose a different one"
+            )
 
     # Create user (email_verified=False by default)
     user = UserService.create_user(db, user_data)

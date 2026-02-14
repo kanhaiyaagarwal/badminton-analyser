@@ -36,7 +36,8 @@
 
         <div v-if="loadingCodes" class="loading">Loading...</div>
 
-        <table v-else class="data-table">
+        <div v-else class="table-wrapper">
+        <table class="data-table">
           <thead>
             <tr>
               <th>Code</th>
@@ -70,6 +71,7 @@
             </tr>
           </tbody>
         </table>
+        </div>
       </div>
 
       <!-- Whitelist Tab -->
@@ -87,7 +89,8 @@
 
         <div v-if="loadingWhitelist" class="loading">Loading...</div>
 
-        <table v-else class="data-table">
+        <div v-else class="table-wrapper">
+        <table class="data-table">
           <thead>
             <tr>
               <th>Email</th>
@@ -112,6 +115,7 @@
             </tr>
           </tbody>
         </table>
+        </div>
       </div>
 
       <!-- Waitlist Tab -->
@@ -129,7 +133,8 @@
 
         <div v-if="loadingWaitlist" class="loading">Loading...</div>
 
-        <table v-else class="data-table">
+        <div v-else class="table-wrapper">
+        <table class="data-table">
           <thead>
             <tr>
               <th>Email</th>
@@ -164,6 +169,7 @@
             </tr>
           </tbody>
         </table>
+        </div>
       </div>
 
       <!-- Users Tab -->
@@ -172,7 +178,8 @@
 
         <div v-if="loadingUsers" class="loading">Loading...</div>
 
-        <table v-else class="data-table">
+        <div v-else class="table-wrapper">
+        <table class="data-table">
           <thead>
             <tr>
               <th>Email</th>
@@ -220,6 +227,7 @@
             </tr>
           </tbody>
         </table>
+        </div>
       </div>
 
       <!-- Challenges Tab -->
@@ -237,7 +245,8 @@
 
         <div v-if="loadingSessions" class="loading">Loading...</div>
 
-        <table v-else class="data-table">
+        <div v-else class="table-wrapper">
+        <table class="data-table">
           <thead>
             <tr>
               <th>ID</th>
@@ -286,6 +295,7 @@
             </tr>
           </tbody>
         </table>
+        </div>
 
         <div v-if="challengeTotal > PAGE_SIZE" class="pagination">
           <button @click="challengePageChange(-1)" :disabled="challengePage === 0" class="btn-small">Prev</button>
@@ -344,7 +354,8 @@
 
         <div v-if="loadingBadminton" class="loading">Loading...</div>
 
-        <table v-else class="data-table">
+        <div v-else class="table-wrapper">
+        <table class="data-table">
           <thead>
             <tr>
               <th>ID</th>
@@ -375,6 +386,7 @@
             </tr>
           </tbody>
         </table>
+        </div>
 
         <div v-if="badmintonTotal > PAGE_SIZE" class="pagination">
           <button @click="badmintonPageChange(-1)" :disabled="badmintonPage === 0" class="btn-small">Prev</button>
@@ -940,9 +952,15 @@ h1 {
   color: var(--text-primary);
 }
 
+.table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .data-table {
   width: 100%;
   border-collapse: collapse;
+  min-width: 600px;
 }
 
 .data-table th,
@@ -950,6 +968,7 @@ h1 {
   padding: 0.75rem;
   text-align: left;
   border-bottom: 1px solid var(--border-color);
+  white-space: nowrap;
 }
 
 .data-table th {

@@ -57,7 +57,7 @@
                 <span class="mode-icon">&#9889;</span>
                 <h4>Real-Time</h4>
               </div>
-              <p>Instant skeleton overlay, shot detection, movement heatmap. Results per frame.</p>
+              <p>Instant skeleton overlay, shot detection, movement heatmap. Results per frame. Recording is optional.</p>
             </div>
             <div
               class="mode-card"
