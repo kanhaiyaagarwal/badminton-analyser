@@ -442,6 +442,80 @@ async def admin_list_stream_sessions(
     return {"sessions": sessions, "total": total, "skip": skip, "limit": limit}
 
 
+@router.get("/stream-sessions/{session_id}/heatmaps")
+async def admin_get_stream_heatmaps(
+    session_id: int,
+    admin=Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    """Get heatmap visualizations for a stream session (admin only)."""
+    from pathlib import Path
+    import json
+    import sys
+    sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+    from heatmap_visualizer import HeatmapVisualizer
+
+    session = db.query(StreamSession).filter(StreamSession.id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if not session.foot_positions or len(session.foot_positions) < 5:
+        return {"heatmaps": [], "message": "Not enough position data for heatmaps"}
+
+    output_dir = Path(f"analysis_output/stream_{session_id}")
+    if session.heatmap_paths and all(Path(p).exists() for p in session.heatmap_paths.values()):
+        heatmaps = []
+        for heatmap_type in session.heatmap_paths:
+            heatmaps.append({
+                "type": heatmap_type,
+                "url": f"/api/v1/admin/stream-sessions/{session_id}/heatmap/{heatmap_type}",
+            })
+        return {"heatmaps": heatmaps}
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    temp_data = {
+        "positions": session.foot_positions,
+        "rallies": [],
+        "metadata": {"court_boundary": session.court_boundary, "video_name": f"stream_{session_id}"},
+    }
+    temp_file = output_dir / "heatmap_data.json"
+    with open(temp_file, "w") as f:
+        json.dump(temp_data, f)
+
+    try:
+        visualizer = HeatmapVisualizer(str(temp_file))
+        saved_paths = visualizer.save_all_visualizations(str(output_dir))
+        session.heatmap_paths = saved_paths
+        db.commit()
+        return {"heatmaps": [{"type": t, "url": f"/api/v1/admin/stream-sessions/{session_id}/heatmap/{t}"} for t in saved_paths]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate heatmaps: {str(e)}")
+
+
+@router.get("/stream-sessions/{session_id}/heatmap/{heatmap_type}")
+async def admin_get_stream_heatmap_image(
+    session_id: int,
+    heatmap_type: str,
+    admin=Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    """Get a specific heatmap image (admin only)."""
+    from pathlib import Path
+    from fastapi.responses import FileResponse
+
+    session = db.query(StreamSession).filter(StreamSession.id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if not session.heatmap_paths or heatmap_type not in session.heatmap_paths:
+        raise HTTPException(status_code=404, detail="Heatmap not found")
+
+    heatmap_path = Path(session.heatmap_paths[heatmap_type])
+    if not heatmap_path.exists():
+        raise HTTPException(status_code=404, detail="Heatmap file not found")
+
+    return FileResponse(heatmap_path, media_type="image/png")
+
+
 @router.get("/stream-sessions/{session_id}/results")
 async def admin_get_stream_results(
     session_id: int,

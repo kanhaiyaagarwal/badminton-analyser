@@ -88,7 +88,7 @@
       <!-- Heatmap Visualization -->
       <div class="section" v-if="hasPositions">
         <h2>Movement Heatmaps</h2>
-        <StreamHeatmapGallery :session-id="sessionId" />
+        <StreamHeatmapGallery :session-id="sessionId" :admin="isAdminView" />
       </div>
 
       <!-- Shot Timeline / Trajectory -->

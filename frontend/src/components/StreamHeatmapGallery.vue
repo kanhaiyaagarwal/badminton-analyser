@@ -45,6 +45,10 @@ const props = defineProps({
   sessionId: {
     type: Number,
     required: true
+  },
+  admin: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -72,7 +76,10 @@ async function loadHeatmaps() {
   error.value = ''
 
   try {
-    const response = await api.get(`/api/v1/stream/${props.sessionId}/heatmaps`)
+    const endpoint = props.admin
+      ? `/api/v1/admin/stream-sessions/${props.sessionId}/heatmaps`
+      : `/api/v1/stream/${props.sessionId}/heatmaps`
+    const response = await api.get(endpoint)
     const heatmapList = response.data.heatmaps || []
 
     if (heatmapList.length === 0 && response.data.message) {
