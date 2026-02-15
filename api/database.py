@@ -66,6 +66,9 @@ def _migrate_stream_session_post_analysis():
         "post_analysis_distribution": "JSON",
         "post_analysis_rallies": "INTEGER",
         "post_analysis_shuttle_hits": "INTEGER",
+        "post_analysis_rally_data": "JSON",
+        "storage_type": "VARCHAR(10) DEFAULT 'local'",
+        "s3_output_prefix": "VARCHAR(512)",
     }
 
     from sqlalchemy import text, inspect

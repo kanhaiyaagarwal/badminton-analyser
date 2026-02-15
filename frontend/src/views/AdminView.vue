@@ -287,6 +287,13 @@
                 >
                   Pose Data
                 </button>
+                <button
+                  v-if="s.has_pose_data"
+                  @click="downloadRefinedPoseData(s.id)"
+                  class="btn-small"
+                >
+                  Refined
+                </button>
                 <span v-if="!s.has_pose_data && !s.has_screenshots" class="no-data">No data</span>
               </td>
             </tr>
@@ -830,6 +837,21 @@ async function downloadPoseData(sessionId) {
     URL.revokeObjectURL(url)
   } catch (err) {
     console.error('Failed to download pose data:', err)
+  }
+}
+
+async function downloadRefinedPoseData(sessionId) {
+  try {
+    const response = await api.get(`/api/v1/challenges/admin/sessions/${sessionId}/pose-data/refined`)
+    const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `refined_pose_data_${sessionId}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch (err) {
+    console.error('Failed to download refined pose data:', err)
   }
 }
 

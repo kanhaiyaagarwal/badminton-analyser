@@ -701,6 +701,103 @@ def admin_get_pose_data(
     })
 
 
+@router.get("/admin/sessions/{session_id}/pose-data/refined")
+def admin_get_refined_pose_data(
+    session_id: int,
+    db: Session = Depends(get_db),
+    admin=Depends(require_admin),
+):
+    """
+    Refined pose data: full frames for first 2 and last 3 reps,
+    summary only for reps in between. Original data is untouched.
+    """
+    session = db.query(ChallengeSession).filter(
+        ChallengeSession.id == session_id
+    ).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    extra = session.extra_data or {}
+    timeline = extra.get("frame_timeline")
+    if not timeline:
+        raise HTTPException(status_code=404, detail="No pose data available for this session")
+
+    # Group frames by rep number (reps field = cumulative count)
+    # Rep boundaries: when reps field increments
+    rep_groups = {}  # rep_number -> list of frames
+    pre_rep_frames = []  # frames before first rep (setup/ready)
+    for frame in timeline:
+        rep_num = frame.get("reps", 0)
+        if rep_num == 0:
+            pre_rep_frames.append(frame)
+        else:
+            rep_groups.setdefault(rep_num, []).append(frame)
+
+    total_reps = max(rep_groups.keys()) if rep_groups else 0
+    first_n = 2
+    last_n = 3
+
+    # Determine which reps get full data vs summary
+    if total_reps <= first_n + last_n:
+        # Few enough reps — include all full
+        full_rep_nums = set(rep_groups.keys())
+        summary_rep_nums = set()
+    else:
+        full_rep_nums = set(range(1, first_n + 1)) | set(range(total_reps - last_n + 1, total_reps + 1))
+        summary_rep_nums = set(rep_groups.keys()) - full_rep_nums
+
+    refined = []
+
+    # Pre-rep phase (setup — before first rep): include full frame data
+    if pre_rep_frames:
+        refined.append({
+            "type": "full",
+            "phase": "setup",
+            "rep": 0,
+            "frame_count": len(pre_rep_frames),
+            "frames": pre_rep_frames,
+        })
+
+    for rep_num in sorted(rep_groups.keys()):
+        frames = rep_groups[rep_num]
+        if rep_num in full_rep_nums:
+            # Full frame data with landmarks
+            refined.append({
+                "type": "full",
+                "rep": rep_num,
+                "frame_count": len(frames),
+                "frames": frames,
+            })
+        else:
+            # Summary only — no landmarks
+            angles = [f["angle"] for f in frames if f.get("angle") is not None]
+            states = [f.get("state") for f in frames]
+            feedbacks = list({f["fb"] for f in frames if f.get("fb")})
+            refined.append({
+                "type": "summary",
+                "rep": rep_num,
+                "frame_count": len(frames),
+                "time_range": [frames[0]["t"], frames[-1]["t"]],
+                "angle_min": round(min(angles), 1) if angles else None,
+                "angle_max": round(max(angles), 1) if angles else None,
+                "states": list(dict.fromkeys(states)),  # unique, ordered
+                "feedback_samples": feedbacks,
+            })
+
+    return JSONResponse(content={
+        "session_id": session.id,
+        "challenge_type": session.challenge_type,
+        "score": session.score,
+        "duration_seconds": session.duration_seconds,
+        "total_reps": total_reps,
+        "total_frames": len(timeline),
+        "full_reps": sorted(full_rep_nums),
+        "summary_reps": sorted(summary_rep_nums),
+        "end_reason": extra.get("end_reason"),
+        "refined_timeline": refined,
+    })
+
+
 @router.get("/admin/sessions/{session_id}/screenshots")
 def admin_list_screenshots(
     session_id: int,

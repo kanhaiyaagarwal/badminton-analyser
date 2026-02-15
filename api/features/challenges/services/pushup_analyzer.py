@@ -54,7 +54,7 @@ class PushupAnalyzer(RepCounterAnalyzer):
         self.knee_threshold = cfg.get("knee_threshold", 150)
         self.body_spread_threshold = cfg.get("body_spread_threshold", 0.25)
         # Collapse detection: end session when player breaks position
-        self.collapse_hold_time = cfg.get("collapse_hold_time", 3.0)  # max seconds in DOWN
+        self.collapse_hold_time = cfg.get("collapse_hold_time", 5.0)  # max seconds in DOWN
         self.collapse_gap = cfg.get("collapse_gap", 0.03)  # min shoulder-wrist ny gap
         self.collapse_hip_gap = cfg.get("collapse_hip_gap", 0.06)  # min hip-wrist ny gap for collapse
         # Half-pushup detection: hips on ground = cobra pose, not a real pushup
@@ -62,10 +62,12 @@ class PushupAnalyzer(RepCounterAnalyzer):
         # Stood-up detection: person leaves pushup position
         self.stood_up_timeout = cfg.get("stood_up_timeout", 1.5)  # seconds non-horizontal before end
         self._first_rep_grace = cfg.get("first_rep_grace", 30.0)  # seconds to wait for first rep
+        self.collapse_recovery_deg = cfg.get("collapse_recovery_deg", 20)  # degrees above min = recovering
         self._state = "up"
         self._ready = False  # override base: require pushup position
         self._ready_since = 0.0  # timestamp when ready was set
         self._down_since = 0.0  # timestamp when entered DOWN state
+        self._down_min_angle = 180.0  # lowest angle seen during current down phase
         self._stood_up_since = 0.0  # timestamp when left horizontal position
 
     def _process_pose(self, landmarks: list, timestamp: float) -> Dict:
@@ -139,16 +141,18 @@ class PushupAnalyzer(RepCounterAnalyzer):
                 self._ready_since = timestamp
                 self.form_feedback = "Ready! Start your pushups"
                 self.mark_active(timestamp)
+                logger.info(f"Pushup ready at t={timestamp:.2f}s (spread={y_spread:.3f})")
             else:
                 self.form_feedback = "Get into pushup position"
-                return {
-                    "angle": round(angle, 1),
-                    "knee_angle": round(knee_angle, 1),
-                    "body_angle": round(body_angle, 1),
-                    "state": self._state,
-                    "legs_straight": legs_straight,
-                    "is_horizontal": is_horizontal,
-                }
+            # Return early so "Ready!" feedback is not overwritten by rep logic
+            return {
+                "angle": round(angle, 1),
+                "knee_angle": round(knee_angle, 1),
+                "body_angle": round(body_angle, 1),
+                "state": self._state,
+                "legs_straight": legs_straight,
+                "is_horizontal": is_horizontal,
+            }
 
         # --- Activity tracking & stood-up detection ---
         if is_horizontal:
@@ -168,10 +172,12 @@ class PushupAnalyzer(RepCounterAnalyzer):
         if self._state == "up" and angle < self.down_angle:
             self._state = "down"
             self._down_since = timestamp
+            self._down_min_angle = angle
             self.form_feedback = "Good! Now push up"
         elif self._state == "down" and angle > self.up_angle:
             self._state = "up"
             self._down_since = 0.0
+            self._down_min_angle = 180.0
             if is_half_pushup:
                 # Don't count — hips on ground, only chest moved
                 self.form_feedback = "Half pushup! Lift your hips off the ground"
@@ -192,6 +198,10 @@ class PushupAnalyzer(RepCounterAnalyzer):
         collapsed = False
         collapse_reason = ""
 
+        # Track lowest angle during down phase
+        if self._state == "down":
+            self._down_min_angle = min(self._down_min_angle, angle)
+
         # Don't auto-end until first rep or grace period expires
         grace_expired = (self.reps > 0
                          or (self._ready and self._ready_since > 0
@@ -206,9 +216,23 @@ class PushupAnalyzer(RepCounterAnalyzer):
                 collapse_reason = "torso_on_ground"
 
             # Signal 2: Stuck in DOWN too long — can't push back up
+            # BUT if user is actively recovering (angle well above minimum),
+            # they're pushing up — reset the timer instead of ending.
             elif (timestamp - self._down_since) > self.collapse_hold_time:
-                collapsed = True
-                collapse_reason = "position_break"
+                recovering = (angle - self._down_min_angle) >= self.collapse_recovery_deg
+                if recovering:
+                    # User is actively pushing up, give them more time.
+                    # Reset min angle so next window measures fresh recovery.
+                    logger.info(
+                        f"Collapse timer reset: user recovering "
+                        f"(angle={angle:.1f}, min={self._down_min_angle:.1f}, "
+                        f"recovery={angle - self._down_min_angle:.1f}°)"
+                    )
+                    self._down_since = timestamp
+                    self._down_min_angle = angle
+                else:
+                    collapsed = True
+                    collapse_reason = "position_break"
 
         # Signal 3: Stood up — left pushup position
         if (grace_expired

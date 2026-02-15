@@ -117,20 +117,28 @@
         <!-- "Get in position" overlay (before ready) -->
         <div v-if="!playerReady" class="position-overlay">
           <div class="position-prompt">
-            <div class="position-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
-                <circle cx="12" cy="5" r="2.5"/>
-                <path d="M4 17 L8 12 L12 14 L16 12 L20 17" stroke-linecap="round" stroke-linejoin="round"/>
-                <line x1="8" y1="12" x2="6" y2="16" stroke-linecap="round"/>
-                <line x1="16" y1="12" x2="18" y2="16" stroke-linecap="round"/>
-              </svg>
+            <div class="status-circle red">
+              <span class="status-circle-inner"></span>
             </div>
-            <p class="position-text" v-if="!playerDetected">Step into frame — full body visible</p>
-            <p class="position-text" v-else>{{ formFeedback || 'Get into position...' }}</p>
+            <p class="position-text" v-if="!playerDetected">Step into frame</p>
+            <p class="position-text" v-else>{{ formFeedback || 'Get into position' }}</p>
+            <p class="position-subtext" v-if="!playerDetected">Full body must be visible</p>
             <div v-if="playerDetected" class="position-detected">Body detected</div>
             <button class="end-early-btn" @click="endSession">End Challenge</button>
           </div>
         </div>
+
+        <!-- GO! flash overlay (when ready triggers) -->
+        <transition name="go-flash">
+          <div v-if="showGoFlash" class="position-overlay go-overlay">
+            <div class="position-prompt">
+              <div class="status-circle green">
+                <span class="status-circle-inner"></span>
+              </div>
+              <p class="go-text">GO!</p>
+            </div>
+          </div>
+        </transition>
 
         <!-- Overlay HUD (only when ready) -->
         <div class="hud" v-if="playerReady">
@@ -206,7 +214,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useChallengesStore } from '../stores/challenges'
@@ -299,6 +307,20 @@ const showRepPop = ref(false)
 const repPopValue = ref(0)
 const repPopKey = ref(0)
 let repPopTimeout = null
+
+// GO flash when player becomes ready
+const showGoFlash = ref(false)
+let goFlashTimeout = null
+
+watch(playerReady, (ready) => {
+  if (ready) {
+    showGoFlash.value = true
+    if (goFlashTimeout) clearTimeout(goFlashTimeout)
+    goFlashTimeout = setTimeout(() => {
+      showGoFlash.value = false
+    }, 1500)
+  }
+})
 
 const displayScore = computed(() => {
   if (challengeType.value === 'plank') return holdSeconds.value
@@ -711,6 +733,7 @@ function cleanup() {
   stopFrameCapture()
   stopRecordingTimer()
   if (repPopTimeout) { clearTimeout(repPopTimeout); repPopTimeout = null }
+  if (goFlashTimeout) { clearTimeout(goFlashTimeout); goFlashTimeout = null }
   if (ws) {
     if (ws._pingId) clearInterval(ws._pingId)
     ws.close()
@@ -1070,8 +1093,13 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.55);
   z-index: 5;
+}
+
+.position-overlay.go-overlay {
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 6;
 }
 
 .position-prompt {
@@ -1079,28 +1107,84 @@ onUnmounted(() => {
   padding: 2rem;
 }
 
-.position-icon {
-  color: var(--color-primary);
-  margin-bottom: 1rem;
-  animation: pulse-glow 2s ease-in-out infinite;
+/* Big status circle indicator */
+.status-circle {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  margin: 0 auto 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
 }
 
-@keyframes pulse-glow {
-  0%, 100% { opacity: 0.6; }
-  50% { opacity: 1; }
+.status-circle.red {
+  background: rgba(231, 76, 60, 0.2);
+  border: 4px solid #e74c3c;
+  box-shadow: 0 0 30px rgba(231, 76, 60, 0.4), 0 0 60px rgba(231, 76, 60, 0.15);
+  animation: circle-pulse-red 2s ease-in-out infinite;
+}
+
+.status-circle.green {
+  background: rgba(78, 204, 163, 0.25);
+  border: 4px solid #4ecca3;
+  box-shadow: 0 0 40px rgba(78, 204, 163, 0.5), 0 0 80px rgba(78, 204, 163, 0.2);
+  animation: circle-pulse-green 1s ease-in-out infinite;
+}
+
+.status-circle-inner {
+  width: 70%;
+  height: 70%;
+  border-radius: 50%;
+}
+
+.status-circle.red .status-circle-inner {
+  background: radial-gradient(circle, #e74c3c 0%, rgba(231, 76, 60, 0.3) 100%);
+}
+
+.status-circle.green .status-circle-inner {
+  background: radial-gradient(circle, #4ecca3 0%, rgba(78, 204, 163, 0.3) 100%);
+}
+
+@keyframes circle-pulse-red {
+  0%, 100% { box-shadow: 0 0 20px rgba(231, 76, 60, 0.3), 0 0 40px rgba(231, 76, 60, 0.1); }
+  50% { box-shadow: 0 0 40px rgba(231, 76, 60, 0.5), 0 0 80px rgba(231, 76, 60, 0.2); }
+}
+
+@keyframes circle-pulse-green {
+  0%, 100% { box-shadow: 0 0 30px rgba(78, 204, 163, 0.4), 0 0 60px rgba(78, 204, 163, 0.15); }
+  50% { box-shadow: 0 0 50px rgba(78, 204, 163, 0.6), 0 0 100px rgba(78, 204, 163, 0.25); }
 }
 
 .position-text {
   color: #fff;
-  font-size: 1.3rem;
-  font-weight: 600;
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 0.25rem;
+}
+
+.position-subtext {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.9rem;
+  font-weight: 400;
   margin: 0 0 0.5rem;
 }
 
+.go-text {
+  color: #4ecca3;
+  font-size: 3rem;
+  font-weight: 900;
+  margin: 0;
+  text-shadow: 0 0 30px rgba(78, 204, 163, 0.6);
+  letter-spacing: 0.1em;
+}
+
 .position-detected {
-  color: var(--color-primary);
+  color: #4ecca3;
   font-size: 0.85rem;
-  font-weight: 500;
+  font-weight: 600;
+  margin-top: 0.25rem;
 }
 
 .end-early-btn {
@@ -1116,6 +1200,21 @@ onUnmounted(() => {
 }
 .end-early-btn:hover {
   background: rgba(231, 76, 60, 0.15);
+}
+
+/* GO flash transition */
+.go-flash-enter-active {
+  transition: all 0.3s ease-out;
+}
+.go-flash-leave-active {
+  transition: all 0.6s ease-in;
+}
+.go-flash-enter-from {
+  opacity: 0;
+  transform: scale(0.8);
+}
+.go-flash-leave-to {
+  opacity: 0;
 }
 
 /* Leg status indicator — overlaid on camera feed */
@@ -1483,9 +1582,18 @@ onUnmounted(() => {
     flex-direction: column;
   }
 
+  .status-circle {
+    width: 100px;
+    height: 100px;
+  }
+
   .position-text {
-    font-size: 1rem;
+    font-size: 1.1rem;
     padding: 0 1rem;
+  }
+
+  .go-text {
+    font-size: 2.5rem;
   }
 }
 
@@ -1517,13 +1625,18 @@ onUnmounted(() => {
     padding: 1rem;
   }
 
-  .position-icon svg {
-    width: 32px;
-    height: 32px;
+  .status-circle {
+    width: 80px;
+    height: 80px;
+    margin-bottom: 0.75rem;
   }
 
   .position-text {
-    font-size: 0.95rem;
+    font-size: 1rem;
+  }
+
+  .go-text {
+    font-size: 2rem;
   }
 
   .end-early-btn {
