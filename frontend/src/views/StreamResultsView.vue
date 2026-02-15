@@ -216,17 +216,20 @@ import {
   LinearScale
 } from 'chart.js'
 import api from '../api/client'
+import { useAuthStore } from '../stores/auth'
 import StreamHeatmapGallery from '../components/StreamHeatmapGallery.vue'
 
 ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale)
 
 const route = useRoute()
+const authStore = useAuthStore()
 const sessionId = parseInt(route.params.sessionId)
 
 const loading = ref(true)
 const error = ref('')
 const report = ref(null)
 const downloading = ref(false)
+const isAdminView = ref(false)
 
 const hasShots = computed(() => {
   return report.value?.shot_distribution && Object.keys(report.value.shot_distribution).length > 0
@@ -340,6 +343,18 @@ async function loadResults() {
     const response = await api.get(`/api/v1/stream/${sessionId}/results`)
     report.value = response.data
   } catch (err) {
+    // Admin fallback: if user doesn't own the session, try admin endpoint
+    if (err.response?.status === 404 && authStore.user?.is_admin) {
+      try {
+        const adminResp = await api.get(`/api/v1/admin/stream-sessions/${sessionId}/results`)
+        report.value = adminResp.data
+        isAdminView.value = true
+        return
+      } catch (adminErr) {
+        error.value = adminErr.response?.data?.detail || 'Failed to load results'
+        return
+      }
+    }
     error.value = err.response?.data?.detail || 'Failed to load results'
   } finally {
     loading.value = false
@@ -395,9 +410,10 @@ function getShotColor(shotType) {
 async function downloadRecording() {
   downloading.value = true
   try {
-    const response = await api.get(`/api/v1/stream/${sessionId}/recording`, {
-      responseType: 'blob'
-    })
+    const endpoint = isAdminView.value
+      ? `/api/v1/admin/stream-sessions/${sessionId}/recording`
+      : `/api/v1/stream/${sessionId}/recording`
+    const response = await api.get(endpoint, { responseType: 'blob' })
 
     const blob = new Blob([response.data], { type: 'video/mp4' })
     const url = window.URL.createObjectURL(blob)
@@ -418,9 +434,10 @@ async function downloadRecording() {
 async function downloadAnnotatedVideo() {
   downloading.value = true
   try {
-    const response = await api.get(`/api/v1/stream/${sessionId}/annotated-video`, {
-      responseType: 'blob'
-    })
+    const endpoint = isAdminView.value
+      ? `/api/v1/admin/stream-sessions/${sessionId}/annotated-video`
+      : `/api/v1/stream/${sessionId}/annotated-video`
+    const response = await api.get(endpoint, { responseType: 'blob' })
 
     const blob = new Blob([response.data], { type: 'video/mp4' })
     const url = window.URL.createObjectURL(blob)

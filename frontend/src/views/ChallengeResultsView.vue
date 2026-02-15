@@ -82,11 +82,13 @@ import { useRoute, useRouter } from 'vue-router'
 import { toPng } from 'html-to-image'
 import QRCode from 'qrcode'
 import api from '../api/client'
+import { useAuthStore } from '../stores/auth'
 
 const INVITE_URL = 'https://pushup.neymo.ai/signup?invite=PUSHUP'
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
 const sessionId = computed(() => route.params.sessionId)
 const result = ref(null)
 const hasRecording = ref(false)
@@ -94,6 +96,7 @@ const downloading = ref(false)
 const sharing = ref(false)
 const shareCard = ref(null)
 const qrDataUrl = ref(null)
+const isAdminView = ref(false)  // true when admin is viewing another user's session
 
 const TYPE_LABELS = {
   plank: 'Plank Hold',
@@ -130,9 +133,10 @@ function retry() {
 async function downloadRecording() {
   downloading.value = true
   try {
-    const response = await api.get(`/api/v1/challenges/sessions/${sessionId.value}/recording`, {
-      responseType: 'blob'
-    })
+    const endpoint = isAdminView.value
+      ? `/api/v1/challenges/admin/sessions/${sessionId.value}/recording`
+      : `/api/v1/challenges/sessions/${sessionId.value}/recording`
+    const response = await api.get(endpoint, { responseType: 'blob' })
     const blob = new Blob([response.data], { type: 'video/mp4' })
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
@@ -214,9 +218,22 @@ onMounted(async () => {
     if (session) {
       result.value = session
       hasRecording.value = !!session.has_recording
+      return
     }
   } catch (err) {
     console.error('Failed to load session results:', err)
+  }
+
+  // Admin fallback: if user doesn't own the session, try admin endpoint
+  if (authStore.user?.is_admin) {
+    try {
+      const response = await api.get(`/api/v1/challenges/admin/sessions/${sessionId.value}/detail`)
+      result.value = response.data
+      hasRecording.value = !!response.data.has_recording
+      isAdminView.value = true
+    } catch (err) {
+      console.error('Failed to load session via admin:', err)
+    }
   }
 })
 </script>

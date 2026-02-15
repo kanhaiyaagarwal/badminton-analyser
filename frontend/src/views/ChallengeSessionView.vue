@@ -686,7 +686,7 @@ function drawPose(poseData) {
   const sx = canvas.width / poseData.width
   const sy = canvas.height / poseData.height
 
-  ctx.globalAlpha = 0.45
+  ctx.globalAlpha = 0.75
 
   // Draw connections with body-part colors
   ctx.lineWidth = 3

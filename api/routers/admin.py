@@ -10,7 +10,7 @@ from pydantic import BaseModel, EmailStr
 from ..database import get_db
 from ..db_models.user import User
 from ..db_models.invite import InviteCode, Waitlist, WhitelistEmail
-from ..db_models.stream_session import StreamSession
+from ..db_models.stream_session import StreamSession, StreamStatus
 from .auth import get_current_user
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
@@ -440,3 +440,162 @@ async def admin_list_stream_sessions(
             "post_analysis_shots": s.post_analysis_shots,
         })
     return {"sessions": sessions, "total": total, "skip": skip, "limit": limit}
+
+
+@router.get("/stream-sessions/{session_id}/results")
+async def admin_get_stream_results(
+    session_id: int,
+    admin=Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    """Get full results for a stream session (admin only, no ownership check)."""
+    from pathlib import Path
+
+    session = db.query(StreamSession).filter(StreamSession.id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if session.status != StreamStatus.ENDED:
+        raise HTTPException(status_code=400, detail="Session has not ended yet")
+
+    duration = None
+    if session.started_at and session.ended_at:
+        duration = (session.ended_at - session.started_at).total_seconds()
+
+    has_recording = bool(session.recording_s3_key) or (
+        bool(session.recording_local_path) and Path(session.recording_local_path).exists()
+    )
+    has_annotated_video = bool(session.annotated_video_s3_key) or (
+        bool(session.annotated_video_local_path) and Path(session.annotated_video_local_path).exists()
+    )
+    has_frame_data = bool(session.frame_data_s3_key) or (
+        bool(session.frame_data_local_path) and Path(session.frame_data_local_path).exists()
+    )
+
+    return {
+        "session_id": session.id,
+        "title": session.title or f"Live Session #{session.id}",
+        "summary": {
+            "total_shots": session.total_shots,
+            "session_duration": duration,
+            "frame_rate": session.frame_rate,
+            "quality": session.quality,
+        },
+        "shot_distribution": session.shot_distribution or {},
+        "heatmap_paths": session.heatmap_paths,
+        "foot_positions": session.foot_positions or [],
+        "shot_timeline": session.shot_timeline or [],
+        "court_boundary": session.court_boundary,
+        "has_recording": has_recording,
+        "analysis_status": session.analysis_status or "none",
+        "analysis_progress": session.analysis_progress or 0,
+        "has_annotated_video": has_annotated_video,
+        "has_frame_data": has_frame_data,
+        "post_analysis": {
+            "shots": session.post_analysis_shots,
+            "distribution": session.post_analysis_distribution,
+            "rallies": session.post_analysis_rallies,
+            "shuttle_hits": session.post_analysis_shuttle_hits,
+            "rally_data": session.post_analysis_rally_data,
+        } if session.analysis_status == "complete" else None,
+        "created_at": session.created_at.isoformat() if session.created_at else None,
+        "started_at": session.started_at.isoformat() if session.started_at else None,
+        "ended_at": session.ended_at.isoformat() if session.ended_at else None,
+    }
+
+
+@router.get("/stream-sessions/{session_id}/recording")
+def admin_download_stream_recording(
+    session_id: int,
+    admin=Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    """Download recording for any stream session (admin only)."""
+    from pathlib import Path
+    from fastapi.responses import FileResponse, StreamingResponse
+    from ..services.storage_service import get_storage_service
+
+    storage = get_storage_service()
+    session = db.query(StreamSession).filter(StreamSession.id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    filename = f"stream_recording_{session_id}.mp4"
+
+    if session.recording_s3_key and storage.is_s3():
+        try:
+            video_data = storage.outputs.load(session.recording_s3_key)
+
+            def iter_data():
+                chunk_size = 1024 * 1024
+                for i in range(0, len(video_data), chunk_size):
+                    yield video_data[i:i + chunk_size]
+
+            return StreamingResponse(
+                iter_data(),
+                media_type="video/mp4",
+                headers={
+                    "Content-Disposition": f'attachment; filename="{filename}"',
+                    "Content-Length": str(len(video_data)),
+                },
+            )
+        except Exception:
+            pass
+
+    if session.recording_local_path:
+        video_path = Path(session.recording_local_path)
+        if video_path.exists():
+            return FileResponse(path=str(video_path), media_type="video/mp4", filename=filename)
+
+    raise HTTPException(status_code=404, detail="No recording available for this session")
+
+
+@router.get("/stream-sessions/{session_id}/annotated-video")
+def admin_download_annotated_video(
+    session_id: int,
+    admin=Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    """Download annotated video for any stream session (admin only)."""
+    import subprocess
+    import logging
+    from pathlib import Path
+    from fastapi.responses import FileResponse
+
+    logger = logging.getLogger(__name__)
+    session = db.query(StreamSession).filter(StreamSession.id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if not session.annotated_video_local_path:
+        raise HTTPException(status_code=404, detail="Annotated video not available")
+
+    video_path = Path(session.annotated_video_local_path)
+    if not video_path.exists():
+        raise HTTPException(status_code=404, detail="Annotated video not available")
+
+    h264_path = video_path.parent / f"{video_path.stem}_h264{video_path.suffix}"
+    serve_path = video_path
+
+    if h264_path.exists():
+        serve_path = h264_path
+    else:
+        try:
+            subprocess.run(
+                [
+                    'ffmpeg', '-y', '-i', str(video_path),
+                    '-c:v', 'libx264', '-preset', 'fast', '-crf', '23',
+                    '-c:a', 'aac', '-movflags', '+faststart',
+                    str(h264_path),
+                ],
+                capture_output=True, text=True, timeout=300,
+            )
+            if h264_path.exists():
+                serve_path = h264_path
+                logger.info(f"Admin: Created H.264 annotated video for session {session_id}")
+        except (subprocess.SubprocessError, FileNotFoundError) as e:
+            logger.warning(f"Admin: H.264 re-encode failed for session {session_id}: {e}")
+
+    return FileResponse(
+        path=str(serve_path),
+        media_type="video/mp4",
+        filename=f"annotated_stream_{session_id}.mp4",
+    )

@@ -280,6 +280,13 @@
                 >
                   Screenshots ({{ s.screenshot_count }})
                 </button>
+                <router-link
+                  v-if="s.status === 'ended'"
+                  :to="`/challenges/results/${s.id}`"
+                  class="btn-small btn-info"
+                >
+                  Results
+                </router-link>
                 <button
                   v-if="s.has_pose_data"
                   @click="downloadPoseData(s.id)"
@@ -372,6 +379,7 @@
               <th>Mode</th>
               <th>Date</th>
               <th>Status</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -387,9 +395,18 @@
                   {{ s.status }}
                 </span>
               </td>
+              <td class="actions">
+                <router-link
+                  v-if="s.status === 'ended'"
+                  :to="`/stream-results/${s.id}`"
+                  class="btn-small btn-info"
+                >
+                  Results
+                </router-link>
+              </td>
             </tr>
             <tr v-if="badmintonSessions.length === 0">
-              <td colspan="7" class="empty">No badminton sessions found</td>
+              <td colspan="8" class="empty">No badminton sessions found</td>
             </tr>
           </tbody>
         </table>
@@ -1112,6 +1129,16 @@ h1 {
 
 .btn-small.btn-success:hover {
   background: var(--color-primary-light);
+}
+
+.btn-small.btn-info {
+  background: var(--color-secondary, #7c3aed);
+  color: #fff;
+  text-decoration: none;
+}
+
+.btn-small.btn-info:hover {
+  opacity: 0.85;
 }
 
 .empty {

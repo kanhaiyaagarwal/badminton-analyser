@@ -61,6 +61,7 @@ class PushupAnalyzer(RepCounterAnalyzer):
         self.half_pushup_gap = cfg.get("half_pushup_gap", 0.05)  # min hip-wrist ny gap
         # Stood-up detection: person leaves pushup position
         self.stood_up_timeout = cfg.get("stood_up_timeout", 1.5)  # seconds non-horizontal before end
+        self.stood_up_early_timeout = cfg.get("stood_up_early_timeout", 10.0)  # longer grace when <= 2 reps (camera realignment)
         self._first_rep_grace = cfg.get("first_rep_grace", 30.0)  # seconds to wait for first rep
         self.collapse_recovery_deg = cfg.get("collapse_recovery_deg", 20)  # degrees above min = recovering
         self._state = "up"
@@ -235,11 +236,16 @@ class PushupAnalyzer(RepCounterAnalyzer):
                     collapse_reason = "position_break"
 
         # Signal 3: Stood up — left pushup position
+        # Use longer timeout when reps <= 2 so user can realign camera
+        effective_stood_up_timeout = (
+            self.stood_up_early_timeout if self.reps <= 2
+            else self.stood_up_timeout
+        )
         if (grace_expired
                 and not collapsed
                 and not is_horizontal
                 and self._stood_up_since > 0
-                and (timestamp - self._stood_up_since) >= self.stood_up_timeout):
+                and (timestamp - self._stood_up_since) >= effective_stood_up_timeout):
             collapsed = True
             collapse_reason = "stood_up"
 

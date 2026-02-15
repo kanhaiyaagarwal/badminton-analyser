@@ -857,6 +857,64 @@ def admin_get_screenshot(
     )
 
 
+@router.get("/admin/sessions/{session_id}/detail")
+def admin_get_session_detail(
+    session_id: int,
+    db: Session = Depends(get_db),
+    admin=Depends(require_admin),
+):
+    """Get session result details the way the user sees them (admin only)."""
+    session = db.query(ChallengeSession).filter(
+        ChallengeSession.id == session_id
+    ).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    record = db.query(ChallengeRecord).filter(
+        ChallengeRecord.user_id == session.user_id,
+        ChallengeRecord.challenge_type == session.challenge_type,
+    ).first()
+    daily_rank = _compute_daily_rank(db, session.user_id, session.challenge_type)
+
+    return _build_response(session, record.best_score if record else None, daily_rank)
+
+
+@router.get("/admin/sessions/{session_id}/recording")
+def admin_download_recording(
+    session_id: int,
+    db: Session = Depends(get_db),
+    admin=Depends(require_admin),
+):
+    """Download recording for any session (admin only)."""
+    storage = get_storage_service()
+
+    session = db.query(ChallengeSession).filter(
+        ChallengeSession.id == session_id,
+    ).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    filename = f"challenge_recording_{session_id}.mp4"
+
+    if session.recording_s3_key and storage.is_s3():
+        try:
+            video_data = storage.outputs.load(session.recording_s3_key)
+            return Response(
+                content=video_data,
+                media_type="video/mp4",
+                headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+            )
+        except Exception as e:
+            logger.error(f"Failed to load challenge recording from S3: {e}")
+
+    if session.recording_local_path:
+        video_path = Path(session.recording_local_path)
+        if video_path.exists():
+            return FileResponse(path=str(video_path), media_type="video/mp4", filename=filename)
+
+    raise HTTPException(status_code=404, detail="No recording available for this session")
+
+
 @router.get("/admin/config")
 def admin_get_config(
     db: Session = Depends(get_db),
