@@ -52,6 +52,7 @@ class PlankAnalyzer(RepCounterAnalyzer):
         self.form_hysteresis = cfg.get("form_hysteresis", 10)
         self.sag_threshold = cfg.get("sag_threshold", 0.02)
         self.horizontal_threshold = cfg.get("horizontal_threshold", 0.35)
+        self.knee_angle_min = cfg.get("knee_angle_min", 150)
         self._in_plank = False
         self._in_good_form = False  # hysteresis state
         self._ready = False  # require user to get into plank first
@@ -83,16 +84,27 @@ class PlankAnalyzer(RepCounterAnalyzer):
             landmarks[R_ANKLE]["visibility"],
         )
 
+        best_vis = max(left_vis, right_vis)
+
         if left_vis >= right_vis:
             shoulder = (landmarks[L_SHOULDER]["nx"], landmarks[L_SHOULDER]["ny"])
             hip = (landmarks[L_HIP]["nx"], landmarks[L_HIP]["ny"])
+            knee = (landmarks[L_KNEE]["nx"], landmarks[L_KNEE]["ny"])
             ankle = (landmarks[L_ANKLE]["nx"], landmarks[L_ANKLE]["ny"])
+            knee_vis = min(landmarks[L_HIP]["visibility"], landmarks[L_KNEE]["visibility"], landmarks[L_ANKLE]["visibility"])
         else:
             shoulder = (landmarks[R_SHOULDER]["nx"], landmarks[R_SHOULDER]["ny"])
             hip = (landmarks[R_HIP]["nx"], landmarks[R_HIP]["ny"])
+            knee = (landmarks[R_KNEE]["nx"], landmarks[R_KNEE]["ny"])
             ankle = (landmarks[R_ANKLE]["nx"], landmarks[R_ANKLE]["ny"])
+            knee_vis = min(landmarks[R_HIP]["visibility"], landmarks[R_KNEE]["visibility"], landmarks[R_ANKLE]["visibility"])
 
         angle = PoseDetector.angle_between(shoulder, hip, ankle)
+
+        # Knee straightness check: hip-knee-ankle angle must be near 180°.
+        # Dropping to knees keeps shoulder-hip-ankle ~174° but bends knee to ~90-120°.
+        knee_angle = PoseDetector.angle_between(hip, knee, ankle)
+        knees_straight = knee_vis < 0.3 or knee_angle >= self.knee_angle_min
 
         # Horizontal check (same concept as pushup)
         shoulder_y = (landmarks[L_SHOULDER]["ny"] + landmarks[R_SHOULDER]["ny"]) / 2
@@ -101,11 +113,16 @@ class PlankAnalyzer(RepCounterAnalyzer):
         y_spread = max(shoulder_y, hip_y, ankle_y) - min(shoulder_y, hip_y, ankle_y)
         is_horizontal = y_spread < self.horizontal_threshold
 
+        # Landmark visibility gate: if key landmarks (shoulder/hip/ankle) are
+        # not visible, angle is unreliable (MediaPipe hallucinates off-screen
+        # positions in a straight line, giving fake ~174° angles)
+        landmarks_visible = best_vis >= 0.3
+
         # Hysteresis: once in good form, angle must drop further to exit
         if self._in_good_form:
-            good_form = angle >= (self.good_angle_min - self.form_hysteresis)
+            good_form = landmarks_visible and knees_straight and angle >= (self.good_angle_min - self.form_hysteresis)
         else:
-            good_form = angle >= self.good_angle_min
+            good_form = landmarks_visible and knees_straight and angle >= self.good_angle_min
 
         # --- Visibility gate: all body parts must be visible before ready ---
         if not self._ready:
