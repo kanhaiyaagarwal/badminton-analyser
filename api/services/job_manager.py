@@ -4,7 +4,8 @@ import asyncio
 import logging
 import shutil
 import tempfile
-from concurrent.futures import ProcessPoolExecutor, BrokenProcessPool
+from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures.process import BrokenProcessPool
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional, Any, Callable
