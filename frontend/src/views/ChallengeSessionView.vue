@@ -40,6 +40,13 @@
               <p>When you stand up or drop out of position, the session ends on its own. Want more reps? Start a new challenge!</p>
             </div>
           </div>
+          <div class="guide-step">
+            <span class="step-number">5</span>
+            <div class="step-content">
+              <strong>Sound &amp; Record</strong>
+              <p>Tap Sound to hear rep counts called out. Tap Record to save a video of your session.</p>
+            </div>
+          </div>
         </div>
 
         <button class="placement-btn" @click="dismissPlacementGuide">Got it, let's go!</button>
@@ -70,6 +77,22 @@
         </div>
       </div>
 
+      <div class="setup-icon-toggles">
+        <button :class="['icon-toggle', { active: recordOnStart }]" @click="recordOnStart = !recordOnStart" title="Record session">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><circle cx="12" cy="12" r="7"/></svg>
+          <span class="icon-toggle-label">Record</span>
+        </button>
+        <button :class="['icon-toggle', { active: showAnnotations }]" @click="showAnnotations = !showAnnotations" title="Skeleton overlay">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2"/><line x1="12" y1="7" x2="12" y2="15"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="12" y1="15" x2="8" y2="21"/><line x1="12" y1="15" x2="16" y2="21"/></svg>
+          <span class="icon-toggle-label">Skeleton</span>
+        </button>
+        <button :class="['icon-toggle', { active: enableSound }]" @click="enableSound = !enableSound" title="Sound cues">
+          <svg v-if="enableSound" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+          <span class="icon-toggle-label">Sound</span>
+        </button>
+      </div>
+
       <div class="controls">
         <select v-model="selectedCamera" @change="switchCamera" class="camera-select">
           <option value="">Select camera...</option>
@@ -82,20 +105,6 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
           {{ starting ? 'Starting...' : 'Start Challenge' }}
         </button>
-      </div>
-
-      <div class="setup-toggles">
-        <label class="setup-toggle-item">
-          <input type="checkbox" v-model="recordOnStart" />
-          <svg class="toggle-icon" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-            <circle cx="12" cy="12" r="7"/>
-          </svg>
-          <span class="toggle-label">Record session</span>
-        </label>
-        <label class="setup-toggle-item">
-          <input type="checkbox" v-model="showAnnotations" />
-          <span class="toggle-label">Skeleton overlay</span>
-        </label>
       </div>
     </div>
 
@@ -291,6 +300,17 @@ const playerReady = ref(false)
 const legsStraight = ref(true)
 const timeRemaining = ref(0)
 
+// Sound cues
+const enableSound = ref(false)
+
+function speak(text) {
+  if (!enableSound.value || !window.speechSynthesis) return
+  const u = new SpeechSynthesisUtterance(text)
+  u.rate = 1.2
+  u.volume = 1
+  window.speechSynthesis.speak(u)
+}
+
 // Recording state
 const recordOnStart = ref(false)
 const isRecording = ref(false)
@@ -310,6 +330,7 @@ let goFlashTimeout = null
 
 watch(playerReady, (ready) => {
   if (ready) {
+    speak('Start')
     showGoFlash.value = true
     if (goFlashTimeout) clearTimeout(goFlashTimeout)
     goFlashTimeout = setTimeout(() => {
@@ -357,6 +378,7 @@ const feedbackClass = computed(() => {
 })
 
 function triggerRepPop(count) {
+  speak(String(count))
   repPopValue.value = count
   repPopKey.value++
   showRepPop.value = true
@@ -876,43 +898,48 @@ onUnmounted(() => {
   box-shadow: 0 6px 20px rgba(124, 58, 237, 0.4);
 }
 
-.setup-toggles {
+.setup-icon-toggles {
   display: flex;
-  gap: 1.5rem;
-  margin-top: 0.75rem;
-  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
 }
 
-.setup-toggle-item {
+.icon-toggle {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
-  cursor: pointer;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--border-input);
+  gap: 0.3rem;
+  padding: 0.5rem 1rem;
+  background: transparent;
+  border: 1.5px solid var(--border-input);
   border-radius: var(--radius-md);
-  transition: border-color 0.2s;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 64px;
 }
 
-.setup-toggle-item:has(input:checked) {
+.icon-toggle:hover {
   border-color: var(--color-primary);
 }
 
-.setup-toggle-item input {
-  accent-color: var(--color-primary);
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
+.icon-toggle.active {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: rgba(124, 58, 237, 0.08);
 }
 
-.setup-toggle-item .toggle-icon {
+.icon-toggle.active:first-child {
   color: var(--color-destructive);
-  flex-shrink: 0;
+  border-color: var(--color-destructive);
+  background: rgba(231, 76, 60, 0.08);
 }
 
-.toggle-label {
-  color: var(--text-muted);
-  font-size: 0.85rem;
+.icon-toggle-label {
+  font-size: 0.7rem;
+  font-weight: 500;
+  line-height: 1;
 }
 
 .camera-preview-wrap {
