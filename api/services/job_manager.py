@@ -4,7 +4,7 @@ import asyncio
 import logging
 import shutil
 import tempfile
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, BrokenProcessPool
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional, Any, Callable
@@ -61,6 +61,18 @@ class JobManager:
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
+
+    @classmethod
+    def _get_executor(cls) -> ProcessPoolExecutor:
+        """Get a healthy executor, recreating if the pool is broken."""
+        if cls._executor is None or cls._executor._broken:
+            logger.warning("Process pool is broken or missing — recreating")
+            try:
+                cls._executor.shutdown(wait=False)
+            except Exception:
+                pass
+            cls._executor = ProcessPoolExecutor(max_workers=settings.max_concurrent_jobs)
+        return cls._executor
 
     def register_progress_callback(self, job_id: int, callback: Callable[[int, float, str], None]):
         """Register a callback for progress updates."""
@@ -166,9 +178,9 @@ class JobManager:
                 self._poll_progress(job_id, str(progress_file))
             )
 
-            # Run in process pool
+            # Run in process pool (auto-recreate if broken)
             result = await loop.run_in_executor(
-                self._executor,
+                self._get_executor(),
                 partial(
                     _run_analysis_process,
                     video_path=local_video_path,
