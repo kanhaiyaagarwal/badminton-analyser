@@ -101,7 +101,7 @@ const remainingTime = ref('')
 const s3Enabled = ref(false)
 const abortController = ref(null)
 
-const maxSize = 500 * 1024 * 1024 // 500MB
+const maxSize = 100 * 1024 * 1024 // 100MB
 
 onMounted(async () => {
   // Check if S3 upload is available
@@ -137,7 +137,7 @@ function validateAndSetFile(f) {
   }
 
   if (f.size > maxSize) {
-    error.value = 'File size exceeds 500MB limit'
+    error.value = 'File size exceeds 100MB limit'
     return
   }
 

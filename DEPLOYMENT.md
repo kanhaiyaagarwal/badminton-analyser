@@ -359,7 +359,7 @@ Environment variables are set in `task-definition.json`:
 |----------|-------------|---------|
 | `UPLOAD_DIR` | Upload directory | `/app/uploads` |
 | `OUTPUT_DIR` | Analysis output directory | `/app/analysis_output` |
-| `MAX_UPLOAD_SIZE_MB` | Max upload size | `500` |
+| `MAX_UPLOAD_SIZE_MB` | Max upload size | `100` |
 | `USE_S3` | Enable S3 storage | `false` |
 | `S3_BUCKET` | S3 bucket name | - |
 

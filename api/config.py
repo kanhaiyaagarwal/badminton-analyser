@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     output_dir: str = "analysis_output"
 
     # Upload limits
-    max_upload_size_mb: int = 500
+    max_upload_size_mb: int = 100
 
     # Analysis settings
     max_concurrent_jobs: int = 2

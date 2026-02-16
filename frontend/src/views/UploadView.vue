@@ -104,9 +104,9 @@ function validateAndSetFile(file) {
     return
   }
 
-  // 500MB limit
-  if (file.size > 500 * 1024 * 1024) {
-    error.value = 'File too large. Maximum size is 500MB.'
+  // 100MB limit
+  if (file.size > 100 * 1024 * 1024) {
+    error.value = 'File too large. Maximum size is 100MB.'
     return
   }
 

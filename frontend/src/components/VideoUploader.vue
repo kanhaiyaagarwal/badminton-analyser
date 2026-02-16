@@ -47,7 +47,7 @@ const file = ref(null)
 const isDragover = ref(false)
 
 const allowedTypes = ['video/mp4', 'video/avi', 'video/quicktime', 'video/x-matroska', 'video/webm']
-const maxSize = 500 * 1024 * 1024 // 500MB
+const maxSize = 100 * 1024 * 1024 // 100MB
 
 function triggerInput() {
   if (!file.value) {
@@ -77,7 +77,7 @@ function validateAndSetFile(f) {
 
   // Check size
   if (f.size > maxSize) {
-    emit('error', 'File size exceeds 500MB limit')
+    emit('error', 'File size exceeds 100MB limit')
     return
   }
 
