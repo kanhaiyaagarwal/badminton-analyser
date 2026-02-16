@@ -1,31 +1,36 @@
 <template>
   <div class="challenge-session">
-    <!-- Placement guide overlay (users with < 5 total pushups) -->
+    <!-- Placement guide overlay -->
     <div v-if="showPlacementGuide" class="placement-overlay" @click="dismissPlacementGuide">
       <div class="placement-card" @click.stop>
-        <h2 class="placement-title">How It Works</h2>
-        <p class="placement-subtitle">Follow these steps for the best experience:</p>
 
         <div class="guide-steps">
           <div class="guide-step">
             <span class="step-number">1</span>
             <div class="step-content">
-              <strong>Tap "Start Challenge"</strong>
-              <p>Start the session first, then place your phone.</p>
+              <strong>First, START the challenge</strong>
+              <p>Tap "Start Challenge" below, then place your phone.</p>
             </div>
           </div>
           <div class="guide-step">
             <span class="step-number">2</span>
             <div class="step-content">
-              <strong>Place your phone</strong>
-              <p>Set it on the ground to your side, 1-2m away. Your <em>entire body</em> must be visible in the frame.</p>
+              <strong>Place your phone at least a meter away</strong>
+              <p>Place your phone on the white line, so that your entire body is visible on screen.</p>
             </div>
           </div>
+        </div>
+
+        <div class="placement-img-wrap">
+          <img src="/position-guide.png" alt="Position guide" class="placement-img" />
+        </div>
+
+        <div class="guide-steps">
           <div class="guide-step">
             <span class="step-number">3</span>
             <div class="step-content">
-              <strong>Get in position</strong>
-              <p>The app detects you automatically. No need to tap anything — just start your reps!</p>
+              <strong>Wait for the <span class="inline-circle red"></span> cricle to turn <span class="inline-circle green"></span>, then begin Pushups</strong>
+              <p>The circle turns green once you're in the correct position and your entire body is visible.</p>
             </div>
           </div>
           <div class="guide-step">
@@ -37,16 +42,6 @@
           </div>
         </div>
 
-        <div class="placement-img-wrap">
-          <img src="/mobileplacement.png" alt="Phone placement guide" class="placement-img" />
-          <div class="placement-highlight">
-            <span class="highlight-ring"></span>
-            <span class="highlight-label">Place phone here</span>
-          </div>
-        </div>
-
-        <p class="guide-key-tip">Make sure the camera captures your <strong>full body</strong> — head to feet!</p>
-
         <button class="placement-btn" @click="dismissPlacementGuide">Got it, let's go!</button>
       </div>
     </div>
@@ -55,7 +50,7 @@
     <div v-if="phase === 'setup'" class="setup-phase">
       <router-link :to="`/challenges/${challengeType}`" class="back-link">&larr; Back</router-link>
       <h1>{{ challengeTitle }}</h1>
-      <p class="hint">{{ challengeHint }}</p>
+      <p class="hint">{{ challengeHint }} <span class="info-icon" @click="showPlacementGuide = true" title="How it works">&#9432;</span></p>
 
       <div :class="['camera-preview-wrap', { maximized }]" @click="cameraReady && !starting && startSession()">
         <video ref="previewVideo" autoplay playsinline muted class="camera-preview"></video>
@@ -793,6 +788,22 @@ onUnmounted(() => {
   margin-bottom: 1.5rem;
 }
 
+.info-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  color: var(--color-primary);
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+  vertical-align: middle;
+  margin-left: 0.25rem;
+}
+.info-icon:hover {
+  opacity: 1;
+}
+
 .camera-preview-wrap {
   position: relative;
   background: #000;
@@ -1316,61 +1327,14 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
-.placement-title {
-  font-size: 1.3rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: 0.25rem;
-}
-
-.placement-subtitle {
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-  margin-bottom: 1.25rem;
-}
-
 .placement-img-wrap {
-  position: relative;
-  margin-bottom: 1.25rem;
+  margin-bottom: 1rem;
 }
 
 .placement-img {
   width: 100%;
   border-radius: var(--radius-md);
   display: block;
-}
-
-.placement-highlight {
-  position: absolute;
-  bottom: 28%;
-  left: 0%;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.highlight-ring {
-  width: 52px;
-  height: 52px;
-  border-radius: var(--radius-full);
-  border: 3px solid var(--color-primary);
-  box-shadow: 0 0 0 6px rgba(79, 70, 229, 0.25);
-  animation: ring-breathe 2s ease-in-out infinite;
-}
-
-@keyframes ring-breathe {
-  0%, 100% { box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.2); }
-  50% { box-shadow: 0 0 0 10px rgba(79, 70, 229, 0.35); }
-}
-
-.highlight-label {
-  background: var(--color-primary);
-  color: #fff;
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 0.25rem 0.6rem;
-  border-radius: var(--radius-full);
-  white-space: nowrap;
 }
 
 .guide-steps {
@@ -1414,15 +1378,16 @@ onUnmounted(() => {
   line-height: 1.4;
 }
 
-.guide-key-tip {
-  color: var(--color-primary);
-  font-size: 0.85rem;
-  margin: 0 0 1.25rem;
-  padding: 0.6rem 1rem;
-  background: var(--color-primary-light);
-  border-radius: var(--radius-md);
-  text-align: center;
+.inline-circle {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  vertical-align: middle;
+  margin: 0 2px;
 }
+.inline-circle.red { background: #ef4444; }
+.inline-circle.green { background: #22c55e; }
 
 .placement-btn {
   width: 100%;
