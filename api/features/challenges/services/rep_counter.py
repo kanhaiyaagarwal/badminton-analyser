@@ -43,6 +43,8 @@ class RepCounterAnalyzer(BaseStreamAnalyzer):
         self._last_timestamp = 0.0
         self.frame_timeline: List[Dict] = []
         self._ready = True  # subclasses can override (e.g. pushup)
+        self._ready_timestamp = None  # timestamp when player first became ready
+        self._ready_wall_time = None  # wall clock when player first became ready
 
         # Session limits (configurable via admin)
         cfg = config or {}
@@ -120,13 +122,21 @@ class RepCounterAnalyzer(BaseStreamAnalyzer):
 
         self._last_timestamp = timestamp
 
+        # Track when player first becomes ready
+        if self._ready and self._ready_timestamp is None:
+            self._ready_timestamp = timestamp
+            self._ready_wall_time = datetime.now()
+
+        # Time since player became ready (for duration/countdown)
+        active_time = (timestamp - self._ready_timestamp) if self._ready_timestamp is not None else 0.0
+
         # --- Auto-end checks (only after ready) ---
         auto_end = False
         end_reason = ""
 
         if self._ready and not self._session_ended:
-            # Max duration
-            if self.max_duration > 0 and timestamp >= self.max_duration:
+            # Max duration (relative to ready time)
+            if self.max_duration > 0 and active_time >= self.max_duration:
                 auto_end = True
                 end_reason = "time_limit"
 
@@ -153,7 +163,7 @@ class RepCounterAnalyzer(BaseStreamAnalyzer):
                 f"(score={self.reps}, hold={self.hold_seconds:.1f}s, t={timestamp:.1f}s)"
             )
 
-        time_remaining = max(0, round(self.max_duration - timestamp, 1)) if self.max_duration > 0 else 0
+        time_remaining = max(0, round(self.max_duration - active_time, 1)) if self.max_duration > 0 else 0
 
         return {
             "type": "challenge_update",
@@ -185,7 +195,7 @@ class RepCounterAnalyzer(BaseStreamAnalyzer):
         """
 
     def get_final_report(self) -> Dict:
-        duration = (datetime.now() - self._start_time).total_seconds()
+        duration = (datetime.now() - self._ready_wall_time).total_seconds() if self._ready_wall_time else 0.0
         return {
             "challenge_type": self.challenge_type,
             "score": self.reps if self.challenge_type != "plank" else int(self.hold_seconds),
@@ -205,6 +215,8 @@ class RepCounterAnalyzer(BaseStreamAnalyzer):
         self._frame_counter = 0
         self._start_time = datetime.now()
         self._last_timestamp = 0.0
+        self._ready_timestamp = None
+        self._ready_wall_time = None
         self.frame_timeline = []
         self._last_active_ts = 0.0
         self._activity_started = False
@@ -217,7 +229,8 @@ class RepCounterAnalyzer(BaseStreamAnalyzer):
         self.detector.close()
 
     def _empty_result(self) -> Dict:
-        time_remaining = max(0, round(self.max_duration - self._last_timestamp, 1)) if self.max_duration > 0 else 0
+        active_time = (self._last_timestamp - self._ready_timestamp) if self._ready_timestamp is not None else 0.0
+        time_remaining = max(0, round(self.max_duration - active_time, 1)) if self.max_duration > 0 else 0
         return {
             "type": "challenge_update",
             "challenge_type": self.challenge_type,

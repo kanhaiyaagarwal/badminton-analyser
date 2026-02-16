@@ -29,7 +29,7 @@
           <div class="guide-step">
             <span class="step-number">3</span>
             <div class="step-content">
-              <strong>Wait for the <span class="inline-circle red"></span> cricle to turn <span class="inline-circle green"></span>, then begin Pushups</strong>
+              <strong>Wait for the <span class="inline-circle red"></span> circle to turn <span class="inline-circle green"></span>, then begin Pushups</strong>
               <p>The circle turns green once you're in the correct position and your entire body is visible.</p>
             </div>
           </div>
@@ -279,6 +279,7 @@ let ws = null
 let frameInterval = null
 let startTime = null
 let elapsedTimer = null
+let readyTime = null
 
 // Real-time data from backend
 const reps = ref(0)
@@ -337,6 +338,17 @@ const timeRemainingDisplay = computed(() => {
 })
 
 const timeWarning = computed(() => timeRemaining.value > 0 && timeRemaining.value <= 30)
+
+// Start elapsed timer when player becomes ready (green dot)
+watch(playerReady, (ready) => {
+  if (ready && !readyTime) {
+    readyTime = Date.now()
+    elapsed.value = 0
+    elapsedTimer = setInterval(() => {
+      elapsed.value = Math.floor((Date.now() - readyTime) / 1000)
+    }, 1000)
+  }
+})
 
 const feedbackClass = computed(() => {
   const fb = formFeedback.value.toLowerCase()
@@ -423,9 +435,6 @@ async function connectWebSocket(sid) {
 
     startTime = Date.now()
     elapsed.value = 0
-    elapsedTimer = setInterval(() => {
-      elapsed.value = Math.floor((Date.now() - startTime) / 1000)
-    }, 1000)
 
     // Wait for Vue to render the streamVideo element
     await nextTick()
@@ -727,6 +736,7 @@ function gracefulEnd() {
 function cleanup() {
   stopFrameCapture()
   stopRecordingTimer()
+  readyTime = null
   if (repPopTimeout) { clearTimeout(repPopTimeout); repPopTimeout = null }
   if (goFlashTimeout) { clearTimeout(goFlashTimeout); goFlashTimeout = null }
   if (ws) {
