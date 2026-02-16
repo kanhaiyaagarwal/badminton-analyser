@@ -49,7 +49,11 @@ class PlankAnalyzer(RepCounterAnalyzer):
         cfg = config or {}
         self.good_angle_min = cfg.get("good_angle_min", 150)
         self.good_angle_max = cfg.get("good_angle_max", 195)
+        self.form_hysteresis = cfg.get("form_hysteresis", 10)
+        self.sag_threshold = cfg.get("sag_threshold", 0.02)
+        self.horizontal_threshold = cfg.get("horizontal_threshold", 0.35)
         self._in_plank = False
+        self._in_good_form = False  # hysteresis state
         self._ready = False  # require user to get into plank first
 
         # Safety / auto-end config
@@ -62,6 +66,7 @@ class PlankAnalyzer(RepCounterAnalyzer):
         self.recovery_window = cfg.get("recovery_window", 15.0)
         self.form_break_grace = cfg.get("form_break_grace", 3.0)
         self.form_break_timeout = cfg.get("form_break_timeout", 8.0)
+        self.form_break_post_recovery = cfg.get("form_break_post_recovery", 5.0)
         self.collapse_gap = cfg.get("collapse_gap", 0.03)
         self.collapse_hip_gap = cfg.get("collapse_hip_gap", 0.06)
 
@@ -94,9 +99,13 @@ class PlankAnalyzer(RepCounterAnalyzer):
         hip_y = (landmarks[L_HIP]["ny"] + landmarks[R_HIP]["ny"]) / 2
         ankle_y = (landmarks[L_ANKLE]["ny"] + landmarks[R_ANKLE]["ny"]) / 2
         y_spread = max(shoulder_y, hip_y, ankle_y) - min(shoulder_y, hip_y, ankle_y)
-        is_horizontal = y_spread < 0.25
+        is_horizontal = y_spread < self.horizontal_threshold
 
-        good_form = self.good_angle_min <= angle <= self.good_angle_max
+        # Hysteresis: once in good form, angle must drop further to exit
+        if self._in_good_form:
+            good_form = angle >= (self.good_angle_min - self.form_hysteresis)
+        else:
+            good_form = angle >= self.good_angle_min
 
         # --- Visibility gate: all body parts must be visible before ready ---
         if not self._ready:
@@ -124,11 +133,17 @@ class PlankAnalyzer(RepCounterAnalyzer):
                 }
 
         # --- Stood-up tracking ---
-        if is_horizontal:
+        # Reset stood_up timer if horizontal OR in good form (full hand plank
+        # has high shoulder_y, failing is_horizontal even though form is valid)
+        if is_horizontal or good_form:
             self._stood_up_since = 0.0
             self.mark_active(timestamp)
         elif self._stood_up_since == 0.0:
             self._stood_up_since = timestamp
+
+        # Position-based sag/pike detection
+        mid_y = (shoulder_y + ankle_y) / 2
+        hips_sagging = hip_y > mid_y + self.sag_threshold
 
         # Hold time tracking
         if good_form:
@@ -137,30 +152,31 @@ class PlankAnalyzer(RepCounterAnalyzer):
                 if dt > 0 and dt < 1.0:  # guard against jumps
                     self.hold_seconds += dt
             self._in_plank = True
+            self._in_good_form = True
             self.form_feedback = "Good plank form!"
             self._form_break_since = 0.0
+            self.mark_active(timestamp)
         else:
             self._in_plank = False
+            self._in_good_form = False
             if self._form_break_since == 0.0:
                 self._form_break_since = timestamp
             break_dur = timestamp - self._form_break_since
             in_recovery = self.hold_seconds < self.recovery_window
+            if hips_sagging:
+                form_hint = "Hips sagging — engage your core"
+            else:
+                form_hint = "Hips too high — straighten your body"
             if in_recovery and break_dur < self.form_break_grace:
                 # Early in session + brief break — just corrective feedback
-                if angle < self.good_angle_min:
-                    self.form_feedback = "Hips too high — straighten your body"
-                else:
-                    self.form_feedback = "Hips sagging — engage your core"
+                self.form_feedback = form_hint
             elif in_recovery:
                 # Early in session + past grace — countdown to end
                 remaining = max(0, self.form_break_timeout - break_dur)
                 self.form_feedback = f"Get back in position! ({int(remaining)}s)"
             else:
-                # Past recovery window — just show what's wrong, session ends quickly
-                if angle < self.good_angle_min:
-                    self.form_feedback = "Hips too high — straighten your body"
-                else:
-                    self.form_feedback = "Hips sagging — engage your core"
+                # Past recovery window — show what's wrong
+                self.form_feedback = form_hint
 
         # --- Collapse / end-session detection ---
         grace_expired = (
@@ -190,7 +206,7 @@ class PlankAnalyzer(RepCounterAnalyzer):
             elif self._form_break_since > 0:
                 break_dur = timestamp - self._form_break_since
                 in_recovery = self.hold_seconds < self.recovery_window
-                effective_limit = self.form_break_timeout if in_recovery else 1.5
+                effective_limit = self.form_break_timeout if in_recovery else self.form_break_post_recovery
                 if break_dur >= effective_limit:
                     self._session_ended = True
                     self._end_reason = "form_break"
