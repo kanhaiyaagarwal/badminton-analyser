@@ -230,8 +230,49 @@
         </div>
       </div>
 
-      <!-- Challenges Tab -->
-      <!-- Sessions Tab -->
+      <!-- Feature Access Tab -->
+      <div v-if="activeTab === 'feature-access'" class="tab-content">
+        <h2>Feature Access</h2>
+
+        <div v-if="loadingFeatureAccess" class="loading">Loading...</div>
+
+        <div v-else class="config-grid">
+          <div v-for="fa in featureAccess" :key="fa.feature_name" class="config-card">
+            <div class="config-card-header">
+              <h3>{{ fa.feature_name }}</h3>
+            </div>
+
+            <div class="access-mode-group">
+              <label class="access-mode-label">Access Mode</label>
+              <div class="segmented-toggle">
+                <button
+                  v-for="mode in ['global', 'per_user', 'disabled']"
+                  :key="mode"
+                  :class="['seg-btn', { active: fa.access_mode === mode }]"
+                  @click="updateFeatureAccess(fa.feature_name, { access_mode: mode })"
+                >
+                  {{ mode === 'per_user' ? 'Per User' : mode.charAt(0).toUpperCase() + mode.slice(1) }}
+                </button>
+              </div>
+            </div>
+
+            <label class="default-signup-check">
+              <input
+                type="checkbox"
+                :checked="fa.default_on_signup"
+                @change="updateFeatureAccess(fa.feature_name, { default_on_signup: $event.target.checked })"
+              />
+              Default on signup
+            </label>
+
+            <div v-if="fa.updated_at" class="config-meta">
+              Updated: {{ formatDate(fa.updated_at) }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Challenge Sessions Tab -->
       <div v-if="activeTab === 'sessions'" class="tab-content">
         <div class="section-header">
           <h2>Challenge Sessions</h2>
@@ -328,12 +369,6 @@
           <div v-for="(cfg, ctype) in challengeConfig" :key="ctype" class="config-card">
             <div class="config-card-header">
               <h3>{{ ctype }}</h3>
-              <button
-                :class="['enabled-pill', cfg.enabled ? 'enabled' : 'disabled']"
-                @click="toggleChallengeEnabled(ctype)"
-              >
-                {{ cfg.enabled ? 'Enabled' : 'Disabled' }}
-              </button>
             </div>
             <div v-for="(val, key) in cfg.thresholds" :key="key" class="config-field">
               <label>{{ formatThresholdLabel(key) }}</label>
@@ -522,6 +557,7 @@ const tabs = [
   { id: 'whitelist', label: 'Whitelist' },
   { id: 'waitlist', label: 'Waitlist' },
   { id: 'users', label: 'Users' },
+  { id: 'feature-access', label: 'Feature Access' },
   { id: 'sessions', label: 'Challenge Sessions' },
   { id: 'challenge-config', label: 'Challenge Config' },
   { id: 'badminton', label: 'Badminton Sessions' },
@@ -563,6 +599,10 @@ const challengePage = ref(0)
 const challengeTotal = ref(0)
 const PAGE_SIZE = 20
 
+// Feature Access
+const featureAccess = ref([])
+const loadingFeatureAccess = ref(false)
+
 // Challenge Config
 const challengeConfig = ref({})
 const loadingConfig = ref(false)
@@ -580,6 +620,9 @@ onMounted(async () => {
 })
 
 watch(activeTab, (tab) => {
+  if (tab === 'feature-access' && featureAccess.value.length === 0) {
+    loadFeatureAccess()
+  }
   if (tab === 'sessions' && challengeSessions.value.length === 0) {
     loadChallengeSessions()
   }
@@ -833,12 +876,26 @@ async function resetChallengeConfig(ctype) {
   }
 }
 
-async function toggleChallengeEnabled(ctype) {
+// ---------- Feature Access ----------
+
+async function loadFeatureAccess() {
+  loadingFeatureAccess.value = true
   try {
-    await api.patch(`/api/v1/challenges/admin/config/${ctype}/toggle-enabled`)
-    await loadChallengeConfig()
+    const response = await api.get('/api/v1/admin/feature-access')
+    featureAccess.value = response.data
   } catch (err) {
-    console.error('Failed to toggle challenge enabled:', err)
+    console.error('Failed to load feature access:', err)
+  } finally {
+    loadingFeatureAccess.value = false
+  }
+}
+
+async function updateFeatureAccess(featureName, patch) {
+  try {
+    await api.patch(`/api/v1/admin/feature-access/${featureName}`, patch)
+    await loadFeatureAccess()
+  } catch (err) {
+    console.error('Failed to update feature access:', err)
   }
 }
 
@@ -1316,32 +1373,63 @@ select {
   text-transform: capitalize;
 }
 
-.enabled-pill {
-  padding: 0.25rem 0.75rem;
-  border-radius: var(--radius-full);
+.access-mode-group {
+  margin-bottom: 1rem;
+}
+
+.access-mode-label {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin-bottom: 0.5rem;
+}
+
+.segmented-toggle {
+  display: flex;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.seg-btn {
+  flex: 1;
+  padding: 0.4rem 0.5rem;
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--border-color);
+  color: var(--text-muted);
   font-size: 0.75rem;
   font-weight: 600;
-  border: none;
   cursor: pointer;
   transition: all 0.2s;
 }
 
-.enabled-pill.enabled {
-  background: var(--color-primary-light);
-  color: var(--color-primary);
+.seg-btn:last-child {
+  border-right: none;
 }
 
-.enabled-pill.enabled:hover {
-  background: var(--color-primary-light);
+.seg-btn:hover:not(.active) {
+  background: rgba(136, 136, 136, 0.15);
 }
 
-.enabled-pill.disabled {
-  background: rgba(136, 136, 136, 0.2);
-  color: var(--text-muted);
+.seg-btn.active {
+  background: var(--color-secondary);
+  color: var(--text-on-primary);
 }
 
-.enabled-pill.disabled:hover {
-  background: rgba(136, 136, 136, 0.35);
+.default-signup-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  margin-top: 0.5rem;
+}
+
+.default-signup-check input[type="checkbox"] {
+  width: auto;
+  cursor: pointer;
 }
 
 .config-field {

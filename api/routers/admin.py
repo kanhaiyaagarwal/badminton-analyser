@@ -299,6 +299,65 @@ async def list_users(
     ]
 
 
+class FeatureAccessResponse(BaseModel):
+    feature_name: str
+    access_mode: str
+    default_on_signup: bool
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class FeatureAccessUpdate(BaseModel):
+    access_mode: Optional[str] = None
+    default_on_signup: Optional[bool] = None
+
+
+# --- Feature Access Endpoints ---
+
+@router.get("/feature-access", response_model=List[FeatureAccessResponse])
+async def list_feature_access(
+    admin=Depends(get_admin_user),
+    db: Session = Depends(get_db)
+):
+    """List all feature access settings."""
+    from ..db_models.feature_access import FeatureAccess
+    rows = db.query(FeatureAccess).order_by(FeatureAccess.feature_name).all()
+    return rows
+
+
+@router.patch("/feature-access/{feature_name}", response_model=FeatureAccessResponse)
+async def update_feature_access(
+    feature_name: str,
+    body: FeatureAccessUpdate,
+    admin=Depends(get_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Update access_mode and/or default_on_signup for a feature."""
+    from ..db_models.feature_access import FeatureAccess
+    from ..db_models.user import ALL_FEATURES
+
+    if feature_name not in ALL_FEATURES:
+        raise HTTPException(status_code=400, detail=f"Unknown feature: {feature_name}")
+
+    row = db.query(FeatureAccess).filter(FeatureAccess.feature_name == feature_name).first()
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Feature access row not found for {feature_name}")
+
+    if body.access_mode is not None:
+        if body.access_mode not in ("global", "disabled", "per_user"):
+            raise HTTPException(status_code=400, detail="access_mode must be 'global', 'disabled', or 'per_user'")
+        row.access_mode = body.access_mode
+
+    if body.default_on_signup is not None:
+        row.default_on_signup = body.default_on_signup
+
+    db.commit()
+    db.refresh(row)
+    return row
+
+
 class UpdateFeaturesRequest(BaseModel):
     enabled_features: List[str]
 

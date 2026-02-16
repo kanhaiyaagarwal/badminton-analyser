@@ -7,7 +7,6 @@ from sqlalchemy.sql import func
 from ..database import Base
 
 ALL_FEATURES = ["badminton", "pushup", "squat", "plank"]
-DEFAULT_FEATURES = ["pushup"]
 
 
 class User(Base):

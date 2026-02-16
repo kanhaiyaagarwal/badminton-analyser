@@ -4,6 +4,7 @@ from .stream_session import StreamSession, StreamStatus
 from .invite import InviteCode, Waitlist, WhitelistEmail
 from .otp import EmailOTP
 from .tuning import TuningPreset, ActivityThresholdSchema, TuningSession
+from .feature_access import FeatureAccess
 
 __all__ = [
     "User",
@@ -18,4 +19,5 @@ __all__ = [
     "TuningPreset",
     "ActivityThresholdSchema",
     "TuningSession",
+    "FeatureAccess",
 ]

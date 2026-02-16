@@ -20,7 +20,10 @@ logger = logging.getLogger(__name__)
 CHALLENGE_DEFAULTS = {
     "squat":  {"down_angle": 100, "up_angle": 160, "max_duration": 300, "inactivity_timeout": 0},
     "pushup": {"down_angle": 90, "up_angle": 155, "max_duration": 300, "inactivity_timeout": 10, "collapse_hold_time": 3.0, "collapse_gap": 0.03, "collapse_hip_gap": 0.06, "half_pushup_gap": 0.05, "stood_up_timeout": 1.5, "first_rep_grace": 30.0},
-    "plank":  {"good_angle_min": 150, "good_angle_max": 195, "max_duration": 300, "inactivity_timeout": 10},
+    "plank":  {"good_angle_min": 150, "good_angle_max": 195, "max_duration": 300, "inactivity_timeout": 10,
+               "stood_up_timeout": 1.5, "stood_up_early_timeout": 10.0, "first_rep_grace": 30.0,
+               "recovery_window": 15.0, "form_break_grace": 3.0, "form_break_timeout": 8.0,
+               "collapse_gap": 0.03, "collapse_hip_gap": 0.06},
 }
 
 

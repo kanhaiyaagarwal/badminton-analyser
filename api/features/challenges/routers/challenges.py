@@ -200,15 +200,32 @@ def get_enabled_challenges(
     db: Session = Depends(get_db),
     user=Depends(get_current_user),
 ):
-    """Return list of challenge types that are both globally enabled and enabled for this user."""
-    rows = db.query(ChallengeConfig).filter(ChallengeConfig.enabled == True).all()
-    globally_enabled = [r.challenge_type for r in rows]
+    """Return challenge types available to this user based on FeatureAccess modes.
+
+    - global: available to everyone
+    - per_user: available only if in user.enabled_features
+    - disabled: hidden from non-admins
+    Admins see all challenge types regardless.
+    """
+    from ....db_models.feature_access import FeatureAccess
 
     if user.is_admin:
-        return globally_enabled
+        return list(VALID_TYPES)
 
-    user_features = user.enabled_features or []
-    return [ct for ct in globally_enabled if ct in user_features]
+    rows = db.query(FeatureAccess).filter(
+        FeatureAccess.feature_name.in_(VALID_TYPES)
+    ).all()
+    access_map = {r.feature_name: r.access_mode for r in rows}
+    user_features = set(user.enabled_features or [])
+
+    enabled = []
+    for ct in VALID_TYPES:
+        mode = access_map.get(ct, "per_user")
+        if mode == "global":
+            enabled.append(ct)
+        elif mode == "per_user" and ct in user_features:
+            enabled.append(ct)
+    return enabled
 
 
 @router.post("/sessions", response_model=ChallengeSessionStart)
@@ -218,20 +235,24 @@ def create_challenge_session(
     user=Depends(get_current_user),
 ):
     """Create a new challenge session and return a WebSocket URL."""
+    from ....db_models.feature_access import FeatureAccess
+
     if body.challenge_type not in VALID_TYPES:
         raise HTTPException(status_code=400, detail=f"Invalid challenge type. Must be one of: {VALID_TYPES}")
 
-    # Check per-user feature enablement
+    # Check access via FeatureAccess
     if not user.is_admin:
-        user_features = user.enabled_features or []
-        if body.challenge_type not in user_features:
-            raise HTTPException(status_code=403, detail="This challenge type is not enabled for your account")
-
-        config_row = db.query(ChallengeConfig).filter(
-            ChallengeConfig.challenge_type == body.challenge_type
+        fa = db.query(FeatureAccess).filter(
+            FeatureAccess.feature_name == body.challenge_type
         ).first()
-        if not config_row or not config_row.enabled:
+        mode = fa.access_mode if fa else "per_user"
+
+        if mode == "disabled":
             raise HTTPException(status_code=403, detail="This challenge type is not currently enabled")
+        if mode == "per_user":
+            user_features = user.enabled_features or []
+            if body.challenge_type not in user_features:
+                raise HTTPException(status_code=403, detail="This challenge type is not enabled for your account")
 
     session = ChallengeSession(
         user_id=user.id,
@@ -920,27 +941,18 @@ def admin_get_config(
     db: Session = Depends(get_db),
     admin=Depends(require_admin),
 ):
-    """Get all challenge configs, filling in defaults for missing types."""
+    """Get all challenge configs (thresholds only)."""
     rows = db.query(ChallengeConfig).all()
     saved = {r.challenge_type: r for r in rows}
 
     result = {}
     for ctype, defaults in CHALLENGE_DEFAULTS.items():
-        if ctype in saved:
-            row = saved[ctype]
-            result[ctype] = {
-                "thresholds": row.thresholds,
-                "enabled": row.enabled,
-                "updated_at": row.updated_at.isoformat() if row.updated_at else None,
-                "is_custom": True,
-            }
-        else:
-            result[ctype] = {
-                "thresholds": defaults,
-                "enabled": False,
-                "updated_at": None,
-                "is_custom": False,
-            }
+        row = saved.get(ctype)
+        result[ctype] = {
+            "thresholds": row.thresholds if row else defaults,
+            "updated_at": row.updated_at.isoformat() if row and row.updated_at else None,
+            "is_custom": (row.thresholds != defaults) if row else False,
+        }
     return result
 
 
@@ -964,12 +976,11 @@ def admin_update_config(
         row = ChallengeConfig(
             challenge_type=challenge_type,
             thresholds=body.thresholds,
-            enabled=False,
         )
         db.add(row)
     db.commit()
     db.refresh(row)
-    return {"challenge_type": row.challenge_type, "thresholds": row.thresholds, "enabled": row.enabled, "updated_at": row.updated_at.isoformat()}
+    return {"challenge_type": row.challenge_type, "thresholds": row.thresholds, "updated_at": row.updated_at.isoformat()}
 
 
 @router.post("/admin/config/{challenge_type}/reset")
@@ -989,31 +1000,6 @@ def admin_reset_config(
         row.thresholds = CHALLENGE_DEFAULTS[challenge_type]
         db.commit()
         db.refresh(row)
-    return {"challenge_type": challenge_type, "thresholds": CHALLENGE_DEFAULTS[challenge_type], "enabled": row.enabled if row else False, "is_custom": False}
+    return {"challenge_type": challenge_type, "thresholds": CHALLENGE_DEFAULTS[challenge_type], "is_custom": False}
 
 
-@router.patch("/admin/config/{challenge_type}/toggle-enabled")
-def admin_toggle_enabled(
-    challenge_type: str,
-    db: Session = Depends(get_db),
-    admin=Depends(require_admin),
-):
-    """Toggle the enabled flag for a challenge type (admin only)."""
-    if challenge_type not in CHALLENGE_DEFAULTS:
-        raise HTTPException(status_code=400, detail=f"Invalid challenge type. Must be one of: {list(CHALLENGE_DEFAULTS.keys())}")
-
-    row = db.query(ChallengeConfig).filter(
-        ChallengeConfig.challenge_type == challenge_type
-    ).first()
-    if not row:
-        row = ChallengeConfig(
-            challenge_type=challenge_type,
-            thresholds=CHALLENGE_DEFAULTS[challenge_type],
-            enabled=True,
-        )
-        db.add(row)
-    else:
-        row.enabled = not row.enabled
-    db.commit()
-    db.refresh(row)
-    return {"challenge_type": row.challenge_type, "enabled": row.enabled}

@@ -1,6 +1,6 @@
 <template>
   <div class="challenge-home">
-    <router-link v-if="store.enabledTypes.length > 1" to="/challenges" class="back-link">&larr; All Challenges</router-link>
+    <router-link v-if="isAdmin || store.enabledTypes.length > 1" to="/challenges" class="back-link">&larr; All Challenges</router-link>
 
     <div class="home-header">
       <span class="header-icon">{{ meta.icon }}</span>
@@ -134,10 +134,13 @@
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useChallengesStore } from '../stores/challenges'
+import { useAuthStore } from '../stores/auth'
 
 const route = useRoute()
 const router = useRouter()
 const store = useChallengesStore()
+const authStore = useAuthStore()
+const isAdmin = computed(() => authStore.user?.is_admin)
 
 const challengeType = computed(() => route.params.type)
 

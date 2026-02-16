@@ -42,6 +42,7 @@ def init_db():
     _migrate_user_enabled_features()
     seed_default_tuning_data()
     seed_challenge_defaults()
+    seed_feature_access()
 
 
 def _migrate_stream_session_post_analysis():
@@ -189,13 +190,13 @@ def _migrate_user_enabled_features():
                     "ALTER TABLE users ADD COLUMN enabled_features JSON"
                 ))
                 # Backfill: admins get all features, non-admins get pushup only
-                from .db_models.user import ALL_FEATURES, DEFAULT_FEATURES
+                from .db_models.user import ALL_FEATURES
                 conn.execute(text(
                     "UPDATE users SET enabled_features = :all_feat WHERE is_admin = 1"
                 ), {"all_feat": json.dumps(ALL_FEATURES)})
                 conn.execute(text(
                     "UPDATE users SET enabled_features = :default_feat WHERE is_admin = 0 OR is_admin IS NULL"
-                ), {"default_feat": json.dumps(DEFAULT_FEATURES)})
+                ), {"default_feat": json.dumps(["pushup"])})
                 logger.info("Added and backfilled users.enabled_features")
     except Exception as e:
         logger.debug(f"users enabled_features migration skipped: {e}")
@@ -226,6 +227,42 @@ def seed_challenge_defaults():
     except Exception as e:
         db.rollback()
         logger.warning(f"Failed to seed challenge defaults: {e}")
+    finally:
+        db.close()
+
+
+def seed_feature_access():
+    """Ensure FeatureAccess rows exist for all features."""
+    from .db_models.feature_access import FeatureAccess
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    FEATURES = {
+        "badminton": {"access_mode": "per_user", "default_on_signup": False},
+        "pushup":    {"access_mode": "per_user", "default_on_signup": True},
+        "squat":     {"access_mode": "per_user", "default_on_signup": False},
+        "plank":     {"access_mode": "per_user", "default_on_signup": False},
+    }
+
+    db = SessionLocal()
+    try:
+        for name, defaults in FEATURES.items():
+            existing = db.query(FeatureAccess).filter(
+                FeatureAccess.feature_name == name
+            ).first()
+            if not existing:
+                row = FeatureAccess(
+                    feature_name=name,
+                    access_mode=defaults["access_mode"],
+                    default_on_signup=defaults["default_on_signup"],
+                )
+                db.add(row)
+                logger.info(f"Seeded feature_access for {name}")
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.warning(f"Failed to seed feature_access: {e}")
     finally:
         db.close()
 

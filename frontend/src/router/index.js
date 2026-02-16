@@ -86,7 +86,8 @@ const routes = [
   },
   {
     path: '/challenges',
-    redirect: '/challenges/pushup',
+    name: 'ChallengeSelector',
+    component: () => import('../views/ChallengeSelectorView.vue'),
     meta: { requiresAuth: true }
   },
   {

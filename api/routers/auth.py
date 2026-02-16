@@ -394,10 +394,26 @@ async def reset_password(request: ResetPasswordRequest, db: Session = Depends(ge
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_me(current_user=Depends(get_current_user)):
-    """Get current user information."""
+async def get_me(current_user=Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get current user information with effective features based on access modes."""
     from ..db_models.user import ALL_FEATURES
-    features = list(ALL_FEATURES) if current_user.is_admin else (current_user.enabled_features or [])
+    from ..db_models.feature_access import FeatureAccess
+
+    if current_user.is_admin:
+        features = list(ALL_FEATURES)
+    else:
+        rows = db.query(FeatureAccess).all()
+        access_map = {r.feature_name: r.access_mode for r in rows}
+        user_features = set(current_user.enabled_features or [])
+        features = []
+        for feat in ALL_FEATURES:
+            mode = access_map.get(feat, "per_user")
+            if mode == "global":
+                features.append(feat)
+            elif mode == "per_user" and feat in user_features:
+                features.append(feat)
+            # "disabled" → excluded for non-admins
+
     return UserResponse(
         id=current_user.id,
         email=current_user.email,

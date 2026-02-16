@@ -28,14 +28,22 @@
         <div class="guide-steps">
           <div class="guide-step">
             <span class="step-number">3</span>
-            <div class="step-content">
-              <strong>Wait for the <span class="inline-circle red"></span> circle to turn <span class="inline-circle green"></span>, then begin Pushups</strong>
+            <div class="step-content" v-if="challengeType === 'plank'">
+              <strong>Wait for the <span class="inline-circle red"></span> circle to turn <span class="inline-circle green"></span>, then hold your Plank</strong>
+              <p>Get into a plank position. The circle turns green once your form is detected and your full body is visible.</p>
+            </div>
+            <div class="step-content" v-else>
+              <strong>Wait for the <span class="inline-circle red"></span> circle to turn <span class="inline-circle green"></span>, then begin {{ challengeTitle }}</strong>
               <p>The circle turns green once you're in the correct position and your entire body is visible.</p>
             </div>
           </div>
           <div class="guide-step">
             <span class="step-number">4</span>
-            <div class="step-content">
+            <div class="step-content" v-if="challengeType === 'plank'">
+              <strong>Timer only counts good form</strong>
+              <p>The hold timer pauses if your form breaks. You get a few seconds to adjust — get back in position and the timer resumes.</p>
+            </div>
+            <div class="step-content" v-else>
               <strong>Challenge auto-ends</strong>
               <p>When you stand up or drop out of position, the session ends on its own. Want more reps? Start a new challenge!</p>
             </div>
@@ -44,7 +52,8 @@
             <span class="step-number">5</span>
             <div class="step-content">
               <strong>Sound &amp; Record</strong>
-              <p>Tap Sound to hear rep counts called out. Tap Record to save a video of your session.</p>
+              <p v-if="challengeType === 'plank'">Tap Sound to hear your hold time called out every 5 seconds. Tap Record to save a video.</p>
+              <p v-else>Tap Sound to hear rep counts called out. Tap Record to save a video of your session.</p>
             </div>
           </div>
         </div>
@@ -258,7 +267,9 @@ async function checkPlacementGuide() {
     const totalScore = challengesStore.sessions
       .filter(s => s.challenge_type === challengeType.value && s.status === 'ended')
       .reduce((sum, s) => sum + (s.score || 0), 0)
-    if (totalScore < 5) {
+    // Plank uses cumulative hold time (60s); others use rep count (5)
+    const threshold = challengeType.value === 'plank' ? 60 : 5
+    if (totalScore < threshold) {
       showPlacementGuide.value = true
     }
   } catch {
@@ -285,6 +296,7 @@ const phase = ref('setup') // setup | connecting | active
 const starting = ref(false)
 const sessionId = ref(null)
 let ws = null
+let prevHoldSeconds = 0
 let frameInterval = null
 let startTime = null
 let elapsedTimer = null
@@ -496,6 +508,15 @@ async function connectWebSocket(sid) {
         }
         reps.value = newReps
         holdSeconds.value = data.hold_seconds || 0
+        // Speak hold time every 5 seconds for plank
+        if (challengeType.value === 'plank' && data.hold_seconds) {
+          const prev5 = Math.floor(prevHoldSeconds / 5)
+          const curr5 = Math.floor(data.hold_seconds / 5)
+          if (curr5 > prev5 && curr5 > 0) {
+            speak(String(curr5 * 5))
+          }
+        }
+        prevHoldSeconds = data.hold_seconds || 0
         formFeedback.value = data.form_feedback || ''
         playerDetected.value = !!data.player_detected
         playerReady.value = !!data.ready
