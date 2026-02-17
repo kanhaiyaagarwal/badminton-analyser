@@ -29,7 +29,7 @@ export default defineConfig({
         name: 'PushUp Pro',
         short_name: 'PushUp Pro',
         description: 'AI-powered fitness challenges — pushups, planks, squats',
-        theme_color: '#7c3aed',
+        theme_color: '#1a6b8a',
         background_color: '#f0f4ff',
         display: 'standalone',
         orientation: 'portrait',
