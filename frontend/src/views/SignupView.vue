@@ -2,74 +2,120 @@
   <div class="auth-container">
     <!-- Step 1: Signup Form -->
     <div v-if="!showOtpStep" class="auth-card">
-      <h1>Sign Up</h1>
-      <p class="subtitle">Create your PushUp Pro account</p>
+      <!-- Default signup: Google first, then invite code, then manual form -->
+      <template v-if="!googleNeedsInvite && !googleWaitlisted">
+        <h1>Sign Up</h1>
+        <p class="subtitle">Create your PushUp Pro account</p>
 
-      <form @submit.prevent="handleSignup">
-        <div class="form-group">
-          <label for="email">Email</label>
-          <input
-            id="email"
-            v-model="email"
-            type="email"
-            placeholder="your@email.com"
-            required
-          />
-        </div>
+        <div v-if="googleAvailable" ref="googleBtnContainer" class="google-btn-wrapper"></div>
 
-        <div class="form-group">
-          <label for="password">Password</label>
-          <input
-            id="password"
-            v-model="password"
-            type="password"
-            placeholder="Min 8 characters"
-            minlength="8"
-            required
-          />
-        </div>
-
-        <div class="form-group">
-          <label for="confirmPassword">Confirm Password</label>
-          <input
-            id="confirmPassword"
-            v-model="confirmPassword"
-            type="password"
-            placeholder="Confirm your password"
-            required
-          />
-        </div>
-
-        <div class="form-group">
-          <label for="inviteCode">Invite Code</label>
-          <input
-            id="inviteCode"
-            v-model="inviteCode"
-            type="text"
-            placeholder="Enter your invite code"
-            required
-          />
+        <div v-if="googleAvailable" class="divider">
+          <span>or sign up with email</span>
         </div>
 
         <div v-if="error" class="error-message">{{ error }}</div>
         <div v-if="success" class="success-message">{{ success }}</div>
 
-        <button type="submit" class="btn-primary" :disabled="loading">
-          {{ loading ? 'Creating account...' : 'Sign Up' }}
-        </button>
-      </form>
+        <form @submit.prevent="handleSignup">
+          <div class="form-group">
+            <label for="inviteCode">Invite Code</label>
+            <input
+              id="inviteCode"
+              v-model="inviteCode"
+              type="text"
+              placeholder="Enter your invite code"
+              required
+            />
+          </div>
 
-      <p class="auth-switch">
-        Already have an account?
-        <router-link :to="{ path: '/login', query: $route.query }">Login</router-link>
-      </p>
+          <div class="form-group">
+            <label for="email">Email</label>
+            <input
+              id="email"
+              v-model="email"
+              type="email"
+              placeholder="your@email.com"
+              required
+            />
+          </div>
 
-      <div class="waitlist-section">
-        <p class="waitlist-text">Don't have an invite code?</p>
-        <button type="button" @click="showWaitlist = true" class="btn-waitlist">
-          Join the Waitlist
+          <div class="form-group">
+            <label for="password">Password</label>
+            <input
+              id="password"
+              v-model="password"
+              type="password"
+              placeholder="Min 8 characters"
+              minlength="8"
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="confirmPassword">Confirm Password</label>
+            <input
+              id="confirmPassword"
+              v-model="confirmPassword"
+              type="password"
+              placeholder="Confirm your password"
+              required
+            />
+          </div>
+
+          <button type="submit" class="btn-primary" :disabled="loading">
+            {{ loading ? 'Creating account...' : 'Sign Up' }}
+          </button>
+        </form>
+
+        <p class="auth-switch">
+          Already have an account?
+          <router-link :to="{ path: '/login', query: $route.query }">Login</router-link>
+        </p>
+
+        <div class="waitlist-section">
+          <p class="waitlist-text">Don't have an invite code?</p>
+          <button type="button" @click="showWaitlist = true" class="btn-waitlist">
+            Join the Waitlist
+          </button>
+        </div>
+      </template>
+
+      <!-- Google invite code step -->
+      <template v-else-if="googleNeedsInvite && !googleWaitlisted">
+        <h1>Almost there!</h1>
+        <p class="subtitle">Enter an invite code to complete sign-up, or join the waitlist.</p>
+
+        <form @submit.prevent="handleGoogleInviteSubmit">
+          <div class="form-group">
+            <label for="googleInviteCode">Invite Code</label>
+            <input
+              id="googleInviteCode"
+              v-model="googleInviteCode"
+              type="text"
+              placeholder="Enter your invite code"
+              required
+            />
+          </div>
+
+          <div v-if="error" class="error-message">{{ error }}</div>
+
+          <button type="submit" class="btn-primary" :disabled="loading">
+            {{ loading ? 'Signing in...' : 'Continue' }}
+          </button>
+        </form>
+
+        <button type="button" class="btn-waitlist" @click="handleGoogleWaitlist" :disabled="gwLoading" style="margin-top: 0.75rem;">
+          {{ gwLoading ? 'Joining...' : 'Join the Waitlist' }}
         </button>
-      </div>
+
+        <button type="button" class="btn-link" @click="resetGoogleState">Back to sign up</button>
+      </template>
+
+      <!-- Waitlisted confirmation -->
+      <template v-else>
+        <div class="success-message">You've been added to the waitlist! We'll notify you when access is available.</div>
+        <button type="button" class="btn-link" @click="resetGoogleState">Back to sign up</button>
+      </template>
     </div>
 
     <!-- Step 2: OTP Verification -->
@@ -167,14 +213,16 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { useGoogleAuth } from '../composables/useGoogleAuth'
 import api from '../api/client'
 
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
+const { isAvailable: googleAvailable, renderButton } = useGoogleAuth()
 
 // Step 1: Signup form
 const email = ref('')
@@ -206,12 +254,28 @@ const waitlistLoading = ref(false)
 const waitlistError = ref('')
 const waitlistSuccess = ref('')
 
+// Google OAuth state
+const googleBtnContainer = ref(null)
+const googleNeedsInvite = ref(false)
+const googleWaitlisted = ref(false)
+const googleInviteCode = ref('')
+const storedCredential = ref('')
+const storedGoogleEmail = ref('')
+const storedGoogleName = ref('')
+const gwLoading = ref(false)
+
 // Check if returning to page with pending verification
-onMounted(() => {
+onMounted(async () => {
   if (authStore.pendingVerification) {
     pendingUserId.value = authStore.pendingVerification.userId
     pendingEmail.value = authStore.pendingVerification.email
     showOtpStep.value = true
+  }
+  if (googleAvailable && !showOtpStep.value) {
+    await nextTick()
+    if (googleBtnContainer.value) {
+      renderButton(googleBtnContainer.value, handleGoogleCallback)
+    }
   }
 })
 
@@ -333,6 +397,75 @@ function goBackToSignup() {
     clearInterval(cooldownTimer)
     cooldownTimer = null
   }
+}
+
+async function handleGoogleCallback(credential) {
+  loading.value = true
+  error.value = ''
+
+  try {
+    const inviteFromUrl = route.query.invite || ''
+    const data = await authStore.loginWithGoogle(credential, inviteFromUrl)
+
+    if (data.access_token) {
+      router.push(route.query.redirect || '/hub')
+    } else if (data.status === 'needs_invite') {
+      storedCredential.value = credential
+      storedGoogleEmail.value = data.email
+      storedGoogleName.value = data.name
+      googleNeedsInvite.value = true
+    }
+  } catch (err) {
+    error.value = err.response?.data?.detail || 'Google sign-in failed.'
+  } finally {
+    loading.value = false
+  }
+}
+
+async function handleGoogleInviteSubmit() {
+  loading.value = true
+  error.value = ''
+
+  try {
+    const data = await authStore.loginWithGoogle(storedCredential.value, googleInviteCode.value)
+    if (data.access_token) {
+      router.push(route.query.redirect || '/hub')
+    }
+  } catch (err) {
+    error.value = err.response?.data?.detail || 'Invalid invite code.'
+  } finally {
+    loading.value = false
+  }
+}
+
+async function handleGoogleWaitlist() {
+  gwLoading.value = true
+  error.value = ''
+
+  try {
+    await api.post('/api/v1/admin/join-waitlist', {
+      email: storedGoogleEmail.value,
+      name: storedGoogleName.value || null
+    })
+    googleWaitlisted.value = true
+  } catch (err) {
+    error.value = err.response?.data?.detail || 'Failed to join waitlist.'
+  } finally {
+    gwLoading.value = false
+  }
+}
+
+function resetGoogleState() {
+  googleNeedsInvite.value = false
+  googleWaitlisted.value = false
+  googleInviteCode.value = ''
+  storedCredential.value = ''
+  error.value = ''
+  nextTick(() => {
+    if (googleAvailable && googleBtnContainer.value) {
+      renderButton(googleBtnContainer.value, handleGoogleCallback)
+    }
+  })
 }
 
 async function handleWaitlist() {
@@ -470,6 +603,40 @@ input:focus {
 
 .auth-switch a:hover {
   text-decoration: underline;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  margin: 1.5rem 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-color);
+}
+
+.divider span {
+  padding: 0 1rem;
+}
+
+.google-btn-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  width: 100%;
+}
+
+.google-btn-wrapper :deep(div),
+.google-btn-wrapper :deep(iframe) {
+  margin-left: auto !important;
+  margin-right: auto !important;
 }
 
 .waitlist-section {

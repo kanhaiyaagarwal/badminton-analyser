@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models.user import (
     UserCreate, UserResponse, UserLogin, Token,
+    GoogleAuthRequest,
     SignupResponse, VerifyEmailRequest, VerifyEmailResponse,
     ResendOTPRequest, ResendOTPResponse,
     ForgotPasswordRequest, ForgotPasswordResponse,
@@ -197,6 +198,13 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
     if user:
         _check_lockout(user)
 
+    # Guard: Google-only users cannot use password login
+    if user and getattr(user, 'auth_provider', 'local') == 'google' and not user.hashed_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This account uses Google sign-in. Please log in with Google."
+        )
+
     authenticated_user = UserService.authenticate_user(db, form_data.username, form_data.password)
     if not authenticated_user:
         # Increment failed attempts only if user exists (wrong password, not wrong email)
@@ -230,6 +238,13 @@ async def login_json(credentials: UserLogin, db: Session = Depends(get_db)):
     if user:
         _check_lockout(user)
 
+    # Guard: Google-only users cannot use password login
+    if user and getattr(user, 'auth_provider', 'local') == 'google' and not user.hashed_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This account uses Google sign-in. Please log in with Google."
+        )
+
     authenticated_user = UserService.authenticate_user(db, credentials.email, credentials.password)
     if not authenticated_user:
         if user:
@@ -249,6 +264,127 @@ async def login_json(credentials: UserLogin, db: Session = Depends(get_db)):
         )
 
     return UserService.create_tokens(authenticated_user)
+
+
+@router.post("/google")
+async def google_auth(request: GoogleAuthRequest, db: Session = Depends(get_db)):
+    """Authenticate or register a user via Google OAuth ID token."""
+    import logging
+    from ..config import get_settings
+
+    logger = logging.getLogger(__name__)
+    settings = get_settings()
+
+    if not settings.google_client_id:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Google sign-in is not configured"
+        )
+
+    # Verify Google ID token
+    try:
+        from google.oauth2 import id_token as google_id_token
+        from google.auth.transport import requests as google_requests
+
+        idinfo = google_id_token.verify_oauth2_token(
+            request.credential,
+            google_requests.Request(),
+            settings.google_client_id
+        )
+    except Exception as e:
+        logger.warning(f"Google token verification failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Google credential"
+        )
+
+    email = idinfo.get("email", "").lower()
+    name = idinfo.get("name", "")
+    if not idinfo.get("email_verified"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Google email not verified"
+        )
+
+    # Check if user already exists
+    user = UserService.get_user_by_email(db, email)
+    if user:
+        _check_lockout(user)
+        _handle_successful_login(db, user)
+        tokens = UserService.create_tokens(user)
+        return {"access_token": tokens.access_token, "refresh_token": tokens.refresh_token, "token_type": "bearer"}
+
+    # New user — check invite code / whitelist
+    from ..db_models.invite import InviteCode, WhitelistEmail, Waitlist
+
+    db_whitelist = db.query(WhitelistEmail).filter(
+        WhitelistEmail.email == email
+    ).first()
+    is_whitelisted = db_whitelist is not None
+
+    invite_code_record = None
+
+    if not is_whitelisted:
+        if not request.invite_code:
+            # Check if this email has an approved waitlist entry with an unused invite code
+            waitlist_entry = db.query(Waitlist).filter(
+                Waitlist.email == email,
+                Waitlist.status == "approved"
+            ).first()
+            if waitlist_entry and waitlist_entry.invite_code_id:
+                invite_code_record = db.query(InviteCode).filter(
+                    InviteCode.id == waitlist_entry.invite_code_id,
+                    InviteCode.is_active == True
+                ).first()
+                if invite_code_record and (invite_code_record.max_uses == 0 or invite_code_record.times_used < invite_code_record.max_uses):
+                    # Auto-use the approved waitlist invite code
+                    pass  # fall through to account creation below
+                else:
+                    return {"status": "needs_invite", "email": email, "name": name}
+            else:
+                return {"status": "needs_invite", "email": email, "name": name}
+        else:
+            invite_code_record = db.query(InviteCode).filter(
+                InviteCode.code == request.invite_code.upper(),
+                InviteCode.is_active == True
+            ).first()
+
+        if not invite_code_record:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid invite code"
+            )
+
+        if invite_code_record.max_uses > 0 and invite_code_record.times_used >= invite_code_record.max_uses:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invite code has reached maximum uses"
+            )
+
+    # Auto-generate username from email prefix
+    username = email.split("@")[0]
+    if UserService.get_user_by_username(db, username):
+        for _ in range(10):
+            candidate = f"{username}{random.randint(1, 100)}"
+            if not UserService.get_user_by_username(db, candidate):
+                username = candidate
+                break
+
+    user = UserService.create_google_user(db, email, username)
+
+    # Increment invite code usage
+    if invite_code_record:
+        invite_code_record.times_used += 1
+        waitlist_entry = db.query(Waitlist).filter(
+            Waitlist.invite_code_id == invite_code_record.id,
+            Waitlist.status == "approved"
+        ).first()
+        if waitlist_entry:
+            waitlist_entry.status = "registered"
+        db.commit()
+
+    tokens = UserService.create_tokens(user)
+    return {"access_token": tokens.access_token, "refresh_token": tokens.refresh_token, "token_type": "bearer"}
 
 
 @router.post("/refresh", response_model=Token)
@@ -421,5 +557,6 @@ async def get_me(current_user=Depends(get_current_user), db: Session = Depends(g
         is_active=current_user.is_active,
         is_admin=current_user.is_admin,
         enabled_features=features,
+        auth_provider=getattr(current_user, 'auth_provider', 'local') or 'local',
         created_at=current_user.created_at,
     )

@@ -13,6 +13,12 @@ class UserCreate(BaseModel):
     invite_code: str = Field(default="", max_length=50)
 
 
+class GoogleAuthRequest(BaseModel):
+    """Schema for Google OAuth login/signup."""
+    credential: str
+    invite_code: str = Field(default="", max_length=50)
+
+
 class UserLogin(BaseModel):
     """Schema for user login."""
     email: EmailStr
@@ -27,6 +33,7 @@ class UserResponse(BaseModel):
     is_active: bool
     is_admin: bool = False
     enabled_features: list = []
+    auth_provider: str = "local"
     created_at: datetime
 
     class Config:

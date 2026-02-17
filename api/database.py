@@ -40,6 +40,7 @@ def init_db():
     _migrate_user_lockout()
     _migrate_otp_purpose()
     _migrate_user_enabled_features()
+    _migrate_user_google_auth()
     seed_default_tuning_data()
     seed_challenge_defaults()
     seed_feature_access()
@@ -200,6 +201,35 @@ def _migrate_user_enabled_features():
                 logger.info("Added and backfilled users.enabled_features")
     except Exception as e:
         logger.debug(f"users enabled_features migration skipped: {e}")
+
+
+def _migrate_user_google_auth():
+    """Add auth_provider column and make hashed_password nullable for Google OAuth."""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    from sqlalchemy import text, inspect
+    try:
+        inspector = inspect(engine)
+        existing = {c["name"] for c in inspector.get_columns("users")}
+        with engine.begin() as conn:
+            if "auth_provider" not in existing:
+                conn.execute(text(
+                    "ALTER TABLE users ADD COLUMN auth_provider VARCHAR(20) DEFAULT 'local' NOT NULL"
+                ))
+                logger.info("Added column users.auth_provider")
+
+            # Make hashed_password nullable (for Google OAuth users who have no password)
+            # This is safe for MySQL; SQLite ignores ALTER COLUMN
+            try:
+                conn.execute(text(
+                    "ALTER TABLE users MODIFY COLUMN hashed_password VARCHAR(255) NULL"
+                ))
+                logger.info("Made users.hashed_password nullable")
+            except Exception:
+                pass  # SQLite doesn't support MODIFY COLUMN, but it's already lenient with NULLs
+    except Exception as e:
+        logger.debug(f"users google auth migration skipped: {e}")
 
 
 def seed_challenge_defaults():

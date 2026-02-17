@@ -93,6 +93,18 @@ export const useAuthStore = defineStore('auth', () => {
     pendingVerification.value = null
   }
 
+  async function loginWithGoogle(credential, inviteCode = '') {
+    const response = await api.post('/api/v1/auth/google', {
+      credential,
+      invite_code: inviteCode
+    })
+    if (response.data.access_token) {
+      setTokens(response.data.access_token, response.data.refresh_token)
+      await fetchUser()
+    }
+    return response.data
+  }
+
   async function forgotPassword(email) {
     const response = await api.post('/api/v1/auth/forgot-password', { email })
     return response.data
@@ -196,6 +208,7 @@ export const useAuthStore = defineStore('auth', () => {
     hasFeature,
     pendingVerification,
     login,
+    loginWithGoogle,
     signup,
     verifyEmail,
     resendOTP,

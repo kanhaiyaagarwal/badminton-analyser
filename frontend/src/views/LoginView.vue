@@ -40,51 +40,97 @@
     <!-- Login form -->
     <section class="form-section">
       <div class="auth-card">
-        <form @submit.prevent="handleLogin">
-          <div class="form-group">
-            <label for="email">Email</label>
-            <input
-              id="email"
-              v-model="email"
-              type="email"
-              placeholder="Enter your email"
-              required
-            />
+        <!-- Default: Google button first, then email/password form -->
+        <template v-if="!googleNeedsInvite && !googleWaitlisted">
+          <div v-if="googleAvailable" ref="googleBtnContainer" class="google-btn-wrapper"></div>
+
+          <div v-if="googleAvailable" class="divider">
+            <span>or sign in with email</span>
           </div>
 
-          <div class="form-group">
-            <label for="password">Password</label>
-            <input
-              id="password"
-              v-model="password"
-              type="password"
-              placeholder="Enter your password"
-              required
-            />
-            <router-link
-              :to="{ path: '/forgot-password', query: $route.query }"
-              class="forgot-link"
-            >Forgot password?</router-link>
-          </div>
-
-          <div v-if="error" class="error-message">
+          <div v-if="error && !isLocked" class="error-message">{{ error }}</div>
+          <div v-if="error && isLocked" class="error-message">
             {{ error }}
             <router-link
-              v-if="isLocked"
               :to="{ path: '/forgot-password', query: $route.query }"
               class="reset-link"
             >Reset Password</router-link>
           </div>
 
-          <button type="submit" class="btn-primary" :disabled="loading">
-            {{ loading ? 'Logging in...' : 'Login & Start' }}
-          </button>
-        </form>
+          <form @submit.prevent="handleLogin">
+            <div class="form-group">
+              <label for="email">Email</label>
+              <input
+                id="email"
+                v-model="email"
+                type="email"
+                placeholder="Enter your email"
+                required
+              />
+            </div>
 
-        <p class="auth-switch">
-          New user?
-          <router-link :to="{ path: '/signup', query: $route.query }">Sign up</router-link>
-        </p>
+            <div class="form-group">
+              <label for="password">Password</label>
+              <input
+                id="password"
+                v-model="password"
+                type="password"
+                placeholder="Enter your password"
+                required
+              />
+              <router-link
+                :to="{ path: '/forgot-password', query: $route.query }"
+                class="forgot-link"
+              >Forgot password?</router-link>
+            </div>
+
+            <button type="submit" class="btn-primary" :disabled="loading">
+              {{ loading ? 'Logging in...' : 'Login & Start' }}
+            </button>
+          </form>
+
+          <p class="auth-switch">
+            New user?
+            <router-link :to="{ path: '/signup', query: $route.query }">Sign up</router-link>
+          </p>
+        </template>
+
+        <!-- Invite code step (new Google user without invite) -->
+        <template v-else-if="googleNeedsInvite && !googleWaitlisted">
+          <h2 class="invite-heading">Almost there!</h2>
+          <p class="invite-subtitle">Enter an invite code to complete sign-up, or join the waitlist.</p>
+
+          <form @submit.prevent="handleGoogleInviteSubmit">
+            <div class="form-group">
+              <label for="googleInviteCode">Invite Code</label>
+              <input
+                id="googleInviteCode"
+                v-model="googleInviteCode"
+                type="text"
+                placeholder="Enter your invite code"
+                required
+              />
+            </div>
+
+            <div v-if="error" class="error-message">{{ error }}</div>
+
+            <button type="submit" class="btn-primary" :disabled="loading">
+              {{ loading ? 'Signing in...' : 'Continue' }}
+            </button>
+          </form>
+
+          <button type="button" class="btn-waitlist" @click="handleGoogleWaitlist" :disabled="waitlistLoading">
+            {{ waitlistLoading ? 'Joining...' : 'Join the Waitlist' }}
+          </button>
+
+          <button type="button" class="btn-link" @click="resetGoogleState">Back to login</button>
+        </template>
+
+        <!-- Waitlisted confirmation -->
+        <template v-else>
+          <div class="success-message">You've been added to the waitlist! We'll notify you when access is available.</div>
+          <button type="button" class="btn-link" @click="resetGoogleState">Back to login</button>
+        </template>
       </div>
     </section>
 
@@ -126,19 +172,41 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { useGoogleAuth } from '../composables/useGoogleAuth'
+import api from '../api/client'
 
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
+const { isAvailable: googleAvailable, renderButton } = useGoogleAuth()
 
 const email = ref('')
 const password = ref('')
 const loading = ref(false)
 const error = ref('')
 const isLocked = ref(false)
+
+// Google OAuth state
+const googleBtnContainer = ref(null)
+const googleNeedsInvite = ref(false)
+const googleWaitlisted = ref(false)
+const googleInviteCode = ref('')
+const storedCredential = ref('')
+const storedGoogleEmail = ref('')
+const storedGoogleName = ref('')
+const waitlistLoading = ref(false)
+
+onMounted(async () => {
+  if (googleAvailable) {
+    await nextTick()
+    if (googleBtnContainer.value) {
+      renderButton(googleBtnContainer.value, handleGoogleCallback)
+    }
+  }
+})
 
 async function handleLogin() {
   loading.value = true
@@ -165,6 +233,76 @@ async function handleLogin() {
   } finally {
     loading.value = false
   }
+}
+
+async function handleGoogleCallback(credential) {
+  loading.value = true
+  error.value = ''
+
+  try {
+    const inviteFromUrl = route.query.invite || ''
+    const data = await authStore.loginWithGoogle(credential, inviteFromUrl)
+
+    if (data.access_token) {
+      router.push(route.query.redirect || '/hub')
+    } else if (data.status === 'needs_invite') {
+      storedCredential.value = credential
+      storedGoogleEmail.value = data.email
+      storedGoogleName.value = data.name
+      googleNeedsInvite.value = true
+    }
+  } catch (err) {
+    error.value = err.response?.data?.detail || 'Google sign-in failed.'
+  } finally {
+    loading.value = false
+  }
+}
+
+async function handleGoogleInviteSubmit() {
+  loading.value = true
+  error.value = ''
+
+  try {
+    const data = await authStore.loginWithGoogle(storedCredential.value, googleInviteCode.value)
+    if (data.access_token) {
+      router.push(route.query.redirect || '/hub')
+    }
+  } catch (err) {
+    error.value = err.response?.data?.detail || 'Invalid invite code.'
+  } finally {
+    loading.value = false
+  }
+}
+
+async function handleGoogleWaitlist() {
+  waitlistLoading.value = true
+  error.value = ''
+
+  try {
+    await api.post('/api/v1/admin/join-waitlist', {
+      email: storedGoogleEmail.value,
+      name: storedGoogleName.value || null
+    })
+    googleWaitlisted.value = true
+  } catch (err) {
+    error.value = err.response?.data?.detail || 'Failed to join waitlist.'
+  } finally {
+    waitlistLoading.value = false
+  }
+}
+
+function resetGoogleState() {
+  googleNeedsInvite.value = false
+  googleWaitlisted.value = false
+  googleInviteCode.value = ''
+  storedCredential.value = ''
+  error.value = ''
+  // Re-render Google button after returning to default view
+  nextTick(() => {
+    if (googleAvailable && googleBtnContainer.value) {
+      renderButton(googleBtnContainer.value, handleGoogleCallback)
+    }
+  })
 }
 </script>
 
@@ -418,6 +556,104 @@ input::placeholder {
   color: var(--color-primary);
   font-weight: bold;
   text-decoration: underline;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  margin: 1.5rem 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-color);
+}
+
+.divider span {
+  padding: 0 1rem;
+}
+
+.google-btn-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  width: 100%;
+}
+
+/* Center the Google-rendered iframe and its wrapper divs */
+.google-btn-wrapper :deep(div),
+.google-btn-wrapper :deep(iframe) {
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+.invite-heading {
+  color: var(--color-primary);
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+
+.invite-subtitle {
+  color: var(--text-muted);
+  text-align: center;
+  margin-bottom: 1.5rem;
+  font-size: 0.95rem;
+}
+
+.btn-waitlist {
+  width: 100%;
+  padding: 0.75rem;
+  background: transparent;
+  border: 1px solid var(--color-primary);
+  color: var(--color-primary);
+  border-radius: var(--radius-md);
+  margin-top: 0.75rem;
+  cursor: pointer;
+  font-size: 0.95rem;
+  transition: background 0.2s;
+}
+
+.btn-waitlist:hover:not(:disabled) {
+  background: var(--color-primary-light);
+}
+
+.btn-waitlist:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.9rem;
+  text-decoration: underline;
+  padding: 0;
+  margin-top: 1rem;
+  display: block;
+  text-align: center;
+  width: 100%;
+}
+
+.btn-link:hover {
+  color: var(--color-primary);
+}
+
+.success-message {
+  background: var(--color-success-light);
+  color: var(--color-success);
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+  text-align: center;
 }
 
 .auth-switch {

@@ -36,8 +36,10 @@ if [ ! -d "node_modules" ]; then
     npm install
 fi
 
-# Step 2: Build
+# Step 2: Build (VITE_ env vars are baked in at build time)
 echo -e "${GREEN}[2/4] Building frontend...${NC}"
+source ../.env 2>/dev/null || true
+export VITE_GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID}"
 npm run build
 
 # Step 3: Deploy to EC2

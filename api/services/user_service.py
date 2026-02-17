@@ -64,10 +64,33 @@ class UserService:
         return db.query(User).filter(User.username == username).first()
 
     @staticmethod
+    def create_google_user(db: Session, email: str, username: str) -> User:
+        """Create a new user from Google OAuth (no password)."""
+        from ..db_models.feature_access import FeatureAccess
+        default_features = [
+            r.feature_name for r in
+            db.query(FeatureAccess).filter(FeatureAccess.default_on_signup == True).all()
+        ]
+        db_user = User(
+            email=email,
+            username=username,
+            hashed_password=None,
+            auth_provider="google",
+            email_verified=True,
+            enabled_features=default_features,
+        )
+        db.add(db_user)
+        db.commit()
+        db.refresh(db_user)
+        return db_user
+
+    @staticmethod
     def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
         """Authenticate a user with email and password."""
         user = UserService.get_user_by_email(db, email)
         if not user:
+            return None
+        if not user.hashed_password:
             return None
         if not UserService.verify_password(password, user.hashed_password):
             return None

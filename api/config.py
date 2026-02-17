@@ -66,6 +66,9 @@ class Settings(BaseSettings):
     # SES Region (if different from aws_region)
     ses_region: str = ""
 
+    # Google OAuth
+    google_client_id: str = ""
+
     # Email Verification (set to false to skip OTP verification during signup)
     require_email_verification: bool = True
 
