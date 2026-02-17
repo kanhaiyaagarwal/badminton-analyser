@@ -52,6 +52,7 @@ class PlankAnalyzer(RepCounterAnalyzer):
         self.form_hysteresis = cfg.get("form_hysteresis", 10)
         self.sag_threshold = cfg.get("sag_threshold", 0.02)
         self.horizontal_threshold = cfg.get("horizontal_threshold", 0.35)
+        self.flat_threshold = cfg.get("flat_threshold", 0.03)
         self.knee_angle_min = cfg.get("knee_angle_min", 150)
         self._in_plank = False
         self._in_good_form = False  # hysteresis state
@@ -113,6 +114,10 @@ class PlankAnalyzer(RepCounterAnalyzer):
         y_spread = max(shoulder_y, hip_y, ankle_y) - min(shoulder_y, hip_y, ankle_y)
         is_horizontal = y_spread < self.horizontal_threshold
 
+        # Flat-on-ground check: if y_spread is near zero, the person is lying
+        # flat (not planking). A valid plank requires some elevation.
+        not_flat = y_spread >= self.flat_threshold
+
         # Landmark visibility gate: if key landmarks (shoulder/hip/ankle) are
         # not visible, angle is unreliable (MediaPipe hallucinates off-screen
         # positions in a straight line, giving fake ~174° angles)
@@ -120,9 +125,9 @@ class PlankAnalyzer(RepCounterAnalyzer):
 
         # Hysteresis: once in good form, angle must drop further to exit
         if self._in_good_form:
-            good_form = landmarks_visible and knees_straight and angle >= (self.good_angle_min - self.form_hysteresis)
+            good_form = landmarks_visible and knees_straight and not_flat and angle >= (self.good_angle_min - self.form_hysteresis)
         else:
-            good_form = landmarks_visible and knees_straight and angle >= self.good_angle_min
+            good_form = landmarks_visible and knees_straight and not_flat and angle >= self.good_angle_min
 
         # --- Visibility gate: all body parts must be visible before ready ---
         if not self._ready:

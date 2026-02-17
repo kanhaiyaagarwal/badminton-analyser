@@ -23,7 +23,7 @@ CHALLENGE_DEFAULTS = {
     "plank":  {"good_angle_min": 150, "good_angle_max": 195, "max_duration": 300, "inactivity_timeout": 0,
                "stood_up_timeout": 1.5, "stood_up_early_timeout": 10.0, "first_rep_grace": 30.0,
                "recovery_window": 15.0, "form_break_grace": 3.0, "form_break_timeout": 8.0,
-               "form_break_post_recovery": 3.0, "form_hysteresis": 10, "sag_threshold": 0.02, "horizontal_threshold": 0.35, "knee_angle_min": 150,
+               "form_break_post_recovery": 3.0, "form_hysteresis": 10, "sag_threshold": 0.02, "horizontal_threshold": 0.35, "flat_threshold": 0.03, "knee_angle_min": 150,
                "collapse_gap": 0.03, "collapse_hip_gap": 0.06},
 }
 

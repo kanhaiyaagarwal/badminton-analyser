@@ -794,6 +794,7 @@ def admin_get_refined_pose_data(
             "phase": "setup",
             "rep": 0,
             "frame_count": len(pre_rep_frames),
+            "time_range": [pre_rep_frames[0]["t"], pre_rep_frames[-1]["t"]],
             "frames": pre_rep_frames,
         })
 
@@ -805,6 +806,8 @@ def admin_get_refined_pose_data(
                 "type": "full",
                 "rep": rep_num,
                 "frame_count": len(frames),
+                "time_range": [frames[0]["t"], frames[-1]["t"]],
+                "hold_range": [frames[0].get("hold", 0), frames[-1].get("hold", 0)],
                 "frames": frames,
             })
         else:
@@ -817,6 +820,7 @@ def admin_get_refined_pose_data(
                 "rep": rep_num,
                 "frame_count": len(frames),
                 "time_range": [frames[0]["t"], frames[-1]["t"]],
+                "hold_range": [frames[0].get("hold", 0), frames[-1].get("hold", 0)],
                 "angle_min": round(min(angles), 1) if angles else None,
                 "angle_max": round(max(angles), 1) if angles else None,
                 "states": list(dict.fromkeys(states)),  # unique, ordered
