@@ -56,6 +56,12 @@
           </svg>
           {{ sharing ? 'Sharing...' : 'Share' }}
         </button>
+        <button v-if="showInstall" @click="installApp" class="install-btn">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+          </svg>
+          Install App
+        </button>
       </div>
 
       <!-- Recording Download -->
@@ -97,6 +103,26 @@ const sharing = ref(false)
 const shareCard = ref(null)
 const qrDataUrl = ref(null)
 const isAdminView = ref(false)  // true when admin is viewing another user's session
+
+// PWA install prompt
+const deferredPrompt = ref(null)
+const showInstall = ref(false)
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault()
+  deferredPrompt.value = e
+  showInstall.value = true
+})
+
+async function installApp() {
+  if (!deferredPrompt.value) return
+  deferredPrompt.value.prompt()
+  const { outcome } = await deferredPrompt.value.userChoice
+  if (outcome === 'accepted') {
+    showInstall.value = false
+  }
+  deferredPrompt.value = null
+}
 
 const TYPE_LABELS = {
   plank: 'Plank Hold',
@@ -496,6 +522,25 @@ onMounted(async () => {
 .share-btn:hover:not(:disabled) { background: var(--color-primary-light); }
 .share-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .share-btn .btn-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.install-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: linear-gradient(135deg, #1a6b8a, #2dd4bf);
+  color: #fff;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.install-btn:hover { opacity: 0.9; }
+.install-btn .btn-icon {
   width: 18px;
   height: 18px;
 }
