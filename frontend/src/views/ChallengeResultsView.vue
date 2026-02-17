@@ -64,6 +64,18 @@
         </button>
       </div>
 
+      <!-- iOS install nudge -->
+      <div v-if="isIOS && !isStandalone" class="ios-install-nudge" @click="dismissNudge" v-show="!nudgeDismissed">
+        <span class="nudge-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/>
+          </svg>
+        </span>
+        <span class="nudge-text">
+          Tap <strong>Share</strong> <span class="ios-share-icon">&#xFEFF;&#x2B06;&#xFE0E;</span> then <strong>"Add to Home Screen"</strong> to install the app
+        </span>
+      </div>
+
       <!-- Recording Download -->
       <div v-if="hasRecording" class="recording-download">
         <p class="recording-desc">Your annotated session recording is ready.</p>
@@ -103,6 +115,15 @@ const sharing = ref(false)
 const shareCard = ref(null)
 const qrDataUrl = ref(null)
 const isAdminView = ref(false)  // true when admin is viewing another user's session
+
+// iOS detection
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true
+const nudgeDismissed = ref(false)
+
+function dismissNudge() {
+  nudgeDismissed.value = true
+}
 
 // PWA install prompt
 const deferredPrompt = ref(null)
@@ -543,6 +564,36 @@ onMounted(async () => {
 .install-btn .btn-icon {
   width: 18px;
   height: 18px;
+}
+
+.ios-install-nudge {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding: 0.85rem 1rem;
+  background: linear-gradient(135deg, #eef6fb, #e8f4f8);
+  border: 1px solid #b8dce8;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.nudge-icon {
+  flex-shrink: 0;
+  color: #1a6b8a;
+}
+
+.nudge-text {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.ios-share-icon {
+  display: inline-block;
+  font-size: 1rem;
+  vertical-align: middle;
+  color: #007aff;
 }
 
 .loading {
