@@ -50,7 +50,7 @@ class PushupAnalyzer(RepCounterAnalyzer):
         super().__init__(challenge_type="pushup", config=config)
         cfg = config or {}
         self.down_angle = cfg.get("down_angle", 90)
-        self.up_angle = cfg.get("up_angle", 155)
+        self.up_angle = cfg.get("up_angle", 145)
         self.knee_threshold = cfg.get("knee_threshold", 150)
         self.body_spread_threshold = cfg.get("body_spread_threshold", 0.25)
         # Collapse detection: end session when player breaks position
