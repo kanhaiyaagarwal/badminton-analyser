@@ -383,7 +383,6 @@
                 Save
               </button>
               <button
-                v-if="cfg.is_custom"
                 @click="resetChallengeConfig(ctype)"
                 class="btn-small"
               >
@@ -875,6 +874,7 @@ async function resetChallengeConfig(ctype) {
     console.error('Failed to reset challenge config:', err)
   }
 }
+
 
 // ---------- Feature Access ----------
 
