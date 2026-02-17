@@ -38,8 +38,11 @@ fi
 
 # Step 2: Build (VITE_ env vars are baked in at build time)
 echo -e "${GREEN}[2/4] Building frontend...${NC}"
-source ../.env 2>/dev/null || true
+if [ -f ../.env ]; then
+    GOOGLE_CLIENT_ID=$(grep '^GOOGLE_CLIENT_ID=' ../.env | cut -d'=' -f2- | tr -d '"' | tr -d "'")
+fi
 export VITE_GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID}"
+echo "  VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID:+(set)}"
 npm run build
 
 # Step 3: Deploy to EC2
