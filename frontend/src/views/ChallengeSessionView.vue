@@ -30,11 +30,11 @@
             <span class="step-number">3</span>
             <div class="step-content" v-if="challengeType === 'plank'">
               <strong>Wait for the <span class="inline-circle red"></span> circle to turn <span class="inline-circle green"></span>, then hold your Plank</strong>
-              <p>Get into a plank position. The circle turns green once your form is detected and your full body is visible.</p>
+              <p>Get into a plank position. The circle turns green once your form is detected and your full body is visible. You'll hear "Start" when the right posture is detected.</p>
             </div>
             <div class="step-content" v-else>
               <strong>Wait for the <span class="inline-circle red"></span> circle to turn <span class="inline-circle green"></span>, then begin {{ challengeTitle }}</strong>
-              <p>The circle turns green once you're in the correct position and your entire body is visible.</p>
+              <p>The circle turns green once you're in the correct position and your entire body is visible. You'll hear "Start" when the right posture is detected.</p>
             </div>
           </div>
           <div class="guide-step">
@@ -52,8 +52,8 @@
             <span class="step-number">5</span>
             <div class="step-content">
               <strong>Sound &amp; Record</strong>
-              <p v-if="challengeType === 'plank'">Tap Sound to hear your hold time called out every 5 seconds. Tap Record to save a video.</p>
-              <p v-else>Tap Sound to hear rep counts called out. Tap Record to save a video of your session.</p>
+              <p v-if="challengeType === 'plank'">Sound is on by default — you'll hear your hold time called out every 5 seconds. Tap Record to save a video.</p>
+              <p v-else>Sound is on by default — you'll hear rep counts called out. Tap Record to save a video of your session.</p>
             </div>
           </div>
         </div>
@@ -313,7 +313,7 @@ const legsStraight = ref(true)
 const timeRemaining = ref(0)
 
 // Sound cues
-const enableSound = ref(false)
+const enableSound = ref(true)
 
 function speak(text) {
   if (!enableSound.value || !window.speechSynthesis) return

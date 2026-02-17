@@ -758,13 +758,31 @@ def admin_get_refined_pose_data(
     first_n = 2
     last_n = 3
 
+    # For plank: also keep reps where state transitions happen (form breaks / recoveries)
+    transition_reps = set()
+    if session.challenge_type == "plank":
+        prev_state = None
+        for frame in timeline:
+            rep_num = frame.get("reps", 0)
+            cur_state = frame.get("state")
+            if prev_state is not None and cur_state != prev_state and rep_num > 0:
+                transition_reps.add(rep_num)
+                # Also keep the rep just before the transition for context
+                if rep_num - 1 > 0:
+                    transition_reps.add(rep_num - 1)
+            prev_state = cur_state
+
     # Determine which reps get full data vs summary
     if total_reps <= first_n + last_n:
         # Few enough reps — include all full
         full_rep_nums = set(rep_groups.keys())
         summary_rep_nums = set()
     else:
-        full_rep_nums = set(range(1, first_n + 1)) | set(range(total_reps - last_n + 1, total_reps + 1))
+        full_rep_nums = (
+            set(range(1, first_n + 1))
+            | set(range(total_reps - last_n + 1, total_reps + 1))
+            | transition_reps
+        )
         summary_rep_nums = set(rep_groups.keys()) - full_rep_nums
 
     refined = []
