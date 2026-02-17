@@ -312,6 +312,31 @@ const playerReady = ref(false)
 const legsStraight = ref(true)
 const timeRemaining = ref(0)
 
+// Feedback stabilization: only update displayed feedback after
+// the same message appears for STABILIZE_FRAMES consecutive frames.
+// Prevents flickering when pose hovers near a threshold boundary.
+const STABILIZE_FRAMES = 3
+let _pendingFeedback = ''
+let _pendingCount = 0
+
+function stabilizeFeedback(incoming) {
+  if (incoming === formFeedback.value) {
+    // Already displaying this — reset pending
+    _pendingFeedback = incoming
+    _pendingCount = STABILIZE_FRAMES
+    return
+  }
+  if (incoming === _pendingFeedback) {
+    _pendingCount++
+    if (_pendingCount >= STABILIZE_FRAMES) {
+      formFeedback.value = incoming
+    }
+  } else {
+    _pendingFeedback = incoming
+    _pendingCount = 1
+  }
+}
+
 // Sound cues
 const enableSound = ref(true)
 
@@ -517,7 +542,7 @@ async function connectWebSocket(sid) {
           }
         }
         prevHoldSeconds = data.hold_seconds || 0
-        formFeedback.value = data.form_feedback || ''
+        stabilizeFeedback(data.form_feedback || '')
         playerDetected.value = !!data.player_detected
         playerReady.value = !!data.ready
         timeRemaining.value = data.time_remaining ?? 0
@@ -1057,6 +1082,7 @@ onUnmounted(() => {
   font-size: 0.9rem;
   font-weight: 500;
   white-space: nowrap;
+  transition: background 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }
 
 .form-feedback.positive {
