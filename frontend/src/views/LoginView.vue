@@ -3,14 +3,7 @@
     <!-- Logo -->
     <div class="brand-header">
       <div class="brand-logo">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="32" height="32" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M6.5 6.5a3.5 3.5 0 1 0-3.5 3.5h3.5V6.5z"/>
-          <path d="M6.5 6.5a3.5 3.5 0 1 1 3.5 3.5H6.5V6.5z"/>
-          <path d="M6.5 17.5a3.5 3.5 0 1 0 3.5-3.5H6.5v3.5z"/>
-          <path d="M17.5 6.5a3.5 3.5 0 1 0-3.5 3.5h3.5V6.5z"/>
-          <path d="M17.5 17.5a3.5 3.5 0 1 1-3.5-3.5h3.5v3.5z"/>
-          <path d="M6.5 17.5a3.5 3.5 0 1 1-3.5-3.5h3.5v3.5z"/>
-        </svg>
+        <img src="/pwa-192x192.png" alt="PushUp Pro" width="48" height="48" style="border-radius: 10px;" />
       </div>
       <span class="brand-name">PushUp Pro</span>
     </div>
