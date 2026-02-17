@@ -67,7 +67,7 @@ class PlankAnalyzer(RepCounterAnalyzer):
         self.recovery_window = cfg.get("recovery_window", 15.0)
         self.form_break_grace = cfg.get("form_break_grace", 3.0)
         self.form_break_timeout = cfg.get("form_break_timeout", 8.0)
-        self.form_break_post_recovery = cfg.get("form_break_post_recovery", 5.0)
+        self.form_break_post_recovery = cfg.get("form_break_post_recovery", 3.0)
         self.collapse_gap = cfg.get("collapse_gap", 0.03)
         self.collapse_hip_gap = cfg.get("collapse_hip_gap", 0.06)
 
