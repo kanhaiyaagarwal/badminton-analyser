@@ -129,6 +129,13 @@ class PlankAnalyzer(RepCounterAnalyzer):
         else:
             good_form = landmarks_visible and knees_straight and not_flat and angle >= self.good_angle_min
 
+        # --- Front-facing camera detection ---
+        shoulder_x_gap = abs(landmarks[L_SHOULDER]["nx"] - landmarks[R_SHOULDER]["nx"])
+        hip_x_gap = abs(landmarks[L_HIP]["nx"] - landmarks[R_HIP]["nx"])
+        if not self._ready and shoulder_x_gap > 0.15 and hip_x_gap > 0.15:
+            self.form_feedback = "Place your camera to the side for best results"
+            return {"angle": round(angle, 1), "in_plank": False}
+
         # --- Visibility gate: all body parts must be visible before ready ---
         if not self._ready:
             for group_name, indices in VISIBILITY_GROUPS.items():

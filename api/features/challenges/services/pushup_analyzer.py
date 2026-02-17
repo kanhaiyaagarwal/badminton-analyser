@@ -120,6 +120,25 @@ class PushupAnalyzer(RepCounterAnalyzer):
         y_spread = max(shoulder_y, hip_y, ankle_y) - min(shoulder_y, hip_y, ankle_y)
         is_horizontal = y_spread < self.body_spread_threshold
 
+        # --- Front-facing camera detection ---
+        # If both shoulders are at similar X and both hips are at similar X,
+        # the camera is facing the user head-on. Elbow angles are unreliable
+        # from this perspective (depth is lost in 2D projection).
+        shoulder_x_gap = abs(landmarks[L_SHOULDER]["nx"] - landmarks[R_SHOULDER]["nx"])
+        hip_x_gap = abs(landmarks[L_HIP]["nx"] - landmarks[R_HIP]["nx"])
+        is_front_facing = shoulder_x_gap > 0.15 and hip_x_gap > 0.15
+
+        if not self._ready and is_front_facing:
+            self.form_feedback = "Place your camera to the side for best results"
+            return {
+                "angle": round(angle, 1),
+                "knee_angle": round(knee_angle, 1),
+                "body_angle": round(body_angle, 1),
+                "state": self._state,
+                "legs_straight": legs_straight,
+                "is_horizontal": is_horizontal,
+            }
+
         # --- Visibility gate: all body parts must be visible ---
         if not self._ready:
             for group_name, indices in VISIBILITY_GROUPS.items():
