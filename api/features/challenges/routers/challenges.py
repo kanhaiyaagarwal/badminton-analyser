@@ -78,6 +78,7 @@ def _build_response(session: ChallengeSession, personal_best=None, daily_rank=No
         personal_best=personal_best,
         daily_rank=daily_rank,
         has_recording=_has_recording(session),
+        form_summary=session.form_summary,
         created_at=session.created_at,
         ended_at=session.ended_at,
     )
@@ -326,6 +327,7 @@ def end_challenge_session(
     session.score = report.get("score", 0)
     session.duration_seconds = report.get("duration_seconds", 0.0)
     session.extra_data = report
+    session.form_summary = report.get("form_summary")
 
     # Update personal best
     record = db.query(ChallengeRecord).filter(
@@ -660,7 +662,7 @@ def admin_list_sessions(
     admin=Depends(require_admin),
 ):
     """List all challenge sessions with pagination (admin only)."""
-    q = db.query(ChallengeSession, User.username).options(
+    q = db.query(ChallengeSession, User.username, User.email).options(
         defer(ChallengeSession.extra_data)
     ).join(
         User, User.id == ChallengeSession.user_id
@@ -674,12 +676,13 @@ def admin_list_sessions(
     rows = q.order_by(ChallengeSession.created_at.desc()).offset(skip).limit(limit).all()
 
     sessions = []
-    for session, username in rows:
+    for session, username, email in rows:
         extra = session.extra_data or {}
         sessions.append(AdminSessionResponse(
             id=session.id,
             user_id=session.user_id,
             username=username,
+            email=email,
             challenge_type=session.challenge_type,
             status=session.status.value,
             score=session.score,

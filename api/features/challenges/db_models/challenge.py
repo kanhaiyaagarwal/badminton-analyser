@@ -25,6 +25,7 @@ class ChallengeSession(Base):
     score = Column(Integer, default=0)  # reps or hold-seconds
     duration_seconds = Column(Float, default=0.0)
     extra_data = Column(JSON, nullable=True)  # feature-specific payload
+    form_summary = Column(JSON, nullable=True)  # lightweight form quality summary
     recording_s3_key = Column(String(512), nullable=True)
     recording_local_path = Column(String(512), nullable=True)
     is_recording = Column(Boolean, default=False)

@@ -41,6 +41,8 @@ def init_db():
     _migrate_otp_purpose()
     _migrate_user_enabled_features()
     _migrate_user_google_auth()
+    _migrate_user_profile()
+    _migrate_challenge_form_summary()
     seed_default_tuning_data()
     seed_challenge_defaults()
     seed_feature_access()
@@ -230,6 +232,55 @@ def _migrate_user_google_auth():
                 pass  # SQLite doesn't support MODIFY COLUMN, but it's already lenient with NULLs
     except Exception as e:
         logger.debug(f"users google auth migration skipped: {e}")
+
+
+def _migrate_user_profile():
+    """Add mobile column and drop username unique constraint."""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    from sqlalchemy import text, inspect
+    try:
+        inspector = inspect(engine)
+        existing = {c["name"] for c in inspector.get_columns("users")}
+        with engine.begin() as conn:
+            if "mobile" not in existing:
+                conn.execute(text(
+                    "ALTER TABLE users ADD COLUMN mobile VARCHAR(20)"
+                ))
+                logger.info("Added column users.mobile")
+
+            # Drop unique constraint on username (MySQL)
+            try:
+                indexes = inspector.get_indexes("users")
+                for idx in indexes:
+                    if idx.get("unique") and "username" in idx.get("column_names", []):
+                        conn.execute(text(f"DROP INDEX {idx['name']} ON users"))
+                        logger.info(f"Dropped unique index {idx['name']} on users.username")
+                        break
+            except Exception as e:
+                logger.debug(f"username index drop skipped: {e}")
+    except Exception as e:
+        logger.debug(f"users profile migration skipped: {e}")
+
+
+def _migrate_challenge_form_summary():
+    """Add form_summary JSON column to challenge_sessions if missing."""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    from sqlalchemy import text, inspect
+    try:
+        inspector = inspect(engine)
+        existing = {c["name"] for c in inspector.get_columns("challenge_sessions")}
+        if "form_summary" not in existing:
+            with engine.begin() as conn:
+                conn.execute(text(
+                    "ALTER TABLE challenge_sessions ADD COLUMN form_summary JSON"
+                ))
+                logger.info("Added column challenge_sessions.form_summary")
+    except Exception as e:
+        logger.debug(f"challenge_sessions form_summary migration skipped: {e}")
 
 
 def seed_challenge_defaults():

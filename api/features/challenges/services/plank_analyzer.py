@@ -57,6 +57,12 @@ class PlankAnalyzer(RepCounterAnalyzer):
         self._in_plank = False
         self._in_good_form = False  # hysteresis state
         self._ready = False  # require user to get into plank first
+        # Form quality counters
+        self._form_break_count = 0
+        self._sag_frames = 0
+        self._pike_frames = 0
+        self._total_active_frames = 0
+        self._prev_good_form = False
 
         # Safety / auto-end config
         self._ready_since = 0.0
@@ -64,11 +70,11 @@ class PlankAnalyzer(RepCounterAnalyzer):
         self._form_break_since = 0.0
         self._first_rep_grace = cfg.get("first_rep_grace", 30.0)
         self.stood_up_timeout = cfg.get("stood_up_timeout", 1.5)
-        self.stood_up_early_timeout = cfg.get("stood_up_early_timeout", 10.0)
+        self.stood_up_early_timeout = cfg.get("stood_up_early_timeout", 8.0)
         self.recovery_window = cfg.get("recovery_window", 15.0)
         self.form_break_grace = cfg.get("form_break_grace", 3.0)
-        self.form_break_timeout = cfg.get("form_break_timeout", 8.0)
-        self.form_break_post_recovery = cfg.get("form_break_post_recovery", 3.0)
+        self.form_break_timeout = cfg.get("form_break_timeout", 5.0)
+        self.form_break_post_recovery = cfg.get("form_break_post_recovery", 2.0)
         self.collapse_gap = cfg.get("collapse_gap", 0.03)
         self.collapse_hip_gap = cfg.get("collapse_hip_gap", 0.06)
 
@@ -174,6 +180,17 @@ class PlankAnalyzer(RepCounterAnalyzer):
         mid_y = (shoulder_y + ankle_y) / 2
         hips_sagging = hip_y > mid_y + self.sag_threshold
 
+        # --- Form quality tracking ---
+        self._total_active_frames += 1
+        if self._prev_good_form and not good_form:
+            self._form_break_count += 1
+        if not good_form:
+            if hips_sagging:
+                self._sag_frames += 1
+            else:
+                self._pike_frames += 1
+        self._prev_good_form = good_form
+
         # Hold time tracking
         if good_form:
             if self._last_timestamp > 0:
@@ -269,3 +286,16 @@ class PlankAnalyzer(RepCounterAnalyzer):
             "angle": round(angle, 1),
             "in_plank": self._in_plank,
         }
+
+    def get_final_report(self) -> Dict:
+        report = super().get_final_report()
+        duration = report.get("duration_seconds", 0)
+        good_form_pct = round(self.hold_seconds / max(duration, 0.1) * 100, 1)
+        report["form_summary"] = {
+            "good_form_pct": min(100.0, good_form_pct),
+            "form_break_count": self._form_break_count,
+            "sag_frames": self._sag_frames,
+            "pike_frames": self._pike_frames,
+            "form_score": max(0, min(100, round(good_form_pct))),
+        }
+        return report

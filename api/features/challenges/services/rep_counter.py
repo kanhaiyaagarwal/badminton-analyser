@@ -19,11 +19,11 @@ logger = logging.getLogger(__name__)
 
 CHALLENGE_DEFAULTS = {
     "squat":  {"down_angle": 100, "up_angle": 160, "max_duration": 300, "inactivity_timeout": 0},
-    "pushup": {"down_angle": 90, "up_angle": 145, "max_duration": 300, "inactivity_timeout": 10, "collapse_hold_time": 3.0, "collapse_gap": 0.03, "collapse_hip_gap": 0.06, "half_pushup_gap": 0.05, "stood_up_timeout": 1.5, "first_rep_grace": 30.0},
+    "pushup": {"down_angle": 90, "up_angle": 145, "max_duration": 600, "inactivity_timeout": 10, "collapse_hold_time": 3.0, "collapse_gap": 0.03, "collapse_hip_gap": 0.06, "half_pushup_gap": 0.05, "stood_up_timeout": 1.5, "first_rep_grace": 30.0},
     "plank":  {"good_angle_min": 150, "good_angle_max": 195, "max_duration": 300, "inactivity_timeout": 0,
-               "stood_up_timeout": 1.5, "stood_up_early_timeout": 10.0, "first_rep_grace": 30.0,
-               "recovery_window": 15.0, "form_break_grace": 3.0, "form_break_timeout": 8.0,
-               "form_break_post_recovery": 3.0, "form_hysteresis": 10, "sag_threshold": 0.02, "horizontal_threshold": 0.35, "flat_threshold": 0.03, "knee_angle_min": 150,
+               "stood_up_timeout": 1.5, "stood_up_early_timeout": 8.0, "first_rep_grace": 30.0,
+               "recovery_window": 15.0, "form_break_grace": 3.0, "form_break_timeout": 5.0,
+               "form_break_post_recovery": 2.0, "form_hysteresis": 10, "sag_threshold": 0.02, "horizontal_threshold": 0.35, "flat_threshold": 0.03, "knee_angle_min": 150,
                "collapse_gap": 0.03, "collapse_hip_gap": 0.06},
 }
 
@@ -199,7 +199,14 @@ class RepCounterAnalyzer(BaseStreamAnalyzer):
         """
 
     def get_final_report(self) -> Dict:
-        duration = (datetime.now() - self._ready_wall_time).total_seconds() if self._ready_wall_time else 0.0
+        # Use frame timestamps for duration (not wall clock) so idle time
+        # after auto-end doesn't inflate the reported duration.
+        if self._ready_timestamp is not None and self._last_timestamp > self._ready_timestamp:
+            duration = self._last_timestamp - self._ready_timestamp
+        elif self._ready_wall_time:
+            duration = (datetime.now() - self._ready_wall_time).total_seconds()
+        else:
+            duration = 0.0
         return {
             "challenge_type": self.challenge_type,
             "score": self.reps if self.challenge_type != "plank" else int(self.hold_seconds),

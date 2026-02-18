@@ -9,6 +9,7 @@
       <div class="card-brand">PushUp Pro</div>
 
       <div class="result-type">{{ typeLabel }}</div>
+      <div class="result-user">by {{ displayName }}</div>
 
       <div class="score-display">
         <span class="score-value">{{ result.score }}</span>
@@ -31,6 +32,43 @@
         <div class="stat" v-if="result.personal_best !== null && result.personal_best !== undefined">
           <span class="stat-value" :class="{ 'new-pb': isNewPB }">{{ result.personal_best }} {{ scoreUnit }}</span>
           <span class="stat-label">{{ isNewPB ? 'New PR!' : 'Personal Record' }}</span>
+        </div>
+      </div>
+
+      <!-- Form Summary -->
+      <div v-if="result.form_summary" class="form-summary">
+        <div class="form-summary-header">
+          <span class="form-summary-title">Form Quality</span>
+          <div class="form-score-badge" :class="formScoreClass">
+            {{ result.form_summary.form_score }}
+          </div>
+        </div>
+
+        <!-- Pushup details -->
+        <div v-if="result.challenge_type === 'pushup'" class="form-details">
+          <div v-if="result.form_summary.total_attempts > 0" class="form-attempts">
+            <div class="form-detail-line">
+              {{ result.form_summary.total_attempts }} total attempt{{ result.form_summary.total_attempts !== 1 ? 's' : '' }}
+            </div>
+            <div class="form-detail-sub highlight">{{ result.form_summary.good_reps }} good rep{{ result.form_summary.good_reps !== 1 ? 's' : '' }}</div>
+            <div v-if="result.form_summary.half_pushups > 0" class="form-detail-sub bad">{{ result.form_summary.half_pushups }} half pushup{{ result.form_summary.half_pushups !== 1 ? 's' : '' }}</div>
+          </div>
+          <div v-else class="form-detail-line muted">No reps completed</div>
+        </div>
+
+        <!-- Plank details -->
+        <div v-if="result.challenge_type === 'plank'" class="form-details">
+          <div class="form-detail-line">
+            Good form {{ result.form_summary.good_form_pct }}% of session
+          </div>
+          <div v-if="result.form_summary.form_break_count > 0" class="form-detail-line muted">
+            {{ result.form_summary.form_break_count }} form break{{ result.form_summary.form_break_count !== 1 ? 's' : '' }}
+          </div>
+          <div v-if="result.form_summary.sag_frames > 0 || result.form_summary.pike_frames > 0" class="form-issues">
+            <span v-if="result.form_summary.sag_frames > 0" class="form-issue">hips sagging</span>
+            <span v-if="result.form_summary.sag_frames > 0 && result.form_summary.pike_frames > 0" class="form-issue-sep">&middot;</span>
+            <span v-if="result.form_summary.pike_frames > 0" class="form-issue">hips too high</span>
+          </div>
         </div>
       </div>
 
@@ -155,6 +193,13 @@ const backLink = computed(() => result.value?.challenge_type ? `/challenges/${re
 const typeLabel = computed(() => TYPE_LABELS[result.value?.challenge_type] || 'Challenge')
 const scoreUnit = computed(() => result.value?.challenge_type === 'plank' ? 's' : 'reps')
 const isNewPB = computed(() => result.value && result.value.score === result.value.personal_best)
+const displayName = computed(() => authStore.user?.username || 'You')
+const formScoreClass = computed(() => {
+  const score = result.value?.form_summary?.form_score ?? 0
+  if (score >= 80) return 'score-green'
+  if (score >= 50) return 'score-yellow'
+  return 'score-red'
+})
 
 function ordinal(n) {
   const s = ['th', 'st', 'nd', 'rd']
@@ -345,6 +390,13 @@ onMounted(async () => {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.1em;
+  margin-bottom: 0.2rem;
+}
+
+.result-user {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.8rem;
+  font-weight: 500;
   margin-bottom: 0.75rem;
 }
 
@@ -594,6 +646,114 @@ onMounted(async () => {
   font-size: 1rem;
   vertical-align: middle;
   color: #007aff;
+}
+
+/* Form Summary */
+.form-summary {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.form-summary-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.form-summary-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.form-score-badge {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #fff;
+}
+
+.form-score-badge.score-green {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  box-shadow: 0 2px 10px rgba(34, 197, 94, 0.4);
+}
+
+.form-score-badge.score-yellow {
+  background: linear-gradient(135deg, #eab308, #ca8a04);
+  box-shadow: 0 2px 10px rgba(234, 179, 8, 0.4);
+}
+
+.form-score-badge.score-red {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  box-shadow: 0 2px 10px rgba(239, 68, 68, 0.4);
+}
+
+.form-details {
+  text-align: left;
+}
+
+.form-detail-line {
+  font-size: 0.95rem;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 0.15rem;
+}
+
+.form-detail-line.muted {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.85rem;
+}
+
+.form-detail-sub {
+  font-size: 0.9rem;
+  padding-left: 1rem;
+  margin-bottom: 0.1rem;
+  position: relative;
+}
+
+.form-detail-sub::before {
+  content: '';
+  position: absolute;
+  left: 0.3rem;
+  top: 0.55em;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.form-detail-sub.highlight {
+  color: #f59e0b;
+  font-weight: 700;
+}
+
+.form-detail-sub.highlight::before {
+  background: #f59e0b;
+}
+
+.form-detail-sub.bad {
+  color: #f87171;
+}
+
+.form-detail-sub.bad::before {
+  background: #f87171;
+}
+
+.form-issues {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.35);
+  margin-top: 0.15rem;
+}
+
+.form-issue-sep {
+  margin: 0 0.3rem;
 }
 
 .loading {

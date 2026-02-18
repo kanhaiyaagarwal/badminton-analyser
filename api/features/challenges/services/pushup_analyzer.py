@@ -70,6 +70,10 @@ class PushupAnalyzer(RepCounterAnalyzer):
         self._down_since = 0.0  # timestamp when entered DOWN state
         self._down_min_angle = 180.0  # lowest angle seen during current down phase
         self._stood_up_since = 0.0  # timestamp when left horizontal position
+        # Form quality counters
+        self._half_pushup_count = 0
+        self._legs_bent_frames = 0
+        self._total_active_frames = 0
 
     def _process_pose(self, landmarks: list, timestamp: float) -> Dict:
         # --- Elbow angle (primary rep metric) ---
@@ -174,6 +178,11 @@ class PushupAnalyzer(RepCounterAnalyzer):
                 "is_horizontal": is_horizontal,
             }
 
+        # --- Form quality tracking ---
+        self._total_active_frames += 1
+        if not legs_straight:
+            self._legs_bent_frames += 1
+
         # --- Activity tracking & stood-up detection ---
         if is_horizontal:
             self.mark_active(timestamp)
@@ -200,6 +209,7 @@ class PushupAnalyzer(RepCounterAnalyzer):
             self._down_min_angle = 180.0
             if is_half_pushup:
                 # Don't count — hips on ground, only chest moved
+                self._half_pushup_count += 1
                 self.form_feedback = "Half pushup! Lift your hips off the ground"
             else:
                 self.reps += 1
@@ -294,3 +304,19 @@ class PushupAnalyzer(RepCounterAnalyzer):
             "is_half_pushup": is_half_pushup,
             "collapsed": collapsed,
         }
+
+    def get_final_report(self) -> Dict:
+        report = super().get_final_report()
+        total_attempts = self.reps + self._half_pushup_count
+        legs_bent_pct = round(self._legs_bent_frames / max(self._total_active_frames, 1) * 100, 1)
+        rep_quality = (self.reps / max(total_attempts, 1)) * 100
+        leg_quality = 100 - legs_bent_pct
+        form_score = round(rep_quality * 0.9 + leg_quality * 0.1)
+        report["form_summary"] = {
+            "total_attempts": total_attempts,
+            "good_reps": self.reps,
+            "half_pushups": self._half_pushup_count,
+            "legs_bent_pct": legs_bent_pct,
+            "form_score": max(0, min(100, form_score)),
+        }
+        return report

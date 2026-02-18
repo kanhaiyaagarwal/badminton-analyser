@@ -18,6 +18,7 @@ class ChallengeResponse(BaseModel):
     personal_best: Optional[int] = None
     daily_rank: Optional[int] = None
     has_recording: bool = False
+    form_summary: Optional[dict] = None
     created_at: datetime
     ended_at: Optional[datetime] = None
 
@@ -49,6 +50,7 @@ class AdminSessionResponse(BaseModel):
     id: int
     user_id: int
     username: str
+    email: str
     challenge_type: str
     status: str
     score: int

@@ -436,6 +436,7 @@ async def websocket_challenge(
                 sess.score = report.get("score", 0)
                 sess.duration_seconds = report.get("duration_seconds", 0.0)
                 sess.extra_data = report
+                sess.form_summary = report.get("form_summary")
 
                 # Update personal best
                 record = db2.query(ChallengeRecord).filter(

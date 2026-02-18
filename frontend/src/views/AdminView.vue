@@ -523,8 +523,23 @@
         </div>
         <div v-if="screenshotModal.loading" class="modal-loading">Loading screenshots...</div>
         <div v-else class="screenshots-scroll">
+          <div class="screenshots-nav">
+            <span class="screenshots-count">{{ screenshotModal.images.length }} / {{ screenshotModal.total }} loaded</span>
+            <div class="screenshots-jump">
+              <label>Go to #</label>
+              <input
+                type="number"
+                v-model.number="screenshotJumpTo"
+                :min="1"
+                :max="screenshotModal.total"
+                @keyup.enter="jumpToScreenshot"
+                class="jump-input"
+              />
+              <button @click="jumpToScreenshot" class="btn-small" :disabled="screenshotModal.loadingMore">Go</button>
+            </div>
+          </div>
           <div class="screenshots-grid">
-            <div v-for="(src, i) in screenshotModal.images" :key="i" class="screenshot-item">
+            <div v-for="(src, i) in screenshotModal.images" :key="i" class="screenshot-item" :id="`ss-${i}`">
               <img :src="src" :alt="`Screenshot ${i}`" loading="lazy" />
               <span class="screenshot-index">{{ i + 1 }}</span>
             </div>
@@ -541,7 +556,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import api from '../api/client'
 
@@ -930,6 +945,7 @@ async function downloadRefinedPoseData(sessionId) {
 }
 
 const SCREENSHOTS_PAGE_SIZE = 10
+const screenshotJumpTo = ref(1)
 
 async function viewScreenshots(sessionId, count) {
   screenshotModal.value = { open: true, sessionId, images: [], loading: true, loadingMore: false, total: count }
@@ -962,6 +978,29 @@ async function loadScreenshotsBatch(sessionId, start, end) {
       { responseType: 'blob' }
     )
     screenshotModal.value.images.push(URL.createObjectURL(res.data))
+  }
+}
+
+async function jumpToScreenshot() {
+  const modal = screenshotModal.value
+  const target = Math.max(1, Math.min(screenshotJumpTo.value, modal.total)) - 1 // 0-indexed
+
+  // Load all screenshots up to the target if not already loaded
+  if (target >= modal.images.length) {
+    modal.loadingMore = true
+    try {
+      await loadScreenshotsBatch(modal.sessionId, modal.images.length, Math.min(target + SCREENSHOTS_PAGE_SIZE, modal.total))
+    } catch (err) {
+      console.error('Failed to load screenshots:', err)
+    }
+    modal.loadingMore = false
+  }
+
+  // Scroll to the target screenshot
+  await nextTick()
+  const el = document.getElementById(`ss-${target}`)
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
 }
 
@@ -1565,5 +1604,41 @@ select {
   font-weight: 600;
   padding: 0.1rem 0.4rem;
   border-radius: var(--radius-sm);
+}
+
+.screenshots-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.screenshots-count {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.screenshots-jump {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.screenshots-jump label {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.jump-input {
+  width: 70px;
+  padding: 0.3rem 0.5rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.85rem;
 }
 </style>
