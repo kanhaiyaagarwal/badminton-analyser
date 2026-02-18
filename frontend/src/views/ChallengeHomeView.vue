@@ -24,9 +24,14 @@
     <div v-if="hasRank" class="rank-badge">
       <span class="rank-sparkle">&#10024;</span>
       Your Rank:
-      <strong>{{ ordinal(daily?.user_rank) }}</strong> today
+      <template v-if="daily?.user_rank">
+        <strong>{{ ordinal(daily?.user_rank) }}</strong> today
+      </template>
+      <template v-if="daily?.user_rank && weekly?.user_rank">
+        &middot;
+      </template>
       <template v-if="weekly?.user_rank">
-        &middot; <strong>{{ ordinal(weekly?.user_rank) }}</strong> this week
+        <strong>{{ ordinal(weekly?.user_rank) }}</strong> this week
       </template>
       <span class="rank-sparkle">&#10024;</span>
     </div>
@@ -42,12 +47,12 @@
           <span class="stat-lbl">Personal Best</span>
         </div>
       </div>
-      <div class="stat-box">
+      <div v-if="typeStats.daily_best" class="stat-box">
         <div class="stat-icon icon-orange">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5C7 4 7 7 7 7"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5C17 4 17 7 17 7"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
         </div>
         <div class="stat-info">
-          <span class="stat-val">{{ typeStats.daily_best || 0 }}</span>
+          <span class="stat-val">{{ typeStats.daily_best }}</span>
           <span class="stat-lbl">Today's Best</span>
         </div>
       </div>
@@ -104,14 +109,14 @@
 
     <!-- Session History -->
     <div class="history-section">
-      <h2>Session History</h2>
-      <div v-if="store.loading" class="history-empty">Loading sessions...</div>
-      <div v-else-if="typeSessions.length === 0" class="history-empty">
+      <h2>Session History <span v-if="store.sessionsTotal > 0" class="history-count">({{ store.sessionsTotal }})</span></h2>
+      <div v-if="store.sessionsLoading && store.sessions.length === 0" class="history-empty">Loading sessions...</div>
+      <div v-else-if="store.sessions.length === 0" class="history-empty">
         No sessions yet. Start your first challenge!
       </div>
       <div v-else class="history-list">
         <div
-          v-for="session in typeSessions"
+          v-for="session in store.sessions"
           :key="session.id"
           class="history-card"
           @click="viewResults(session.id)"
@@ -125,13 +130,16 @@
             <span v-if="session.personal_best" class="history-pb">PB {{ session.personal_best }}</span>
           </div>
         </div>
+        <div v-if="hasMoreSessions" ref="scrollSentinel" class="history-sentinel">
+          <span v-if="store.sessionsLoading" class="loading-more">Loading more...</span>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useChallengesStore } from '../stores/challenges'
 import { useAuthStore } from '../stores/auth'
@@ -156,14 +164,39 @@ const typeStats = computed(() => store.stats[challengeType.value])
 
 const daily = computed(() => store.leaderboard?.daily)
 const weekly = computed(() => store.leaderboard?.weekly)
-const hasRank = computed(() => daily.value?.user_rank || weekly.value?.user_rank)
+const hasDailyRank = computed(() => !!daily.value?.user_rank)
+const hasRank = computed(() => hasDailyRank.value || !!weekly.value?.user_rank)
 
-const typeSessions = computed(() =>
-  store.sessions
-    .filter(s => s.challenge_type === challengeType.value)
-    .slice()
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-)
+const PAGE_SIZE = 10
+const hasMoreSessions = computed(() => store.sessions.length < store.sessionsTotal)
+const scrollSentinel = ref(null)
+let observer = null
+
+function loadSessions() {
+  store.fetchSessions({ challengeType: challengeType.value, minScore: 1, limit: PAGE_SIZE, offset: 0 })
+}
+
+function loadMoreSessions() {
+  if (store.sessionsLoading || !hasMoreSessions.value) return
+  store.fetchSessions({
+    challengeType: challengeType.value,
+    minScore: 1,
+    limit: PAGE_SIZE,
+    offset: store.sessions.length,
+    append: true,
+  })
+}
+
+function setupObserver() {
+  if (observer) observer.disconnect()
+  observer = new IntersectionObserver((entries) => {
+    if (entries[0]?.isIntersecting) loadMoreSessions()
+  }, { rootMargin: '200px' })
+}
+
+watch(scrollSentinel, (el) => {
+  if (el && observer) observer.observe(el)
+})
 
 function ordinal(n) {
   if (!n) return '-'
@@ -205,7 +238,12 @@ onMounted(() => {
   store.fetchEnabledChallenges()
   store.fetchStats()
   store.fetchLeaderboard(challengeType.value)
-  store.fetchSessions()
+  loadSessions()
+  setupObserver()
+})
+
+onUnmounted(() => {
+  if (observer) observer.disconnect()
 })
 </script>
 
@@ -514,6 +552,23 @@ onMounted(() => {
   color: var(--text-primary);
   font-size: 1.2rem;
   margin-bottom: 1rem;
+}
+
+.history-count {
+  color: var(--text-muted);
+  font-weight: 400;
+  font-size: 0.9rem;
+}
+
+.history-sentinel {
+  text-align: center;
+  padding: 1rem 0;
+  min-height: 1px;
+}
+
+.loading-more {
+  color: var(--text-muted);
+  font-size: 0.85rem;
 }
 
 .history-empty {

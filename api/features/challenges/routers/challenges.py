@@ -461,9 +461,12 @@ def download_recording(
     raise HTTPException(status_code=404, detail="No recording available for this session")
 
 
-@router.get("/sessions", response_model=List[ChallengeResponse])
+@router.get("/sessions")
 def list_challenge_sessions(
     challenge_type: Optional[str] = Query(None),
+    min_score: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     user=Depends(get_current_user),
 ):
@@ -478,19 +481,24 @@ def list_challenge_sessions(
     )
     if challenge_type and challenge_type in VALID_TYPES:
         q = q.filter(ChallengeSession.challenge_type == challenge_type)
-    sessions = q.order_by(ChallengeSession.created_at.desc()).limit(50).all()
+    if min_score > 0:
+        q = q.filter(ChallengeSession.score >= min_score)
+
+    total = q.count()
+    sessions = q.order_by(ChallengeSession.created_at.desc()).offset(offset).limit(limit).all()
 
     results = []
     for s in sessions:
-        # Look up personal best
         record = db.query(ChallengeRecord).filter(
             ChallengeRecord.user_id == user.id,
             ChallengeRecord.challenge_type == s.challenge_type,
         ).first()
-
         results.append(_build_response(s, record.best_score if record else None))
 
-    return results
+    return JSONResponse(content={
+        "sessions": [r.model_dump(mode="json") for r in results],
+        "total": total,
+    })
 
 
 @router.get("/records")

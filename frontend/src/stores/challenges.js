@@ -4,6 +4,8 @@ import api from '../api/client'
 
 export const useChallengesStore = defineStore('challenges', () => {
   const sessions = ref([])
+  const sessionsTotal = ref(0)
+  const sessionsLoading = ref(false)
   const currentSession = ref(null)
   const personalRecords = ref({})
   const stats = ref({})
@@ -44,15 +46,23 @@ export const useChallengesStore = defineStore('challenges', () => {
     }
   }
 
-  async function fetchSessions() {
-    loading.value = true
+  async function fetchSessions({ challengeType, minScore = 1, limit = 10, offset = 0, append = false } = {}) {
+    sessionsLoading.value = true
     try {
-      const response = await api.get('/api/v1/challenges/sessions')
-      sessions.value = response.data
+      const params = { min_score: minScore, limit, offset }
+      if (challengeType) params.challenge_type = challengeType
+      const response = await api.get('/api/v1/challenges/sessions', { params })
+      const data = response.data
+      if (append) {
+        sessions.value = [...sessions.value, ...data.sessions]
+      } else {
+        sessions.value = data.sessions
+      }
+      sessionsTotal.value = data.total
     } catch (err) {
       error.value = err.response?.data?.detail || 'Failed to fetch sessions'
     } finally {
-      loading.value = false
+      sessionsLoading.value = false
     }
   }
 
@@ -106,6 +116,8 @@ export const useChallengesStore = defineStore('challenges', () => {
 
   return {
     sessions,
+    sessionsTotal,
+    sessionsLoading,
     currentSession,
     personalRecords,
     stats,
