@@ -139,6 +139,16 @@ const router = createRouter({
   routes
 })
 
+function getHomePath(authStore) {
+  // If user has badminton access, show hub (multiple features)
+  if (authStore.hasFeature('badminton')) return '/hub'
+  // If user only has challenge features, go straight to challenges
+  const challengeFeatures = ['pushup', 'squat', 'plank']
+  if (challengeFeatures.some(f => authStore.hasFeature(f))) return '/challenges'
+  // Fallback
+  return '/hub'
+}
+
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
   const isAuth = authStore.isAuthenticated
@@ -149,6 +159,7 @@ router.beforeEach(async (to, from, next) => {
   }
 
   const isAdmin = authStore.user?.is_admin
+  const home = isAuth ? getHomePath(authStore) : '/hub'
 
   // 1. Auth required but not logged in
   if (to.meta.requiresAuth && !isAuth) {
@@ -158,19 +169,25 @@ router.beforeEach(async (to, from, next) => {
 
   // 2. Guest-only pages — redirect if already authenticated
   if (to.meta.guest && isAuth) {
-    next('/hub')
+    next(home)
     return
   }
 
   // 3. Admin-only routes
   if (to.meta.requiresAdmin && !isAdmin) {
-    next('/hub')
+    next(home)
     return
   }
 
   // 4. Feature-gated routes
   if (to.meta.requiredFeature && !authStore.hasFeature(to.meta.requiredFeature)) {
-    next('/hub')
+    next(home)
+    return
+  }
+
+  // 5. Hub page — skip if user only has challenges
+  if (to.path === '/hub' && home !== '/hub') {
+    next(home)
     return
   }
 

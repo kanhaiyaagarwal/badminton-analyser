@@ -566,7 +566,7 @@ const authStore = useAuthStore()
 const currentUser = computed(() => authStore.user)
 const isAdmin = computed(() => authStore.user?.is_admin)
 
-const allFeatures = ['badminton', 'pushup', 'squat_hold', 'squat_half', 'squat_full', 'plank']
+const allFeatures = ['badminton', 'pushup', 'squat', 'plank']
 
 const tabs = [
   { id: 'codes', label: 'Invite Codes' },

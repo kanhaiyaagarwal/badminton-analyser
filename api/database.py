@@ -327,28 +327,29 @@ def _migrate_squat_variants():
         except Exception as e:
             logger.debug(f"squat config migration skipped: {e}")
 
-        # 4. Update users' enabled_features: replace "squat" with 3 variants
+        # 4. Consolidate squat variant features back to single "squat"
         try:
             from .db_models.user import User
+            squat_variants = {"squat_hold", "squat_half", "squat_full"}
             users = db.query(User).all()
-            squat_variants = ["squat_hold", "squat_half", "squat_full"]
             for user in users:
                 features = user.enabled_features or []
-                if "squat" in features:
-                    features = [f for f in features if f != "squat"]
-                    features.extend(squat_variants)
-                    user.enabled_features = list(set(features))
-                    logger.info(f"Migrated user {user.id} features: replaced squat with variants")
+                if any(v in features for v in squat_variants):
+                    features = [f for f in features if f not in squat_variants]
+                    if "squat" not in features:
+                        features.append("squat")
+                    user.enabled_features = features
+                    logger.info(f"Migrated user {user.id} features: consolidated squat variants to 'squat'")
         except Exception as e:
             logger.debug(f"user features migration skipped: {e}")
 
-        # 5. Remove old squat feature access row
+        # 5. Remove old squat variant feature access rows (replaced by single "squat")
         try:
             db.execute(text(
-                "DELETE FROM feature_access WHERE feature_name = 'squat'"
+                "DELETE FROM feature_access WHERE feature_name IN ('squat_hold', 'squat_half', 'squat_full')"
             ))
         except Exception as e:
-            logger.debug(f"feature_access squat removal skipped: {e}")
+            logger.debug(f"feature_access squat cleanup skipped: {e}")
 
         db.commit()
     except Exception as e:
@@ -397,9 +398,7 @@ def seed_feature_access():
     FEATURES = {
         "badminton":      {"access_mode": "per_user", "default_on_signup": False},
         "pushup":         {"access_mode": "per_user", "default_on_signup": True},
-        "squat_hold":     {"access_mode": "per_user", "default_on_signup": True},
-        "squat_half":  {"access_mode": "per_user", "default_on_signup": True},
-        "squat_full":     {"access_mode": "per_user", "default_on_signup": True},
+        "squat":          {"access_mode": "per_user", "default_on_signup": True},
         "plank":          {"access_mode": "per_user", "default_on_signup": False},
     }
 

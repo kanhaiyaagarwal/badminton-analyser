@@ -37,6 +37,15 @@ router = APIRouter(prefix="/api/v1/challenges", tags=["challenges"])
 
 VALID_TYPES = {"plank", "squat_hold", "squat_half", "squat_full", "pushup"}
 
+# Maps challenge_type → feature flag name (squat variants share one feature)
+FEATURE_FOR_TYPE = {
+    "plank": "plank",
+    "pushup": "pushup",
+    "squat_hold": "squat",
+    "squat_half": "squat",
+    "squat_full": "squat",
+}
+
 
 def _anonymize_email(email: str) -> str:
     """Mask email for leaderboard display: show first 3 chars of local part."""
@@ -216,18 +225,21 @@ def get_enabled_challenges(
     if user.is_admin:
         return list(VALID_TYPES)
 
+    # Look up feature access by feature name (not challenge type)
+    feature_names = set(FEATURE_FOR_TYPE.values())
     rows = db.query(FeatureAccess).filter(
-        FeatureAccess.feature_name.in_(VALID_TYPES)
+        FeatureAccess.feature_name.in_(feature_names)
     ).all()
     access_map = {r.feature_name: r.access_mode for r in rows}
     user_features = set(user.enabled_features or [])
 
     enabled = []
     for ct in VALID_TYPES:
-        mode = access_map.get(ct, "per_user")
+        feat = FEATURE_FOR_TYPE.get(ct, ct)
+        mode = access_map.get(feat, "per_user")
         if mode == "global":
             enabled.append(ct)
-        elif mode == "per_user" and ct in user_features:
+        elif mode == "per_user" and feat in user_features:
             enabled.append(ct)
     return enabled
 
@@ -244,10 +256,11 @@ def create_challenge_session(
     if body.challenge_type not in VALID_TYPES:
         raise HTTPException(status_code=400, detail=f"Invalid challenge type. Must be one of: {VALID_TYPES}")
 
-    # Check access via FeatureAccess
+    # Check access via FeatureAccess (squat variants share one "squat" feature)
+    feat = FEATURE_FOR_TYPE.get(body.challenge_type, body.challenge_type)
     if not user.is_admin:
         fa = db.query(FeatureAccess).filter(
-            FeatureAccess.feature_name == body.challenge_type
+            FeatureAccess.feature_name == feat
         ).first()
         mode = fa.access_mode if fa else "per_user"
 
@@ -255,7 +268,7 @@ def create_challenge_session(
             raise HTTPException(status_code=403, detail="This challenge type is not currently enabled")
         if mode == "per_user":
             user_features = user.enabled_features or []
-            if body.challenge_type not in user_features:
+            if feat not in user_features:
                 raise HTTPException(status_code=403, detail="This challenge type is not enabled for your account")
 
     session = ChallengeSession(

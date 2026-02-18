@@ -36,7 +36,7 @@ import { useAuthStore } from '../stores/auth'
 
 const authStore = useAuthStore()
 const hasAnyChallengeFeature = computed(() =>
-  authStore.hasFeature('pushup') || authStore.hasFeature('squat_hold') || authStore.hasFeature('squat_half') || authStore.hasFeature('squat_full') || authStore.hasFeature('plank')
+  authStore.hasFeature('pushup') || authStore.hasFeature('squat') || authStore.hasFeature('plank')
 )
 </script>
 
