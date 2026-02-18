@@ -25,11 +25,18 @@ class UserLogin(BaseModel):
     password: str
 
 
+class UserProfileUpdate(BaseModel):
+    """Schema for updating user profile."""
+    username: Optional[str] = Field(None, min_length=1, max_length=100)
+    mobile: Optional[str] = Field(None, max_length=20)
+
+
 class UserResponse(BaseModel):
     """Schema for user response."""
     id: int
     email: str
     username: str
+    mobile: Optional[str] = None
     is_active: bool
     is_admin: bool = False
     enabled_features: list = []

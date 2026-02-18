@@ -10,10 +10,10 @@
       <div class="nav-links">
         <router-link to="/hub">Home</router-link>
         <router-link v-if="isAdmin" to="/admin" class="nav-admin">Admin</router-link>
-        <div class="user-badge">
+        <router-link to="/profile" class="user-badge">
           <span class="user-avatar">{{ userInitial }}</span>
           <span class="user-name">{{ authStore.user?.username }}</span>
-        </div>
+        </router-link>
         <button @click="logout" class="btn-logout">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" stroke-linecap="round" stroke-linejoin="round">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
@@ -131,6 +131,15 @@ const logout = () => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  text-decoration: none;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  padding: 0.25rem 0.5rem;
+  transition: background 0.2s;
+}
+
+.user-badge:hover {
+  background: var(--color-primary-light);
 }
 
 .user-avatar {

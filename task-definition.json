@@ -122,6 +122,10 @@
           "value": "true"
         },
         {
+          "name": "GOOGLE_CLIENT_ID",
+          "value": "446260481527-ku6jg5brrltondo9mralq6oc7f9os010.apps.googleusercontent.com"
+        },
+        {
           "name": "DD_TRACE_ENABLED",
           "value": "true"
         },

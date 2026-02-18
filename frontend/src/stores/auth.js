@@ -105,6 +105,12 @@ export const useAuthStore = defineStore('auth', () => {
     return response.data
   }
 
+  async function updateProfile(data) {
+    const response = await api.patch('/api/v1/auth/me', data)
+    user.value = response.data
+    return response.data
+  }
+
   async function forgotPassword(email) {
     const response = await api.post('/api/v1/auth/forgot-password', { email })
     return response.data
@@ -210,6 +216,7 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     loginWithGoogle,
     signup,
+    updateProfile,
     verifyEmail,
     resendOTP,
     clearPendingVerification,

@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models.user import (
     UserCreate, UserResponse, UserLogin, Token,
-    GoogleAuthRequest,
+    GoogleAuthRequest, UserProfileUpdate,
     SignupResponse, VerifyEmailRequest, VerifyEmailResponse,
     ResendOTPRequest, ResendOTPResponse,
     ForgotPasswordRequest, ForgotPasswordResponse,
@@ -568,6 +568,52 @@ async def get_me(current_user=Depends(get_current_user), db: Session = Depends(g
         id=current_user.id,
         email=current_user.email,
         username=current_user.username,
+        mobile=getattr(current_user, 'mobile', None),
+        is_active=current_user.is_active,
+        is_admin=current_user.is_admin,
+        enabled_features=features,
+        auth_provider=getattr(current_user, 'auth_provider', 'local') or 'local',
+        created_at=current_user.created_at,
+    )
+
+
+@router.patch("/me", response_model=UserResponse)
+async def update_profile(
+    profile: UserProfileUpdate,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update current user's profile (display name, mobile)."""
+    if profile.username is not None:
+        current_user.username = profile.username.strip()
+    if profile.mobile is not None:
+        current_user.mobile = profile.mobile.strip() or None
+    db.commit()
+    db.refresh(current_user)
+
+    # Re-compute features (same logic as get_me)
+    from ..db_models.user import ALL_FEATURES
+    from ..db_models.feature_access import FeatureAccess
+
+    if current_user.is_admin:
+        features = list(ALL_FEATURES)
+    else:
+        rows = db.query(FeatureAccess).all()
+        access_map = {r.feature_name: r.access_mode for r in rows}
+        user_features = set(current_user.enabled_features or [])
+        features = []
+        for feat in ALL_FEATURES:
+            mode = access_map.get(feat, "per_user")
+            if mode == "global":
+                features.append(feat)
+            elif mode == "per_user" and feat in user_features:
+                features.append(feat)
+
+    return UserResponse(
+        id=current_user.id,
+        email=current_user.email,
+        username=current_user.username,
+        mobile=getattr(current_user, 'mobile', None),
         is_active=current_user.is_active,
         is_admin=current_user.is_admin,
         enabled_features=features,
