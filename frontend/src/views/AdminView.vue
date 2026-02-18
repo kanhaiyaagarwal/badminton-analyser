@@ -279,7 +279,9 @@
           <select v-model="challengeTypeFilter" @change="challengePage = 0; loadChallengeSessions()">
             <option value="">All Types</option>
             <option value="plank">Plank</option>
-            <option value="squat">Squat</option>
+            <option value="squat_hold">Squat Hold</option>
+            <option value="squat_half">Half Squats</option>
+            <option value="squat_full">Full Squats</option>
             <option value="pushup">Pushup</option>
           </select>
         </div>
@@ -524,30 +526,30 @@
         <div v-if="screenshotModal.loading" class="modal-loading">Loading screenshots...</div>
         <div v-else class="screenshots-scroll">
           <div class="screenshots-nav">
-            <span class="screenshots-count">{{ screenshotModal.images.length }} / {{ screenshotModal.total }} loaded</span>
-            <div class="screenshots-jump">
-              <label>Go to #</label>
-              <input
-                type="number"
-                v-model.number="screenshotJumpTo"
-                :min="1"
-                :max="screenshotModal.total"
-                @keyup.enter="jumpToScreenshot"
-                class="jump-input"
-              />
-              <button @click="jumpToScreenshot" class="btn-small" :disabled="screenshotModal.loadingMore">Go</button>
+            <span class="screenshots-count">Page {{ ssCurrentPage }} of {{ ssTotalPages }} ({{ screenshotModal.total }} screenshots)</span>
+            <div class="screenshots-page-controls">
+              <button @click="ssGoToPage(ssCurrentPage - 1)" class="btn-small" :disabled="ssCurrentPage <= 1 || screenshotModal.loadingMore">&laquo; Prev</button>
+              <div class="screenshots-jump">
+                <label>Page</label>
+                <input
+                  type="number"
+                  v-model.number="ssJumpPage"
+                  :min="1"
+                  :max="ssTotalPages"
+                  @keyup.enter="ssGoToPage(ssJumpPage)"
+                  class="jump-input"
+                />
+                <button @click="ssGoToPage(ssJumpPage)" class="btn-small" :disabled="screenshotModal.loadingMore">Go</button>
+              </div>
+              <button @click="ssGoToPage(ssCurrentPage + 1)" class="btn-small" :disabled="ssCurrentPage >= ssTotalPages || screenshotModal.loadingMore">Next &raquo;</button>
             </div>
           </div>
-          <div class="screenshots-grid">
-            <div v-for="(src, i) in screenshotModal.images" :key="i" class="screenshot-item" :id="`ss-${i}`">
-              <img :src="src" :alt="`Screenshot ${i}`" loading="lazy" />
-              <span class="screenshot-index">{{ i + 1 }}</span>
+          <div v-if="screenshotModal.loadingMore" class="modal-loading">Loading page...</div>
+          <div v-else class="screenshots-grid">
+            <div v-for="entry in ssPageEntries" :key="entry.idx" class="screenshot-item">
+              <img :src="entry.src" :alt="`Screenshot ${entry.idx + 1}`" />
+              <span class="screenshot-index">{{ entry.idx + 1 }}</span>
             </div>
-          </div>
-          <div v-if="screenshotModal.images.length < screenshotModal.total" class="load-more-row">
-            <button @click="loadMoreScreenshots" class="btn-small" :disabled="screenshotModal.loadingMore">
-              {{ screenshotModal.loadingMore ? 'Loading...' : `Load More (${screenshotModal.images.length}/${screenshotModal.total})` }}
-            </button>
           </div>
         </div>
       </div>
@@ -564,7 +566,7 @@ const authStore = useAuthStore()
 const currentUser = computed(() => authStore.user)
 const isAdmin = computed(() => authStore.user?.is_admin)
 
-const allFeatures = ['badminton', 'pushup', 'squat', 'plank']
+const allFeatures = ['badminton', 'pushup', 'squat_hold', 'squat_half', 'squat_full', 'plank']
 
 const tabs = [
   { id: 'codes', label: 'Invite Codes' },
@@ -587,7 +589,7 @@ const creating = ref(false)
 const createError = ref('')
 
 // Whitelist
-const screenshotModal = ref({ open: false, sessionId: null, images: [], loading: false, loadingMore: false, total: 0 })
+const screenshotModal = ref({ open: false, sessionId: null, loading: false, loadingMore: false, total: 0 })
 
 const whitelist = ref([])
 const loadingWhitelist = ref(false)
@@ -944,64 +946,60 @@ async function downloadRefinedPoseData(sessionId) {
   }
 }
 
-const SCREENSHOTS_PAGE_SIZE = 10
-const screenshotJumpTo = ref(1)
+const SS_PAGE_SIZE = 10
+const ssJumpPage = ref(1)
+const ssCurrentPage = ref(1)
+const ssPageCache = ref({}) // page number -> [{idx, src}]
+
+const ssTotalPages = computed(() => Math.ceil(screenshotModal.value.total / SS_PAGE_SIZE) || 1)
+
+const ssPageEntries = computed(() => ssPageCache.value[ssCurrentPage.value] || [])
 
 async function viewScreenshots(sessionId, count) {
-  screenshotModal.value = { open: true, sessionId, images: [], loading: true, loadingMore: false, total: count }
+  // Revoke old object URLs
+  for (const entries of Object.values(ssPageCache.value)) {
+    for (const e of entries) URL.revokeObjectURL(e.src)
+  }
+  ssPageCache.value = {}
+  ssCurrentPage.value = 1
+  ssJumpPage.value = 1
+  screenshotModal.value = { open: true, sessionId, images: {}, loading: true, loadingMore: false, total: count }
   try {
-    await loadScreenshotsBatch(sessionId, 0, Math.min(SCREENSHOTS_PAGE_SIZE, count))
+    await ssLoadPage(1)
   } catch (err) {
     console.error('Failed to load screenshots:', err)
   }
   screenshotModal.value.loading = false
 }
 
-async function loadMoreScreenshots() {
+async function ssLoadPage(page) {
+  if (ssPageCache.value[page]) return // already cached
   const modal = screenshotModal.value
-  if (modal.loadingMore || modal.images.length >= modal.total) return
-  modal.loadingMore = true
-  try {
-    const start = modal.images.length
-    const end = Math.min(start + SCREENSHOTS_PAGE_SIZE, modal.total)
-    await loadScreenshotsBatch(modal.sessionId, start, end)
-  } catch (err) {
-    console.error('Failed to load more screenshots:', err)
-  }
-  modal.loadingMore = false
-}
-
-async function loadScreenshotsBatch(sessionId, start, end) {
+  const start = (page - 1) * SS_PAGE_SIZE
+  const end = Math.min(start + SS_PAGE_SIZE, modal.total)
+  const entries = []
   for (let i = start; i < end; i++) {
     const res = await api.get(
-      `/api/v1/challenges/admin/sessions/${sessionId}/screenshots/${i}`,
+      `/api/v1/challenges/admin/sessions/${modal.sessionId}/screenshots/${i}`,
       { responseType: 'blob' }
     )
-    screenshotModal.value.images.push(URL.createObjectURL(res.data))
+    entries.push({ idx: i, src: URL.createObjectURL(res.data) })
   }
+  ssPageCache.value = { ...ssPageCache.value, [page]: entries }
 }
 
-async function jumpToScreenshot() {
-  const modal = screenshotModal.value
-  const target = Math.max(1, Math.min(screenshotJumpTo.value, modal.total)) - 1 // 0-indexed
-
-  // Load all screenshots up to the target if not already loaded
-  if (target >= modal.images.length) {
-    modal.loadingMore = true
-    try {
-      await loadScreenshotsBatch(modal.sessionId, modal.images.length, Math.min(target + SCREENSHOTS_PAGE_SIZE, modal.total))
-    } catch (err) {
-      console.error('Failed to load screenshots:', err)
-    }
-    modal.loadingMore = false
+async function ssGoToPage(page) {
+  page = Math.max(1, Math.min(page, ssTotalPages.value))
+  if (page === ssCurrentPage.value && ssPageCache.value[page]) return
+  screenshotModal.value.loadingMore = true
+  try {
+    await ssLoadPage(page)
+    ssCurrentPage.value = page
+    ssJumpPage.value = page
+  } catch (err) {
+    console.error('Failed to load screenshot page:', err)
   }
-
-  // Scroll to the target screenshot
-  await nextTick()
-  const el = document.getElementById(`ss-${target}`)
-  if (el) {
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  }
+  screenshotModal.value.loadingMore = false
 }
 
 function formatThresholdLabel(key) {
@@ -1610,6 +1608,8 @@ select {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
   margin-bottom: 0.75rem;
   padding-bottom: 0.75rem;
   border-bottom: 1px solid var(--border-color);
@@ -1618,6 +1618,12 @@ select {
 .screenshots-count {
   color: var(--text-muted);
   font-size: 0.85rem;
+}
+
+.screenshots-page-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .screenshots-jump {

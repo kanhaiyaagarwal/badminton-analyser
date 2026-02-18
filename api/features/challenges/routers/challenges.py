@@ -27,6 +27,7 @@ from ..models.challenge import (
 from ..services.rep_counter import CHALLENGE_DEFAULTS
 from ..services.plank_analyzer import PlankAnalyzer
 from ..services.squat_analyzer import SquatAnalyzer
+from ..services.squat_hold_analyzer import SquatHoldAnalyzer
 from ..services.pushup_analyzer import PushupAnalyzer
 from ....core.streaming.session_manager import get_generic_session_manager
 
@@ -34,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/challenges", tags=["challenges"])
 
-VALID_TYPES = {"plank", "squat", "pushup"}
+VALID_TYPES = {"plank", "squat_hold", "squat_half", "squat_full", "pushup"}
 
 
 def _anonymize_email(email: str) -> str:
@@ -53,7 +54,9 @@ def _anonymize_username(name: str) -> str:
 
 ANALYZER_MAP = {
     "plank": PlankAnalyzer,
-    "squat": SquatAnalyzer,
+    "squat_hold": SquatHoldAnalyzer,
+    "squat_half": SquatAnalyzer,
+    "squat_full": SquatAnalyzer,
     "pushup": PushupAnalyzer,
 }
 
@@ -269,7 +272,12 @@ def create_challenge_session(
     config_row = db.query(ChallengeConfig).filter(
         ChallengeConfig.challenge_type == body.challenge_type
     ).first()
-    analyzer = analyzer_cls(config=config_row.thresholds if config_row else None)
+    config_val = config_row.thresholds if config_row else None
+    # SquatAnalyzer needs challenge_type to pick the right defaults
+    if analyzer_cls is SquatAnalyzer:
+        analyzer = analyzer_cls(challenge_type=body.challenge_type, config=config_val)
+    else:
+        analyzer = analyzer_cls(config=config_val)
     gsm = get_generic_session_manager()
     gsm.register_session(session.id, f"challenge_{body.challenge_type}", analyzer)
 
@@ -464,6 +472,7 @@ def download_recording(
 @router.get("/sessions")
 def list_challenge_sessions(
     challenge_type: Optional[str] = Query(None),
+    challenge_types: Optional[str] = Query(None, description="Comma-separated list of types"),
     min_score: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
@@ -479,7 +488,12 @@ def list_challenge_sessions(
             ChallengeSession.status == ChallengeStatus.ENDED,
         )
     )
-    if challenge_type and challenge_type in VALID_TYPES:
+    # Support comma-separated types (for grouped variants like squat)
+    if challenge_types:
+        type_list = [t.strip() for t in challenge_types.split(",") if t.strip() in VALID_TYPES]
+        if type_list:
+            q = q.filter(ChallengeSession.challenge_type.in_(type_list))
+    elif challenge_type and challenge_type in VALID_TYPES:
         q = q.filter(ChallengeSession.challenge_type == challenge_type)
     if min_score > 0:
         q = q.filter(ChallengeSession.score >= min_score)

@@ -7,134 +7,221 @@
       <h1>{{ meta.name }}</h1>
     </div>
 
-    <div class="challenge-cta" @click="startSession">
-      <div class="cta-circle cta-circle-tr"></div>
-      <div class="cta-circle cta-circle-bl"></div>
-      <div class="cta-content">
-        <h2 class="cta-title">Ready for Your Next Challenge?</h2>
-        <p class="cta-sub">Push your limits and beat your personal record!</p>
-        <button class="cta-btn">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"></polygon></svg>
-          Start Challenge Now
-        </button>
-      </div>
-    </div>
-
-    <!-- Rank badge -->
-    <div v-if="hasRank" class="rank-badge">
-      <span class="rank-sparkle">&#10024;</span>
-      Your Rank:
-      <template v-if="daily?.user_rank">
-        <strong>{{ ordinal(daily?.user_rank) }}</strong> today
-      </template>
-      <template v-if="daily?.user_rank && weekly?.user_rank">
-        &middot;
-      </template>
-      <template v-if="weekly?.user_rank">
-        <strong>{{ ordinal(weekly?.user_rank) }}</strong> this week
-      </template>
-      <span class="rank-sparkle">&#10024;</span>
-    </div>
-
-    <!-- Stats row -->
-    <div class="stats-row" v-if="typeStats">
-      <div class="stat-box">
-        <div class="stat-icon icon-blue">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-        </div>
-        <div class="stat-info">
-          <span class="stat-val">{{ typeStats.personal_best || 0 }}</span>
-          <span class="stat-lbl">Personal Best</span>
-        </div>
-      </div>
-      <div v-if="typeStats.daily_best" class="stat-box">
-        <div class="stat-icon icon-orange">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5C7 4 7 7 7 7"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5C17 4 17 7 17 7"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
-        </div>
-        <div class="stat-info">
-          <span class="stat-val">{{ typeStats.daily_best }}</span>
-          <span class="stat-lbl">Today's Best</span>
-        </div>
-      </div>
-      <div class="stat-box">
-        <div class="stat-icon icon-green">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-        </div>
-        <div class="stat-info">
-          <span class="stat-val">{{ typeStats.weekly_total || 0 }}</span>
-          <span class="stat-lbl">This Week</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Leaderboard -->
-    <div class="leaderboard-section">
-      <h2>Leaderboard</h2>
-      <div class="leaderboard-grid">
-        <!-- Daily -->
-        <div class="lb-card">
-          <h3>Today's Best</h3>
-          <div v-if="!daily?.entries?.length" class="lb-empty">No scores yet. Be the first!</div>
-          <div v-else class="lb-list">
-            <div
-              v-for="entry in daily.entries"
-              :key="'d-' + entry.rank"
-              :class="['lb-entry', { 'lb-self': entry.is_self }]"
-            >
-              <span class="lb-medal">{{ medalFor(entry.rank) }}</span>
-              <span class="lb-name">{{ entry.username || entry.email }}</span>
-              <span class="lb-score">{{ entry.score }}</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Weekly -->
-        <div class="lb-card">
-          <h3>This Week's Best</h3>
-          <div v-if="!weekly?.entries?.length" class="lb-empty">No scores yet. Be the first!</div>
-          <div v-else class="lb-list">
-            <div
-              v-for="entry in weekly.entries"
-              :key="'w-' + entry.rank"
-              :class="['lb-entry', { 'lb-self': entry.is_self }]"
-            >
-              <span class="lb-medal">{{ medalFor(entry.rank) }}</span>
-              <span class="lb-name">{{ entry.username || entry.email }}</span>
-              <span class="lb-score">{{ entry.score }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Session History -->
-    <div class="history-section">
-      <h2>Session History <span v-if="store.sessionsTotal > 0" class="history-count">({{ store.sessionsTotal }})</span></h2>
-      <div v-if="store.sessionsLoading && store.sessions.length === 0" class="history-empty">Loading sessions...</div>
-      <div v-else-if="store.sessions.length === 0" class="history-empty">
-        No sessions yet. Start your first challenge!
-      </div>
-      <div v-else class="history-list">
+    <!-- Squat group: variant cards -->
+    <template v-if="isSquatGroup">
+      <div class="variant-grid">
         <div
-          v-for="session in store.sessions"
-          :key="session.id"
-          class="history-card"
-          @click="viewResults(session.id)"
+          v-for="variant in SQUAT_VARIANTS"
+          :key="variant.type"
+          class="variant-card"
+          @click="router.push(`/challenges/${variant.type}/session`)"
         >
-          <div class="history-header">
-            <span class="history-score">{{ session.score }} {{ scoreUnit }}</span>
-            <span class="history-date">{{ formatDate(session.created_at) }}</span>
+          <div class="variant-header">
+            <span class="variant-icon">{{ variant.icon }}</span>
+            <div class="variant-info">
+              <h3>{{ variant.name }}</h3>
+              <p>{{ variant.desc }}</p>
+            </div>
           </div>
-          <div class="history-meta">
-            <span>{{ formatDuration(session.duration_seconds) }}</span>
-            <span v-if="session.personal_best" class="history-pb">PB {{ session.personal_best }}</span>
+          <div class="variant-stats" v-if="store.stats[variant.type]">
+            <div class="variant-stat">
+              <span class="variant-stat-value best">{{ store.stats[variant.type]?.personal_best || 0 }}</span>
+              <span class="variant-stat-label">Best</span>
+            </div>
+            <div class="variant-stat">
+              <span class="variant-stat-value week">{{ store.stats[variant.type]?.weekly_total || 0 }}</span>
+              <span class="variant-stat-label">This Week</span>
+            </div>
           </div>
-        </div>
-        <div v-if="hasMoreSessions" ref="scrollSentinel" class="history-sentinel">
-          <span v-if="store.sessionsLoading" class="loading-more">Loading more...</span>
+          <button class="variant-start-btn">Start {{ variant.name }} &rarr;</button>
         </div>
       </div>
-    </div>
+
+      <!-- Leaderboard with variant selector -->
+      <div class="leaderboard-section">
+        <div class="lb-header-row">
+          <h2>Leaderboard</h2>
+          <select v-model="selectedLeaderboardVariant" @change="store.fetchLeaderboard(selectedLeaderboardVariant)" class="variant-select">
+            <option v-for="v in SQUAT_VARIANTS" :key="v.type" :value="v.type">{{ v.name }}</option>
+          </select>
+        </div>
+        <div class="leaderboard-grid">
+          <div class="lb-card">
+            <h3>Today's Best</h3>
+            <div v-if="!daily?.entries?.length" class="lb-empty">No scores yet. Be the first!</div>
+            <div v-else class="lb-list">
+              <div v-for="entry in daily.entries" :key="'d-' + entry.rank" :class="['lb-entry', { 'lb-self': entry.is_self }]">
+                <span class="lb-medal">{{ medalFor(entry.rank) }}</span>
+                <span class="lb-name">{{ entry.username || entry.email }}</span>
+                <span class="lb-score">{{ entry.score }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="lb-card">
+            <h3>This Week's Best</h3>
+            <div v-if="!weekly?.entries?.length" class="lb-empty">No scores yet. Be the first!</div>
+            <div v-else class="lb-list">
+              <div v-for="entry in weekly.entries" :key="'w-' + entry.rank" :class="['lb-entry', { 'lb-self': entry.is_self }]">
+                <span class="lb-medal">{{ medalFor(entry.rank) }}</span>
+                <span class="lb-name">{{ entry.username || entry.email }}</span>
+                <span class="lb-score">{{ entry.score }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Session History — all squat variants combined -->
+      <div class="history-section">
+        <h2>Session History <span v-if="store.sessionsTotal > 0" class="history-count">({{ store.sessionsTotal }})</span></h2>
+        <div v-if="store.sessionsLoading && store.sessions.length === 0" class="history-empty">Loading sessions...</div>
+        <div v-else-if="store.sessions.length === 0" class="history-empty">
+          No sessions yet. Start your first challenge!
+        </div>
+        <div v-else class="history-list">
+          <div
+            v-for="session in store.sessions"
+            :key="session.id"
+            class="history-card"
+            @click="viewResults(session.id)"
+          >
+            <div class="history-header">
+              <span class="history-score">{{ session.score }} {{ variantUnit(session.challenge_type) }}</span>
+              <span class="history-variant-badge">{{ variantLabel(session.challenge_type) }}</span>
+              <span class="history-date">{{ formatDate(session.created_at) }}</span>
+            </div>
+            <div class="history-meta">
+              <span>{{ formatDuration(session.duration_seconds) }}</span>
+              <span v-if="session.personal_best" class="history-pb">PB {{ session.personal_best }}</span>
+            </div>
+          </div>
+          <div v-if="hasMoreSessions" ref="scrollSentinel" class="history-sentinel">
+            <span v-if="store.sessionsLoading" class="loading-more">Loading more...</span>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <!-- Normal (non-group) challenge home -->
+    <template v-else>
+      <div class="challenge-cta" @click="startSession">
+        <div class="cta-circle cta-circle-tr"></div>
+        <div class="cta-circle cta-circle-bl"></div>
+        <div class="cta-content">
+          <h2 class="cta-title">Ready for Your Next Challenge?</h2>
+          <p class="cta-sub">Push your limits and beat your personal record!</p>
+          <button class="cta-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"></polygon></svg>
+            Start Challenge Now
+          </button>
+        </div>
+      </div>
+
+      <!-- Rank badge -->
+      <div v-if="hasRank" class="rank-badge">
+        <span class="rank-sparkle">&#10024;</span>
+        Your Rank:
+        <template v-if="daily?.user_rank">
+          <strong>{{ ordinal(daily?.user_rank) }}</strong> today
+        </template>
+        <template v-if="daily?.user_rank && weekly?.user_rank">
+          &middot;
+        </template>
+        <template v-if="weekly?.user_rank">
+          <strong>{{ ordinal(weekly?.user_rank) }}</strong> this week
+        </template>
+        <span class="rank-sparkle">&#10024;</span>
+      </div>
+
+      <!-- Stats row -->
+      <div class="stats-row" v-if="typeStats">
+        <div class="stat-box">
+          <div class="stat-icon icon-blue">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          </div>
+          <div class="stat-info">
+            <span class="stat-val">{{ typeStats.personal_best || 0 }}</span>
+            <span class="stat-lbl">Personal Best</span>
+          </div>
+        </div>
+        <div v-if="typeStats.daily_best" class="stat-box">
+          <div class="stat-icon icon-orange">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5C7 4 7 7 7 7"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5C17 4 17 7 17 7"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+          </div>
+          <div class="stat-info">
+            <span class="stat-val">{{ typeStats.daily_best }}</span>
+            <span class="stat-lbl">Today's Best</span>
+          </div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-icon icon-green">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          </div>
+          <div class="stat-info">
+            <span class="stat-val">{{ typeStats.weekly_total || 0 }}</span>
+            <span class="stat-lbl">This Week</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Leaderboard -->
+      <div class="leaderboard-section">
+        <h2>Leaderboard</h2>
+        <div class="leaderboard-grid">
+          <div class="lb-card">
+            <h3>Today's Best</h3>
+            <div v-if="!daily?.entries?.length" class="lb-empty">No scores yet. Be the first!</div>
+            <div v-else class="lb-list">
+              <div v-for="entry in daily.entries" :key="'d-' + entry.rank" :class="['lb-entry', { 'lb-self': entry.is_self }]">
+                <span class="lb-medal">{{ medalFor(entry.rank) }}</span>
+                <span class="lb-name">{{ entry.username || entry.email }}</span>
+                <span class="lb-score">{{ entry.score }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="lb-card">
+            <h3>This Week's Best</h3>
+            <div v-if="!weekly?.entries?.length" class="lb-empty">No scores yet. Be the first!</div>
+            <div v-else class="lb-list">
+              <div v-for="entry in weekly.entries" :key="'w-' + entry.rank" :class="['lb-entry', { 'lb-self': entry.is_self }]">
+                <span class="lb-medal">{{ medalFor(entry.rank) }}</span>
+                <span class="lb-name">{{ entry.username || entry.email }}</span>
+                <span class="lb-score">{{ entry.score }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Session History -->
+      <div class="history-section">
+        <h2>Session History <span v-if="store.sessionsTotal > 0" class="history-count">({{ store.sessionsTotal }})</span></h2>
+        <div v-if="store.sessionsLoading && store.sessions.length === 0" class="history-empty">Loading sessions...</div>
+        <div v-else-if="store.sessions.length === 0" class="history-empty">
+          No sessions yet. Start your first challenge!
+        </div>
+        <div v-else class="history-list">
+          <div
+            v-for="session in store.sessions"
+            :key="session.id"
+            class="history-card"
+            @click="viewResults(session.id)"
+          >
+            <div class="history-header">
+              <span class="history-score">{{ session.score }} {{ scoreUnit }}</span>
+              <span class="history-date">{{ formatDate(session.created_at) }}</span>
+            </div>
+            <div class="history-meta">
+              <span>{{ formatDuration(session.duration_seconds) }}</span>
+              <span v-if="session.personal_best" class="history-pb">PB {{ session.personal_best }}</span>
+            </div>
+          </div>
+          <div v-if="hasMoreSessions" ref="scrollSentinel" class="history-sentinel">
+            <span v-if="store.sessionsLoading" class="loading-more">Loading more...</span>
+          </div>
+        </div>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -154,13 +241,24 @@ const challengeType = computed(() => route.params.type)
 
 const CHALLENGE_META = {
   plank: { name: 'Plank Hold', icon: '\u{1F9D8}', unit: 's' },
-  squat: { name: 'Max Squats', icon: '\u{1F3CB}', unit: 'reps' },
+  squat: { name: 'Squats', icon: '\u{1F3CB}', unit: 'reps' },
+  squat_hold: { name: 'Squat Hold', icon: '\u{1F3CB}', unit: 's' },
+  squat_half: { name: 'Half Squats', icon: '\u{1F3CB}', unit: 'reps' },
+  squat_full: { name: 'Full Squats', icon: '\u{1F3CB}', unit: 'reps' },
   pushup: { name: 'Max Pushups', icon: '\u{1F4AA}', unit: 'reps' },
 }
 
+const SQUAT_VARIANTS = [
+  { type: 'squat_hold', name: 'Squat Hold', icon: '\u{23F1}\u{FE0F}', unit: 's', desc: 'Hold a squat position' },
+  { type: 'squat_half', name: 'Half Squats', icon: '\u{1F53B}', unit: 'reps', desc: 'Half-depth reps' },
+  { type: 'squat_full', name: 'Full Squats', icon: '\u{1F3CB}\u{FE0F}', unit: 'reps', desc: 'Full depth reps' },
+]
+
+const isSquatGroup = computed(() => challengeType.value === 'squat')
 const meta = computed(() => CHALLENGE_META[challengeType.value] || CHALLENGE_META.pushup)
 const scoreUnit = computed(() => meta.value.unit)
 const typeStats = computed(() => store.stats[challengeType.value])
+const selectedLeaderboardVariant = ref('squat_full')
 
 const daily = computed(() => store.leaderboard?.daily)
 const weekly = computed(() => store.leaderboard?.weekly)
@@ -172,19 +270,44 @@ const hasMoreSessions = computed(() => store.sessions.length < store.sessionsTot
 const scrollSentinel = ref(null)
 let observer = null
 
+const SQUAT_TYPE_LIST = ['squat_hold', 'squat_half', 'squat_full']
+
+const VARIANT_LABELS = {
+  squat_hold: 'Hold',
+  squat_half: 'Half',
+  squat_full: 'Full',
+}
+
+function variantLabel(type) {
+  return VARIANT_LABELS[type] || type
+}
+
+function variantUnit(type) {
+  return ['plank', 'squat_hold'].includes(type) ? 's' : 'reps'
+}
+
 function loadSessions() {
-  store.fetchSessions({ challengeType: challengeType.value, minScore: 1, limit: PAGE_SIZE, offset: 0 })
+  if (isSquatGroup.value) {
+    store.fetchSessions({ challengeTypes: SQUAT_TYPE_LIST, minScore: 1, limit: PAGE_SIZE, offset: 0 })
+  } else {
+    store.fetchSessions({ challengeType: challengeType.value, minScore: 1, limit: PAGE_SIZE, offset: 0 })
+  }
 }
 
 function loadMoreSessions() {
   if (store.sessionsLoading || !hasMoreSessions.value) return
-  store.fetchSessions({
-    challengeType: challengeType.value,
+  const opts = {
     minScore: 1,
     limit: PAGE_SIZE,
     offset: store.sessions.length,
     append: true,
-  })
+  }
+  if (isSquatGroup.value) {
+    opts.challengeTypes = SQUAT_TYPE_LIST
+  } else {
+    opts.challengeType = challengeType.value
+  }
+  store.fetchSessions(opts)
 }
 
 function setupObserver() {
@@ -237,7 +360,11 @@ function viewResults(sessionId) {
 onMounted(() => {
   store.fetchEnabledChallenges()
   store.fetchStats()
-  store.fetchLeaderboard(challengeType.value)
+  if (isSquatGroup.value) {
+    store.fetchLeaderboard(selectedLeaderboardVariant.value)
+  } else {
+    store.fetchLeaderboard(challengeType.value)
+  }
   loadSessions()
   setupObserver()
 })
@@ -624,6 +751,140 @@ onUnmounted(() => {
 .history-pb {
   color: #f1c40f;
   font-weight: 600;
+}
+
+/* Variant grid (squat group) */
+.variant-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.variant-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: var(--shadow-md);
+}
+
+.variant-card:hover {
+  border-color: var(--color-primary);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.variant-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.variant-icon {
+  font-size: 1.8rem;
+  flex-shrink: 0;
+}
+
+.variant-info h3 {
+  color: var(--color-primary);
+  font-size: 1.05rem;
+  margin: 0 0 0.15rem;
+}
+
+.variant-info p {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+.variant-stats {
+  display: flex;
+  gap: 0;
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--border-color);
+  margin-bottom: 0.5rem;
+}
+
+.variant-stat {
+  flex: 1;
+  text-align: center;
+}
+
+.variant-stat + .variant-stat {
+  border-left: 1px solid var(--border-color);
+}
+
+.variant-stat-value {
+  display: block;
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.variant-stat-value.best { color: var(--color-primary); }
+.variant-stat-value.week { color: var(--color-info); }
+
+.variant-stat-label {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.65rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 0.15rem;
+}
+
+.variant-start-btn {
+  width: 100%;
+  background: var(--color-primary-light);
+  border: 1px solid var(--border-color);
+  color: var(--color-primary);
+  padding: 0.5rem;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.variant-start-btn:hover {
+  background: var(--color-primary-hover);
+  color: var(--text-on-primary);
+}
+
+.lb-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.lb-header-row h2 {
+  margin: 0;
+}
+
+.variant-select {
+  padding: 0.4rem 0.75rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border-input);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+}
+
+.history-variant-badge {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 /* Mobile */

@@ -43,6 +43,7 @@ def init_db():
     _migrate_user_google_auth()
     _migrate_user_profile()
     _migrate_challenge_form_summary()
+    _migrate_squat_variants()
     seed_default_tuning_data()
     seed_challenge_defaults()
     seed_feature_access()
@@ -283,6 +284,80 @@ def _migrate_challenge_form_summary():
         logger.debug(f"challenge_sessions form_summary migration skipped: {e}")
 
 
+def _migrate_squat_variants():
+    """Migrate old 'squat' challenge type to the 3 new squat variants."""
+    import logging
+    import json
+    logger = logging.getLogger(__name__)
+
+    db = SessionLocal()
+    try:
+        from sqlalchemy import text
+
+        # 1. Migrate old squat sessions to squat_full
+        try:
+            result = db.execute(text(
+                "UPDATE challenge_sessions SET challenge_type = 'squat_full' "
+                "WHERE challenge_type = 'squat'"
+            ))
+            if result.rowcount > 0:
+                logger.info(f"Migrated {result.rowcount} squat sessions to squat_full")
+        except Exception as e:
+            logger.debug(f"squat session migration skipped: {e}")
+
+        # 2. Migrate old squat records to squat_full
+        try:
+            result = db.execute(text(
+                "UPDATE challenge_records SET challenge_type = 'squat_full' "
+                "WHERE challenge_type = 'squat'"
+            ))
+            if result.rowcount > 0:
+                logger.info(f"Migrated {result.rowcount} squat records to squat_full")
+        except Exception as e:
+            logger.debug(f"squat record migration skipped: {e}")
+
+        # 3. Migrate old squat config to squat_full
+        try:
+            result = db.execute(text(
+                "UPDATE challenge_configs SET challenge_type = 'squat_full' "
+                "WHERE challenge_type = 'squat'"
+            ))
+            if result.rowcount > 0:
+                logger.info(f"Migrated squat config to squat_full")
+        except Exception as e:
+            logger.debug(f"squat config migration skipped: {e}")
+
+        # 4. Update users' enabled_features: replace "squat" with 3 variants
+        try:
+            from .db_models.user import User
+            users = db.query(User).all()
+            squat_variants = ["squat_hold", "squat_half", "squat_full"]
+            for user in users:
+                features = user.enabled_features or []
+                if "squat" in features:
+                    features = [f for f in features if f != "squat"]
+                    features.extend(squat_variants)
+                    user.enabled_features = list(set(features))
+                    logger.info(f"Migrated user {user.id} features: replaced squat with variants")
+        except Exception as e:
+            logger.debug(f"user features migration skipped: {e}")
+
+        # 5. Remove old squat feature access row
+        try:
+            db.execute(text(
+                "DELETE FROM feature_access WHERE feature_name = 'squat'"
+            ))
+        except Exception as e:
+            logger.debug(f"feature_access squat removal skipped: {e}")
+
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.warning(f"Squat variant migration failed: {e}")
+    finally:
+        db.close()
+
+
 def seed_challenge_defaults():
     """Ensure ChallengeConfig rows exist for all challenge types with defaults."""
     from .features.challenges.db_models.challenge import ChallengeConfig
@@ -320,10 +395,12 @@ def seed_feature_access():
     logger = logging.getLogger(__name__)
 
     FEATURES = {
-        "badminton": {"access_mode": "per_user", "default_on_signup": False},
-        "pushup":    {"access_mode": "per_user", "default_on_signup": True},
-        "squat":     {"access_mode": "per_user", "default_on_signup": False},
-        "plank":     {"access_mode": "per_user", "default_on_signup": False},
+        "badminton":      {"access_mode": "per_user", "default_on_signup": False},
+        "pushup":         {"access_mode": "per_user", "default_on_signup": True},
+        "squat_hold":     {"access_mode": "per_user", "default_on_signup": True},
+        "squat_half":  {"access_mode": "per_user", "default_on_signup": True},
+        "squat_full":     {"access_mode": "per_user", "default_on_signup": True},
+        "plank":          {"access_mode": "per_user", "default_on_signup": False},
     }
 
     db = SessionLocal()

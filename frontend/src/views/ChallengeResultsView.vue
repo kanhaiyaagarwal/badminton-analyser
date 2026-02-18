@@ -70,6 +70,60 @@
             <span v-if="result.form_summary.pike_frames > 0" class="form-issue">hips too high</span>
           </div>
         </div>
+
+        <!-- Squat rep details (partial & full) -->
+        <div v-if="result.challenge_type === 'squat_half' || result.challenge_type === 'squat_full'" class="form-details">
+          <div v-if="result.form_summary.total_attempts > 0" class="form-attempts">
+            <div class="form-detail-line">
+              {{ result.form_summary.total_attempts }} total attempt{{ result.form_summary.total_attempts !== 1 ? 's' : '' }}
+            </div>
+            <div class="form-detail-sub highlight">{{ result.form_summary.good_reps }} good rep{{ result.form_summary.good_reps !== 1 ? 's' : '' }}</div>
+            <div v-if="result.form_summary.partial_squats > 0" class="form-detail-sub bad">{{ result.form_summary.partial_squats }} partial squat{{ result.form_summary.partial_squats !== 1 ? 's' : '' }}</div>
+          </div>
+          <div v-else class="form-detail-line muted">No reps completed</div>
+          <div v-if="result.form_summary.knees_caving_pct > 5" class="form-issues">
+            <span class="form-issue">knees caving {{ result.form_summary.knees_caving_pct }}% of reps</span>
+          </div>
+        </div>
+
+        <!-- Squat hold details -->
+        <div v-if="result.challenge_type === 'squat_hold'" class="form-details">
+          <div class="form-detail-line">
+            Good form {{ result.form_summary.good_form_pct }}% of session
+          </div>
+          <!-- Depth distribution bar -->
+          <div v-if="result.form_summary.full_hold_seconds != null" class="depth-distribution">
+            <div class="depth-label">Depth breakdown</div>
+            <div class="depth-bar">
+              <div
+                class="depth-segment depth-full"
+                :style="{ width: result.form_summary.full_hold_pct + '%' }"
+                v-if="result.form_summary.full_hold_pct > 0"
+              >
+                <span v-if="result.form_summary.full_hold_pct >= 15">{{ result.form_summary.full_hold_seconds }}s</span>
+              </div>
+              <div
+                class="depth-segment depth-half"
+                :style="{ width: result.form_summary.half_hold_pct + '%' }"
+                v-if="result.form_summary.half_hold_pct > 0"
+              >
+                <span v-if="result.form_summary.half_hold_pct >= 15">{{ result.form_summary.half_hold_seconds }}s</span>
+              </div>
+            </div>
+            <div class="depth-legend">
+              <span class="depth-legend-item"><span class="depth-dot depth-full-dot"></span> Full depth {{ result.form_summary.full_hold_seconds }}s</span>
+              <span class="depth-legend-item"><span class="depth-dot depth-half-dot"></span> Half depth {{ result.form_summary.half_hold_seconds }}s</span>
+            </div>
+          </div>
+          <div v-if="result.form_summary.form_break_count > 0" class="form-detail-line muted">
+            {{ result.form_summary.form_break_count }} form break{{ result.form_summary.form_break_count !== 1 ? 's' : '' }}
+          </div>
+          <div v-if="result.form_summary.lean_frames > 0 || result.form_summary.depth_lost_frames > 0" class="form-issues">
+            <span v-if="result.form_summary.lean_frames > 0" class="form-issue">leaning forward</span>
+            <span v-if="result.form_summary.lean_frames > 0 && result.form_summary.depth_lost_frames > 0" class="form-issue-sep">&middot;</span>
+            <span v-if="result.form_summary.depth_lost_frames > 0" class="form-issue">stood up too much</span>
+          </div>
+        </div>
       </div>
 
       <!-- QR Code -->
@@ -185,13 +239,22 @@ async function installApp() {
 
 const TYPE_LABELS = {
   plank: 'Plank Hold',
-  squat: 'Max Squats',
+  squat_hold: 'Squat Hold',
+  squat_half: 'Half Squats',
+  squat_full: 'Full Squats',
   pushup: 'Max Pushups',
 }
 
-const backLink = computed(() => result.value?.challenge_type ? `/challenges/${result.value.challenge_type}` : '/challenges')
+const HOLD_TYPES = ['plank', 'squat_hold']
+const SQUAT_TYPES = ['squat_hold', 'squat_half', 'squat_full']
+
+const backLink = computed(() => {
+  const ct = result.value?.challenge_type
+  if (SQUAT_TYPES.includes(ct)) return '/challenges/squat'
+  return ct ? `/challenges/${ct}` : '/challenges'
+})
 const typeLabel = computed(() => TYPE_LABELS[result.value?.challenge_type] || 'Challenge')
-const scoreUnit = computed(() => result.value?.challenge_type === 'plank' ? 's' : 'reps')
+const scoreUnit = computed(() => HOLD_TYPES.includes(result.value?.challenge_type) ? 's' : 'reps')
 const isNewPB = computed(() => result.value && result.value.score === result.value.personal_best)
 const displayName = computed(() => authStore.user?.username || 'You')
 const formScoreClass = computed(() => {
@@ -216,7 +279,8 @@ function formatDuration(seconds) {
 
 function retry() {
   if (result.value?.challenge_type) {
-    router.push(`/challenges/${result.value.challenge_type}`)
+    // Squat variants go back to the variant session directly
+    router.push(`/challenges/${result.value.challenge_type}/session`)
   } else {
     router.push('/challenges')
   }
@@ -254,9 +318,11 @@ async function shareResult() {
     const blob = await res.blob()
     const file = new File([blob], 'achievement.png', { type: 'image/png' })
 
-    const scoreText = result.value.challenge_type === 'plank'
-      ? `a ${result.value.score}s plank hold`
-      : `${result.value.score} ${result.value.challenge_type}s`
+    const ct = result.value.challenge_type
+    let scoreText
+    if (ct === 'plank') scoreText = `a ${result.value.score}s plank hold`
+    else if (ct === 'squat_hold') scoreText = `a ${result.value.score}s squat hold`
+    else scoreText = `${result.value.score} ${TYPE_LABELS[ct] || ct}`
     const shareText = `I just did ${scoreText}! Join the challenge and beat me: ${INVITE_URL}`
 
     if (navigator.canShare?.({ files: [file] })) {
@@ -745,6 +811,70 @@ onMounted(async () => {
 .form-detail-sub.bad::before {
   background: #f87171;
 }
+
+/* Depth distribution */
+.depth-distribution {
+  margin: 0.6rem 0;
+}
+
+.depth-label {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.35rem;
+}
+
+.depth-bar {
+  display: flex;
+  height: 1.5rem;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.depth-segment {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #fff;
+  min-width: 0;
+  transition: width 0.5s ease;
+}
+
+.depth-full {
+  background: #16a34a;
+}
+
+.depth-half {
+  background: #f59e0b;
+}
+
+.depth-legend {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.35rem;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.depth-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.depth-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.depth-full-dot { background: #16a34a; }
+.depth-half-dot { background: #f59e0b; }
 
 .form-issues {
   font-size: 0.8rem;

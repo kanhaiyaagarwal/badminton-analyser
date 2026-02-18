@@ -46,11 +46,15 @@ export const useChallengesStore = defineStore('challenges', () => {
     }
   }
 
-  async function fetchSessions({ challengeType, minScore = 1, limit = 10, offset = 0, append = false } = {}) {
+  async function fetchSessions({ challengeType, challengeTypes, minScore = 1, limit = 10, offset = 0, append = false } = {}) {
     sessionsLoading.value = true
     try {
       const params = { min_score: minScore, limit, offset }
-      if (challengeType) params.challenge_type = challengeType
+      if (challengeTypes && challengeTypes.length) {
+        params.challenge_types = challengeTypes.join(',')
+      } else if (challengeType) {
+        params.challenge_type = challengeType
+      }
       const response = await api.get('/api/v1/challenges/sessions', { params })
       const data = response.data
       if (append) {

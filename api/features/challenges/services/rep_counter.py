@@ -18,7 +18,25 @@ from ....core.streaming.pose_detector import PoseDetector, SKELETON_CONNECTIONS
 logger = logging.getLogger(__name__)
 
 CHALLENGE_DEFAULTS = {
-    "squat":  {"down_angle": 100, "up_angle": 160, "max_duration": 300, "inactivity_timeout": 0},
+    "squat_half": {
+        "down_angle": 130, "up_angle": 160,
+        "stuck_timeout": 5.0, "left_frame_timeout": 3.0, "first_rep_grace": 30.0,
+        "max_duration": 300, "inactivity_timeout": 15,
+        "lean_threshold": 30, "knee_cave_ratio": 0.85,
+    },
+    "squat_full": {
+        "down_angle": 100, "up_angle": 160,
+        "stuck_timeout": 5.0, "left_frame_timeout": 3.0, "first_rep_grace": 30.0,
+        "max_duration": 300, "inactivity_timeout": 15,
+        "lean_threshold": 30, "knee_cave_ratio": 0.85,
+    },
+    "squat_hold": {
+        "hold_angle_max": 130, "good_angle_min": 90, "full_depth_angle": 100,
+        "lean_threshold": 30,
+        "max_duration": 300, "inactivity_timeout": 0,
+        "first_rep_grace": 30.0, "left_frame_timeout": 3.0,
+        "form_break_timeout": 5.0, "form_break_grace": 3.0,
+    },
     "pushup": {"down_angle": 90, "up_angle": 145, "max_duration": 600, "inactivity_timeout": 10, "collapse_hold_time": 3.0, "collapse_gap": 0.03, "collapse_hip_gap": 0.06, "half_pushup_gap": 0.05, "stood_up_timeout": 1.5, "first_rep_grace": 30.0},
     "plank":  {"good_angle_min": 150, "good_angle_max": 195, "max_duration": 300, "inactivity_timeout": 0,
                "stood_up_timeout": 1.5, "stood_up_early_timeout": 8.0, "first_rep_grace": 30.0,
@@ -209,7 +227,7 @@ class RepCounterAnalyzer(BaseStreamAnalyzer):
             duration = 0.0
         return {
             "challenge_type": self.challenge_type,
-            "score": self.reps if self.challenge_type != "plank" else int(self.hold_seconds),
+            "score": int(self.hold_seconds) if self.challenge_type in ("plank", "squat_hold") else self.reps,
             "reps": self.reps,
             "hold_seconds": round(self.hold_seconds, 1),
             "duration_seconds": round(duration, 1),
@@ -329,7 +347,7 @@ class RepCounterAnalyzer(BaseStreamAnalyzer):
         cv2.putText(annotated, label, (10, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (78, 204, 163), 2)
 
         # Score
-        if self.challenge_type == "plank":
+        if self.challenge_type in ("plank", "squat_hold"):
             score_text = f"{self.hold_seconds:.1f}s"
         else:
             score_text = f"{self.reps} reps"

@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 
 class ChallengeCreate(BaseModel):
-    challenge_type: str  # "plank", "squat", "pushup"
+    challenge_type: str  # "plank", "squat_hold", "squat_half", "squat_full", "pushup"
 
 
 class ChallengeResponse(BaseModel):

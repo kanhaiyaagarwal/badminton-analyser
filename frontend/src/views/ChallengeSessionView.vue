@@ -22,15 +22,15 @@
         </div>
 
         <div class="placement-img-wrap">
-          <img src="/position-guide.png" alt="Position guide" class="placement-img" />
+          <img :src="positionGuideImg" alt="Position guide" class="placement-img" />
         </div>
 
         <div class="guide-steps">
           <div class="guide-step">
             <span class="step-number">3</span>
-            <div class="step-content" v-if="challengeType === 'plank'">
-              <strong>Wait for the <span class="inline-circle red"></span> circle to turn <span class="inline-circle green"></span>, then hold your Plank</strong>
-              <p>Get into a plank position. The circle turns green once your form is detected and your full body is visible. You'll hear "Start" when the right posture is detected.</p>
+            <div class="step-content" v-if="isHoldType">
+              <strong>Wait for the <span class="inline-circle red"></span> circle to turn <span class="inline-circle green"></span>, then hold your {{ challengeTitle }}</strong>
+              <p>Get into position. The circle turns green once your form is detected and your full body is visible. You'll hear "Start" when the right posture is detected.</p>
             </div>
             <div class="step-content" v-else>
               <strong>Wait for the <span class="inline-circle red"></span> circle to turn <span class="inline-circle green"></span>, then begin {{ challengeTitle }}</strong>
@@ -39,7 +39,7 @@
           </div>
           <div class="guide-step">
             <span class="step-number">4</span>
-            <div class="step-content" v-if="challengeType === 'plank'">
+            <div class="step-content" v-if="isHoldType">
               <strong>Timer only counts good form</strong>
               <p>The hold timer pauses if your form breaks. You get a few seconds to adjust — get back in position and the timer resumes.</p>
             </div>
@@ -52,7 +52,7 @@
             <span class="step-number">5</span>
             <div class="step-content">
               <strong>Sound &amp; Record</strong>
-              <p v-if="challengeType === 'plank'">Sound is on by default — you'll hear your hold time called out every 5 seconds. Tap Record to save a video.</p>
+              <p v-if="isHoldType">Sound is on by default — you'll hear your hold time called out every 5 seconds. Tap Record to save a video.</p>
               <p v-else>Sound is on by default — you'll hear rep counts called out. Tap Record to save a video of your session.</p>
             </div>
           </div>
@@ -242,11 +242,23 @@ const challengeType = computed(() => route.params.type)
 
 const CHALLENGE_META = {
   plank: { title: 'Plank Hold', hint: 'Get into a plank position in view of the camera, then start.', scoreLabel: 'Hold (s)', unit: 's' },
-  squat: { title: 'Max Squats', hint: 'Stand facing the camera with full body visible.', scoreLabel: 'Reps', unit: 'reps' },
+  squat_hold: { title: 'Squat Hold', hint: 'Stand facing camera, full body visible. Lower into squat position.', scoreLabel: 'Hold (s)', unit: 's' },
+  squat_half: { title: 'Half Squats', hint: 'Stand facing camera. Half-depth squats — bend to about 90\u00B0.', scoreLabel: 'Reps', unit: 'reps' },
+  squat_full: { title: 'Full Squats', hint: 'Stand facing camera. Go all the way down past parallel.', scoreLabel: 'Reps', unit: 'reps' },
   pushup: { title: 'Max Pushups', hint: 'Position the camera to the side so your full body is visible.', scoreLabel: 'Reps', unit: 'reps' },
 }
 
-const meta = computed(() => CHALLENGE_META[challengeType.value] || CHALLENGE_META.squat)
+const isHoldType = computed(() => ['plank', 'squat_hold'].includes(challengeType.value))
+const meta = computed(() => CHALLENGE_META[challengeType.value] || CHALLENGE_META.squat_full)
+
+const POSITION_GUIDE_IMAGES = {
+  plank: '/position-guide-plank.png',
+  pushup: '/position-guide-pushup.png',
+  squat_hold: '/position-guide-squat.png',
+  squat_half: '/position-guide-squat.png',
+  squat_full: '/position-guide-squat.png',
+}
+const positionGuideImg = computed(() => POSITION_GUIDE_IMAGES[challengeType.value] || '/position-guide-pushup.png')
 const challengeTitle = computed(() => meta.value.title)
 const challengeHint = computed(() => meta.value.hint)
 const scoreLabel = computed(() => meta.value.scoreLabel)
@@ -267,8 +279,8 @@ async function checkPlacementGuide() {
     const totalScore = challengesStore.sessions
       .filter(s => s.challenge_type === challengeType.value && s.status === 'ended')
       .reduce((sum, s) => sum + (s.score || 0), 0)
-    // Plank uses cumulative hold time (60s); others use rep count (5)
-    const threshold = challengeType.value === 'plank' ? 60 : 5
+    // Hold types use cumulative hold time (60s); rep types use rep count (5)
+    const threshold = isHoldType.value ? 60 : 5
     if (totalScore < threshold) {
       showPlacementGuide.value = true
     }
@@ -377,7 +389,7 @@ watch(playerReady, (ready) => {
 })
 
 const displayScore = computed(() => {
-  if (challengeType.value === 'plank') return holdSeconds.value
+  if (isHoldType.value) return holdSeconds.value
   return reps.value
 })
 
@@ -528,13 +540,13 @@ async function connectWebSocket(sid) {
       const data = JSON.parse(event.data)
       if (data.type === 'challenge_update') {
         const newReps = data.reps || 0
-        if (newReps > reps.value && challengeType.value !== 'plank') {
+        if (newReps > reps.value && !isHoldType.value) {
           triggerRepPop(newReps)
         }
         reps.value = newReps
         holdSeconds.value = data.hold_seconds || 0
-        // Speak hold time every 5 seconds for plank
-        if (challengeType.value === 'plank' && data.hold_seconds) {
+        // Speak hold time every 5 seconds for hold-based types
+        if (isHoldType.value && data.hold_seconds) {
           const prev5 = Math.floor(prevHoldSeconds / 5)
           const curr5 = Math.floor(data.hold_seconds / 5)
           if (curr5 > prev5 && curr5 > 0) {

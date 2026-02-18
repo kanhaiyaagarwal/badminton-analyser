@@ -17,8 +17,22 @@
         <h2>{{ challenge.name }}</h2>
         <p>{{ challenge.description }}</p>
 
-        <!-- Stats row -->
-        <div class="card-stats" v-if="hasStats(challenge.type)">
+        <!-- Squat group: per-variant stats table -->
+        <div v-if="challenge.isGroup && variantRows(challenge).length" class="variant-table">
+          <div class="variant-table-header">
+            <span class="vt-col vt-name"></span>
+            <span class="vt-col vt-num">Best</span>
+            <span class="vt-col vt-num">This Week</span>
+          </div>
+          <div v-for="row in variantRows(challenge)" :key="row.type" class="variant-table-row">
+            <span class="vt-col vt-name">{{ row.label }}</span>
+            <span class="vt-col vt-num vt-best">{{ row.best }}</span>
+            <span class="vt-col vt-num vt-week">{{ row.week }}</span>
+          </div>
+        </div>
+
+        <!-- Stats row (non-group only) -->
+        <div class="card-stats" v-if="!challenge.isGroup && hasStats(challenge.type)">
           <div class="card-stat">
             <span class="card-stat-value best">{{ getStat(challenge.type, 'personal_best') }}</span>
             <span class="card-stat-label">Best</span>
@@ -50,9 +64,16 @@ const store = useChallengesStore()
 const authStore = useAuthStore()
 const isAdmin = computed(() => authStore.user?.is_admin)
 
+const SQUAT_SUBTYPES = ['squat_hold', 'squat_half', 'squat_full']
+
 const visibleChallenges = computed(() => {
   if (isAdmin.value) return challenges
-  return challenges.filter(c => store.enabledTypes.includes(c.type))
+  return challenges.filter(c => {
+    if (c.isGroup) {
+      return c.subtypes.some(st => store.enabledTypes.includes(st))
+    }
+    return store.enabledTypes.includes(c.type)
+  })
 })
 
 const challenges = [
@@ -66,11 +87,12 @@ const challenges = [
   },
   {
     type: 'squat',
-    name: 'Max Squats',
+    name: 'Squats',
     icon: '\u{1F3CB}',
-    description: 'Do as many squats as you can. Full range of motion required for each rep to count.',
-    metric: 'Max Reps',
-    unit: 'reps',
+    isGroup: true,
+    subtypes: SQUAT_SUBTYPES,
+    description: 'Three squat challenges: hold, partial depth, and full depth.',
+    metric: 'Reps / Hold',
   },
   {
     type: 'pushup',
@@ -82,12 +104,51 @@ const challenges = [
   },
 ]
 
+const VARIANT_LABELS = {
+  squat_hold: 'Hold',
+  squat_half: 'Half',
+  squat_full: 'Full',
+}
+
+function variantRows(challenge) {
+  if (!challenge.isGroup) return []
+  return challenge.subtypes
+    .filter(st => {
+      const s = store.stats[st]
+      return s && (s.personal_best || s.weekly_total)
+    })
+    .map(st => ({
+      type: st,
+      label: VARIANT_LABELS[st] || st,
+      best: store.stats[st]?.personal_best || 0,
+      week: store.stats[st]?.weekly_total || 0,
+    }))
+}
+
 function hasStats(type) {
+  const challenge = challenges.find(c => c.type === type)
+  if (challenge?.isGroup) {
+    return challenge.subtypes.some(st => {
+      const s = store.stats[st]
+      return s && (s.personal_best || s.weekly_total || s.daily_best)
+    })
+  }
   const s = store.stats[type]
   return s && (s.personal_best || s.weekly_total || s.daily_best)
 }
 
 function getStat(type, key) {
+  const challenge = challenges.find(c => c.type === type)
+  if (challenge?.isGroup) {
+    // Aggregate across subtypes: best = max, weekly = sum, daily = max
+    let val = 0
+    for (const st of challenge.subtypes) {
+      const v = store.stats[st]?.[key] || 0
+      if (key === 'weekly_total') val += v
+      else val = Math.max(val, v)
+    }
+    return val
+  }
   return store.stats[type]?.[key] || 0
 }
 
@@ -217,6 +278,52 @@ onMounted(async () => {
   letter-spacing: 0.04em;
   margin-top: 0.2rem;
 }
+
+/* Variant stats table (inside squat group card) */
+.variant-table {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.variant-table-header {
+  display: flex;
+  padding: 0 0.25rem 0.4rem;
+}
+
+.variant-table-header .vt-col {
+  color: var(--text-muted);
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.variant-table-row {
+  display: flex;
+  padding: 0.35rem 0.25rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.vt-col {
+  font-size: 0.85rem;
+}
+
+.vt-name {
+  flex: 1;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.vt-num {
+  width: 5rem;
+  text-align: right;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.vt-best { color: var(--color-primary); }
+.vt-week { color: var(--color-info); }
 
 .start-btn {
   margin-top: 1rem;
