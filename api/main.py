@@ -1,5 +1,6 @@
 """FastAPI application entry point."""
 
+import os
 import json
 import base64
 import asyncio
@@ -11,7 +12,17 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+# Datadog APM — auto-instruments FastAPI when ddtrace is installed + DD agent is running
+if os.environ.get("DD_TRACE_ENABLED", "").lower() in ("1", "true"):
+    try:
+        from ddtrace import patch_all
+        patch_all()
+        logging.getLogger(__name__).info("Datadog APM tracing enabled")
+    except ImportError:
+        logging.getLogger(__name__).info("ddtrace not installed — skipping APM")
+
 from .config import get_settings
+from sqlalchemy import text
 from .database import init_db, get_db, SessionLocal
 from .routers import auth_router, analysis_router, court_router, results_router, upload_router, stream_router
 from .routers.admin import router as admin_router
@@ -103,8 +114,19 @@ async def root():
 
 @app.get("/health")
 async def health():
-    """Health check endpoint."""
-    return {"status": "healthy"}
+    """Health check endpoint — verifies DB connectivity."""
+    try:
+        db = SessionLocal()
+        db.execute(text("SELECT 1"))
+        db.close()
+        return {"status": "healthy", "db": "connected"}
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=503,
+            content={"status": "unhealthy", "db": "disconnected", "error": str(e)},
+        )
 
 
 @app.get("/api/v1/features")

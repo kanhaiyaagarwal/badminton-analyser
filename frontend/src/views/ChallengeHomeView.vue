@@ -41,7 +41,7 @@
       <div class="leaderboard-section">
         <div class="lb-header-row">
           <h2>Leaderboard</h2>
-          <select v-model="selectedLeaderboardVariant" @change="store.fetchLeaderboard(selectedLeaderboardVariant)" class="variant-select">
+          <select v-model="selectedLeaderboardVariant" @change="store.fetchLeaderboard(selectedLeaderboardVariant); analytics.leaderboardViewed(selectedLeaderboardVariant)" class="variant-select">
             <option v-for="v in SQUAT_VARIANTS" :key="v.type" :value="v.type">{{ v.name }}</option>
           </select>
         </div>
@@ -230,11 +230,13 @@ import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useChallengesStore } from '../stores/challenges'
 import { useAuthStore } from '../stores/auth'
+import { useAnalytics } from '../composables/useAnalytics'
 
 const route = useRoute()
 const router = useRouter()
 const store = useChallengesStore()
 const authStore = useAuthStore()
+const analytics = useAnalytics()
 const isAdmin = computed(() => authStore.user?.is_admin)
 
 const challengeType = computed(() => route.params.type)
@@ -360,11 +362,9 @@ function viewResults(sessionId) {
 onMounted(() => {
   store.fetchEnabledChallenges()
   store.fetchStats()
-  if (isSquatGroup.value) {
-    store.fetchLeaderboard(selectedLeaderboardVariant.value)
-  } else {
-    store.fetchLeaderboard(challengeType.value)
-  }
+  const lbType = isSquatGroup.value ? selectedLeaderboardVariant.value : challengeType.value
+  store.fetchLeaderboard(lbType)
+  analytics.leaderboardViewed(lbType)
   loadSessions()
   setupObserver()
 })

@@ -231,12 +231,14 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useChallengesStore } from '../stores/challenges'
+import { useAnalytics } from '../composables/useAnalytics'
 import api from '../api/client'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const challengesStore = useChallengesStore()
+const analytics = useAnalytics()
 
 const challengeType = computed(() => route.params.type)
 
@@ -484,6 +486,7 @@ async function startSession() {
   try {
     const data = await challengesStore.createSession(challengeType.value)
     sessionId.value = data.session_id
+    analytics.challengeStarted(challengeType.value)
     phase.value = 'connecting'
     await connectWebSocket(data.session_id)
   } catch (err) {
@@ -565,6 +568,7 @@ async function connectWebSocket(sid) {
 
         // Auto-end: backend says session is over
         if (data.auto_end) {
+          autoEnded = true
           endSession()
           return
         }
@@ -631,6 +635,7 @@ function stopFrameCapture() {
 }
 
 let endingSession = false
+let autoEnded = false
 
 async function endSession() {
   // Guard against multiple calls (auto_end can fire while awaiting recording stop)
@@ -656,6 +661,7 @@ async function endSession() {
   // The ws.onmessage handler will navigate to results when session_ended arrives.
   // Fallback: if WS is already closed, end via REST and navigate directly.
   if (!ws || ws.readyState !== WebSocket.OPEN) {
+    if (autoEnded) speak('Session ended')
     try {
       const result = await challengesStore.endSession(sessionId.value)
       navigateToResults(sessionId.value, result)
@@ -666,6 +672,7 @@ async function endSession() {
 }
 
 function handleSessionEnded(report) {
+  if (autoEnded) speak('Session ended')
   cleanup()
   // End session via REST to persist results
   challengesStore.endSession(sessionId.value).then((result) => {

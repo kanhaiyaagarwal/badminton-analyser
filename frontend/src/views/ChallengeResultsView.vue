@@ -193,12 +193,14 @@ import { toPng } from 'html-to-image'
 import QRCode from 'qrcode'
 import api from '../api/client'
 import { useAuthStore } from '../stores/auth'
+import { useAnalytics } from '../composables/useAnalytics'
 
 const INVITE_URL = 'https://pushup.neymo.ai/signup?invite=PUSHUP'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+const analytics = useAnalytics()
 const sessionId = computed(() => route.params.sessionId)
 const result = ref(null)
 const hasRecording = ref(false)
@@ -311,6 +313,7 @@ async function downloadRecording() {
 
 async function shareResult() {
   if (!shareCard.value) return
+  analytics.shareClicked(result.value?.challenge_type, result.value?.score)
   sharing.value = true
   try {
     const dataUrl = await toPng(shareCard.value, { pixelRatio: 2 })
@@ -366,6 +369,10 @@ onMounted(async () => {
     result.value = data
     hasRecording.value = !!data.has_recording
     sessionStorage.removeItem(`challenge_result_${sessionId.value}`)
+    analytics.challengeCompleted(
+      data.challenge_type, data.score, data.duration_seconds,
+      data.score === data.personal_best,
+    )
     return
   }
 

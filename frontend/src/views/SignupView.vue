@@ -217,11 +217,13 @@ import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useGoogleAuth } from '../composables/useGoogleAuth'
+import { useAnalytics } from '../composables/useAnalytics'
 import api from '../api/client'
 
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
+const analytics = useAnalytics()
 const { isAvailable: googleAvailable, renderButton } = useGoogleAuth()
 
 // Step 1: Signup form
@@ -341,6 +343,7 @@ async function handleVerifyOtp() {
   try {
     const response = await authStore.verifyEmail(pendingUserId.value, otpCode.value)
     if (response.success) {
+      analytics.signupCompleted('email')
       otpSuccess.value = 'Email verified! Signing you in...'
       const redirect = route.query.redirect
       setTimeout(() => {
@@ -408,6 +411,7 @@ async function handleGoogleCallback(credential) {
     const data = await authStore.loginWithGoogle(credential, inviteFromUrl)
 
     if (data.access_token) {
+      analytics.signupCompleted('google')
       router.push(route.query.redirect || '/hub')
     } else if (data.status === 'needs_invite') {
       storedCredential.value = credential
