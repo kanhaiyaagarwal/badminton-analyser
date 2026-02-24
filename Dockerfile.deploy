@@ -47,6 +47,12 @@ USER appuser
 # Expose port
 EXPOSE 8000
 
+# Suppress MediaPipe GPU initialization errors in headless containers
+ENV MEDIAPIPE_DISABLE_GPU=1
+# Suppress TFLite INFO/WARNING logs (e.g. "Created XNNPACK delegate") from stderr
+# which Datadog incorrectly flags as errors
+ENV TF_CPP_MIN_LOG_LEVEL=2
+
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
