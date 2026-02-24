@@ -35,11 +35,30 @@ from .services.stream_service import get_stream_session_manager
 from .features.registry import build_registry
 from .core.streaming.session_manager import get_generic_session_manager
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Configure JSON logging for Datadog auto-parse
+import json as _json
+
+class _JSONFormatter(logging.Formatter):
+    def format(self, record):
+        return _json.dumps({
+            "timestamp": self.formatTime(record, self.datefmt),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+            **({"exc_info": self.formatException(record.exc_info)} if record.exc_info else {}),
+        })
+
+_handler = logging.StreamHandler()
+_handler.setFormatter(_JSONFormatter())
+logging.root.handlers = [_handler]
+logging.root.setLevel(logging.INFO)
+
+# Override uvicorn loggers to use the same JSON formatter
+for _name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+    _uv_logger = logging.getLogger(_name)
+    _uv_logger.handlers = [_handler]
+    _uv_logger.propagate = False
+
 logger = logging.getLogger(__name__)
 
 settings = get_settings()
