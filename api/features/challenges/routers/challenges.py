@@ -938,6 +938,45 @@ def admin_get_screenshot(
     )
 
 
+@router.get("/admin/sessions/{session_id}/screenshots/download")
+def admin_download_all_screenshots(
+    session_id: int,
+    db: Session = Depends(get_db),
+    admin=Depends(require_admin),
+):
+    """Download all screenshots as a ZIP file (admin only)."""
+    import zipfile
+    import io
+
+    session = db.query(ChallengeSession).filter(
+        ChallengeSession.id == session_id
+    ).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if not session.screenshots_s3_prefix or not session.screenshot_count:
+        raise HTTPException(status_code=404, detail="No screenshots available")
+
+    storage = get_storage_service()
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for i in range(session.screenshot_count):
+            key = f"{session.screenshots_s3_prefix}{i:04d}.jpg"
+            try:
+                data = storage.outputs.load(key)
+                zf.writestr(f"screenshot_{i:04d}.jpg", data)
+            except Exception:
+                logger.warning(f"Missing screenshot {key} for session {session_id}")
+
+    buf.seek(0)
+    filename = f"session_{session_id}_screenshots.zip"
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.get("/admin/sessions/{session_id}/detail")
 def admin_get_session_detail(
     session_id: int,

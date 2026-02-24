@@ -521,7 +521,12 @@
       <div class="modal-panel screenshots-panel">
         <div class="modal-header">
           <h3>Session #{{ screenshotModal.sessionId }} Screenshots</h3>
-          <button class="modal-close" @click="screenshotModal.open = false">&times;</button>
+          <div class="modal-header-actions">
+            <button @click="downloadAllScreenshots" class="btn-small" :disabled="ssDownloading">
+              {{ ssDownloading ? 'Downloading...' : 'Download All' }}
+            </button>
+            <button class="modal-close" @click="screenshotModal.open = false">&times;</button>
+          </div>
         </div>
         <div v-if="screenshotModal.loading" class="modal-loading">Loading screenshots...</div>
         <div v-else class="screenshots-scroll">
@@ -1000,6 +1005,28 @@ async function ssGoToPage(page) {
     console.error('Failed to load screenshot page:', err)
   }
   screenshotModal.value.loadingMore = false
+}
+
+const ssDownloading = ref(false)
+
+async function downloadAllScreenshots() {
+  const sid = screenshotModal.value.sessionId
+  ssDownloading.value = true
+  try {
+    const res = await api.get(
+      `/api/v1/challenges/admin/sessions/${sid}/screenshots/download`,
+      { responseType: 'blob' }
+    )
+    const url = URL.createObjectURL(res.data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `session_${sid}_screenshots.zip`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch (err) {
+    console.error('Failed to download screenshots:', err)
+  }
+  ssDownloading.value = false
 }
 
 function formatThresholdLabel(key) {
@@ -1541,6 +1568,12 @@ select {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1rem;
+}
+
+.modal-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 }
 
 .modal-header h3 {
