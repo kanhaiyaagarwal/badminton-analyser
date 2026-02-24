@@ -904,40 +904,6 @@ def admin_list_screenshots(
     return {"count": session.screenshot_count, "urls": urls}
 
 
-@router.get("/admin/sessions/{session_id}/screenshots/{index}")
-def admin_get_screenshot(
-    session_id: int,
-    index: int,
-    db: Session = Depends(get_db),
-    admin=Depends(require_admin),
-):
-    """Download a single screenshot by index (admin only)."""
-    session = db.query(ChallengeSession).filter(
-        ChallengeSession.id == session_id
-    ).first()
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
-
-    if not session.screenshots_s3_prefix or not session.screenshot_count:
-        raise HTTPException(status_code=404, detail="No screenshots available")
-
-    if index < 0 or index >= session.screenshot_count:
-        raise HTTPException(status_code=404, detail=f"Screenshot index out of range (0-{session.screenshot_count - 1})")
-
-    storage = get_storage_service()
-    key = f"{session.screenshots_s3_prefix}{index:04d}.jpg"
-    try:
-        data = storage.outputs.load(key)
-    except Exception:
-        raise HTTPException(status_code=404, detail="Screenshot not found in storage")
-
-    return Response(
-        content=data,
-        media_type="image/jpeg",
-        headers={"Content-Disposition": f'inline; filename="session_{session_id}_screenshot_{index:04d}.jpg"'},
-    )
-
-
 @router.get("/admin/sessions/{session_id}/screenshots/download")
 def admin_download_all_screenshots(
     session_id: int,
@@ -974,6 +940,40 @@ def admin_download_all_screenshots(
         content=buf.getvalue(),
         media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/admin/sessions/{session_id}/screenshots/{index}")
+def admin_get_screenshot(
+    session_id: int,
+    index: int,
+    db: Session = Depends(get_db),
+    admin=Depends(require_admin),
+):
+    """Download a single screenshot by index (admin only)."""
+    session = db.query(ChallengeSession).filter(
+        ChallengeSession.id == session_id
+    ).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if not session.screenshots_s3_prefix or not session.screenshot_count:
+        raise HTTPException(status_code=404, detail="No screenshots available")
+
+    if index < 0 or index >= session.screenshot_count:
+        raise HTTPException(status_code=404, detail=f"Screenshot index out of range (0-{session.screenshot_count - 1})")
+
+    storage = get_storage_service()
+    key = f"{session.screenshots_s3_prefix}{index:04d}.jpg"
+    try:
+        data = storage.outputs.load(key)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Screenshot not found in storage")
+
+    return Response(
+        content=data,
+        media_type="image/jpeg",
+        headers={"Content-Disposition": f'inline; filename="session_{session_id}_screenshot_{index:04d}.jpg"'},
     )
 
 
