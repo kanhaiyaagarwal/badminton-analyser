@@ -40,9 +40,15 @@ fi
 echo -e "${GREEN}[2/4] Building frontend...${NC}"
 if [ -f ../.env ]; then
     GOOGLE_CLIENT_ID=$(grep '^GOOGLE_CLIENT_ID=' ../.env | cut -d'=' -f2- | tr -d '"' | tr -d "'")
+    DD_RUM_APP_ID=$(grep '^DD_RUM_APPLICATION_ID=' ../.env | cut -d'=' -f2- | tr -d '"' | tr -d "'")
+    DD_RUM_TOKEN=$(grep '^DD_RUM_CLIENT_TOKEN=' ../.env | cut -d'=' -f2- | tr -d '"' | tr -d "'")
 fi
 export VITE_GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID}"
+export VITE_DD_RUM_APPLICATION_ID="${DD_RUM_APP_ID}"
+export VITE_DD_RUM_CLIENT_TOKEN="${DD_RUM_TOKEN}"
 echo "  VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID:+(set)}"
+echo "  VITE_DD_RUM_APPLICATION_ID=${VITE_DD_RUM_APPLICATION_ID:+(set)}"
+echo "  VITE_DD_RUM_CLIENT_TOKEN=${VITE_DD_RUM_CLIENT_TOKEN:+(set)}"
 npm run build
 
 # Step 3: Deploy to EC2

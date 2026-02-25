@@ -454,6 +454,11 @@ async function enumerateCameras() {
     }
   } catch (err) {
     cameraError.value = 'Camera access denied'
+    if (window.DD_RUM) {
+      window.DD_RUM.addError(new Error('Camera access denied'), {
+        source: 'custom', challenge: challengeType.value, action: 'camera'
+      })
+    }
   }
 }
 
@@ -476,6 +481,11 @@ async function switchCamera() {
   } catch (err) {
     cameraError.value = 'Failed to start camera'
     cameraReady.value = false
+    if (window.DD_RUM) {
+      window.DD_RUM.addError(new Error('Failed to start camera'), {
+        source: 'custom', challenge: challengeType.value, action: 'camera'
+      })
+    }
   }
 }
 
@@ -490,6 +500,9 @@ async function startSession() {
     phase.value = 'connecting'
     await connectWebSocket(data.session_id)
   } catch (err) {
+    if (window.DD_RUM) {
+      window.DD_RUM.addError(err, { source: 'custom', challenge: challengeType.value, action: 'start_session' })
+    }
     starting.value = false
   }
 }
@@ -579,6 +592,11 @@ async function connectWebSocket(sid) {
   }
 
   ws.onerror = () => {
+    if (window.DD_RUM) {
+      window.DD_RUM.addError(new Error('WebSocket connection failed'), {
+        source: 'custom', challenge: challengeType.value, action: 'websocket'
+      })
+    }
     phase.value = 'setup'
     starting.value = false
   }

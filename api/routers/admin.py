@@ -473,9 +473,24 @@ async def admin_list_stream_sessions(
     db: Session = Depends(get_db),
 ):
     """List all badminton stream sessions with pagination (admin only)."""
-    q = db.query(StreamSession, User.username).join(
-        User, User.id == StreamSession.user_id
+    # Select only the columns needed — avoids loading huge JSON blobs
+    # (foot_positions, shot_timeline, etc.) which cause MySQL OOM on sort.
+    cols = (
+        StreamSession.id,
+        StreamSession.user_id,
+        User.username,
+        StreamSession.title,
+        StreamSession.status,
+        StreamSession.total_shots,
+        StreamSession.shot_distribution,
+        StreamSession.stream_mode,
+        StreamSession.created_at,
+        StreamSession.ended_at,
+        StreamSession.recording_s3_key,
+        StreamSession.recording_local_path,
+        StreamSession.post_analysis_shots,
     )
+    q = db.query(*cols).join(User, User.id == StreamSession.user_id)
     if status_filter:
         q = q.filter(StreamSession.status == status_filter)
 
@@ -483,20 +498,20 @@ async def admin_list_stream_sessions(
     rows = q.order_by(StreamSession.created_at.desc()).offset(skip).limit(limit).all()
 
     sessions = []
-    for s, username in rows:
+    for row in rows:
         sessions.append({
-            "id": s.id,
-            "user_id": s.user_id,
-            "username": username,
-            "title": s.title,
-            "status": s.status.value if s.status else "unknown",
-            "total_shots": s.total_shots or 0,
-            "shot_distribution": s.shot_distribution,
-            "stream_mode": s.stream_mode or "basic",
-            "created_at": s.created_at.isoformat() if s.created_at else None,
-            "ended_at": s.ended_at.isoformat() if s.ended_at else None,
-            "has_recording": bool(s.recording_s3_key or s.recording_local_path),
-            "post_analysis_shots": s.post_analysis_shots,
+            "id": row.id,
+            "user_id": row.user_id,
+            "username": row.username,
+            "title": row.title,
+            "status": row.status.value if row.status else "unknown",
+            "total_shots": row.total_shots or 0,
+            "shot_distribution": row.shot_distribution,
+            "stream_mode": row.stream_mode or "basic",
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+            "ended_at": row.ended_at.isoformat() if row.ended_at else None,
+            "has_recording": bool(row.recording_s3_key or row.recording_local_path),
+            "post_analysis_shots": row.post_analysis_shots,
         })
     return {"sessions": sessions, "total": total, "skip": skip, "limit": limit}
 

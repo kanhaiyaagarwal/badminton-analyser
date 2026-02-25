@@ -182,6 +182,7 @@
         <table class="data-table">
           <thead>
             <tr>
+              <th>#</th>
               <th>Email</th>
               <th>Username</th>
               <th>Admin</th>
@@ -191,7 +192,8 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="user in users" :key="user.id">
+            <tr v-for="(user, index) in users" :key="user.id">
+              <td>{{ index + 1 }}</td>
               <td>{{ user.email }}</td>
               <td>{{ user.username }}</td>
               <td>
@@ -344,7 +346,14 @@
                 >
                   Refined
                 </button>
-                <span v-if="!s.has_pose_data && !s.has_screenshots" class="no-data">No data</span>
+                <button
+                  v-if="s.has_recording"
+                  @click="downloadRecording(s.id)"
+                  class="btn-small btn-info"
+                >
+                  Video
+                </button>
+                <span v-if="!s.has_pose_data && !s.has_screenshots && !s.has_recording" class="no-data">No data</span>
               </td>
             </tr>
             <tr v-if="challengeSessions.length === 0">
@@ -948,6 +957,20 @@ async function downloadRefinedPoseData(sessionId) {
     URL.revokeObjectURL(url)
   } catch (err) {
     console.error('Failed to download refined pose data:', err)
+  }
+}
+
+async function downloadRecording(sessionId) {
+  try {
+    const response = await api.get(`/api/v1/challenges/admin/sessions/${sessionId}/recording`, { responseType: 'blob' })
+    const url = URL.createObjectURL(response.data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `challenge_recording_${sessionId}.mp4`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch (err) {
+    console.error('Failed to download recording:', err)
   }
 }
 

@@ -48,6 +48,14 @@ api.interceptors.response.use(
       }
     }
 
+    if (window.DD_RUM) {
+      window.DD_RUM.addError(error, {
+        source: 'network',
+        url: error.config?.url,
+        status: error.response?.status,
+      })
+    }
+
     return Promise.reject(error)
   }
 )
