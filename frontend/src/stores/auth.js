@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import api from '../api/client'
+import api, { _setAuthStoreRef } from '../api/client'
 
 // Helper to decode JWT and get expiration
 function getTokenExpiration(token) {
@@ -58,6 +58,10 @@ export const useAuthStore = defineStore('auth', () => {
       password,
       invite_code: inviteCode
     })
+    // If user was waitlisted (no invite code), don't set pending verification
+    if (response.data.status === 'waitlisted') {
+      return response.data
+    }
     // Store pending verification info for OTP step
     pendingVerification.value = {
       userId: response.data.user_id,
@@ -202,6 +206,9 @@ export const useAuthStore = defineStore('auth', () => {
   } else {
     _initResolve()
   }
+
+  // Let the axios interceptor sync tokens back into this store
+  _setAuthStoreRef({ accessToken, refreshToken })
 
   return {
     initReady,

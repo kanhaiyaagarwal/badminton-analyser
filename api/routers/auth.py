@@ -103,10 +103,63 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
 
     if not is_whitelisted:
         if not user_data.invite_code:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invite code required"
-            )
+            # Auto-add to waitlist instead of returning 400
+            email_lower = user_data.email.lower()
+
+            # Check if already on waitlist
+            existing_waitlist = db.query(Waitlist).filter(
+                Waitlist.email == email_lower
+            ).first()
+            if existing_waitlist:
+                if existing_waitlist.status == "approved":
+                    # Use the approved invite code automatically
+                    if existing_waitlist.invite_code_id:
+                        invite_code_record = db.query(InviteCode).filter(
+                            InviteCode.id == existing_waitlist.invite_code_id,
+                            InviteCode.is_active == True
+                        ).first()
+                        if invite_code_record and (invite_code_record.max_uses == 0 or invite_code_record.times_used < invite_code_record.max_uses):
+                            pass  # Fall through to account creation with this invite code
+                        else:
+                            from fastapi.responses import JSONResponse
+                            return JSONResponse(
+                                status_code=200,
+                                content={"status": "waitlisted", "message": "You're already on the waitlist. We'll notify you when access is available."}
+                            )
+                    else:
+                        from fastapi.responses import JSONResponse
+                        return JSONResponse(
+                            status_code=200,
+                            content={"status": "waitlisted", "message": "You've already been approved! Check your email for the invite code."}
+                        )
+                else:
+                    from fastapi.responses import JSONResponse
+                    return JSONResponse(
+                        status_code=200,
+                        content={"status": "waitlisted", "message": "You're already on the waitlist. We'll notify you when access is available."}
+                    )
+            else:
+                # Check if email is already a registered user
+                if UserService.get_user_by_email(db, user_data.email):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Email already registered"
+                    )
+
+                # Add to waitlist
+                new_entry = Waitlist(
+                    email=email_lower,
+                    name=user_data.username,
+                    status="pending",
+                )
+                db.add(new_entry)
+                db.commit()
+
+                from fastapi.responses import JSONResponse
+                return JSONResponse(
+                    status_code=200,
+                    content={"status": "waitlisted", "message": "You've been added to the waitlist! We'll notify you when access is available."}
+                )
 
         # Check DB for invite code
         invite_code_record = db.query(InviteCode).filter(
@@ -161,6 +214,14 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
         ).first()
         if waitlist_entry:
             waitlist_entry.status = "registered"
+
+        # Also mark any pending waitlist entry for this email as registered
+        email_waitlist = db.query(Waitlist).filter(
+            Waitlist.email == user_data.email.lower(),
+            Waitlist.status.in_(["pending", "approved"]),
+        ).first()
+        if email_waitlist and (not waitlist_entry or email_waitlist.id != waitlist_entry.id):
+            email_waitlist.status = "registered"
 
         db.commit()
 

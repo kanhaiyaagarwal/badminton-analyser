@@ -371,8 +371,14 @@ async def websocket_challenge(
             await websocket.accept()
             await websocket.close(code=4000, reason="Session already ended")
             return
+
+        challenge_type = session.challenge_type
     finally:
         db.close()
+
+    # Hold-based challenges can drop frames (latency > accuracy).
+    # Rep-based challenges must process every frame (state machine transitions).
+    use_frame_dropping = challenge_type in ("plank", "squat_hold")
 
     # Get analyzer from generic session manager
     gsm = get_generic_session_manager()
@@ -396,57 +402,152 @@ async def websocket_challenge(
     finally:
         db.close()
 
-    try:
-        while True:
+    if use_frame_dropping:
+        # --- Hold-based: decoupled producer/consumer, drop stale frames ---
+        latest_frame = asyncio.Queue(maxsize=1)
+        end_event = asyncio.Event()
+        processing = asyncio.Event()
+
+        async def _reader():
             try:
-                raw_message = await asyncio.wait_for(
-                    websocket.receive_text(),
-                    timeout=60.0,
-                )
-            except asyncio.TimeoutError:
-                try:
-                    await websocket.send_json({"type": "ping"})
-                    continue
-                except Exception:
-                    break
+                while not end_event.is_set():
+                    try:
+                        raw = await asyncio.wait_for(websocket.receive_text(), timeout=60.0)
+                    except asyncio.TimeoutError:
+                        try:
+                            await websocket.send_json({"type": "ping"})
+                        except Exception:
+                            end_event.set()
+                        continue
 
-            if raw_message == "ping":
-                await websocket.send_json({"type": "pong"})
-                continue
+                    if raw == "ping":
+                        await websocket.send_json({"type": "pong"})
+                        continue
 
+                    try:
+                        message = json.loads(raw)
+                    except json.JSONDecodeError:
+                        continue
+
+                    msg_type = message.get("type")
+                    if msg_type == "frame":
+                        frame_b64 = message.get("data", "")
+                        timestamp = message.get("timestamp", 0.0)
+                        if not frame_b64:
+                            continue
+                        frame_data = base64.b64decode(frame_b64)
+                        if latest_frame.full():
+                            try:
+                                latest_frame.get_nowait()
+                            except asyncio.QueueEmpty:
+                                pass
+                        await latest_frame.put((frame_data, timestamp))
+                    elif msg_type == "end_session":
+                        end_event.set()
+                    elif msg_type == "ping":
+                        await websocket.send_json({"type": "pong"})
+            except WebSocketDisconnect:
+                end_event.set()
+            except Exception as e:
+                logger.error(f"Challenge session {session_id}: reader error: {e}")
+                end_event.set()
+
+        async def _processor():
+            loop = asyncio.get_event_loop()
             try:
-                message = json.loads(raw_message)
-            except json.JSONDecodeError:
-                continue
+                while not end_event.is_set():
+                    try:
+                        frame_data, timestamp = await asyncio.wait_for(
+                            latest_frame.get(), timeout=1.0
+                        )
+                    except asyncio.TimeoutError:
+                        continue
+                    processing.set()
+                    try:
+                        result = await loop.run_in_executor(
+                            None, analyzer.process_frame, frame_data, timestamp
+                        )
+                        await websocket.send_json(result)
+                    except Exception as e:
+                        logger.error(f"Challenge session {session_id}: process error: {e}")
+                    finally:
+                        processing.clear()
+            except Exception as e:
+                logger.error(f"Challenge session {session_id}: processor error: {e}")
+                end_event.set()
 
-            msg_type = message.get("type")
-
-            if msg_type == "frame":
-                frame_b64 = message.get("data", "")
-                timestamp = message.get("timestamp", 0.0)
-                if not frame_b64:
-                    continue
-
-                frame_data = base64.b64decode(frame_b64)
-
-                loop = asyncio.get_event_loop()
-                result = await loop.run_in_executor(
-                    None, analyzer.process_frame, frame_data, timestamp
-                )
-                await websocket.send_json(result)
-
-            elif msg_type == "end_session":
+        try:
+            reader_task = asyncio.create_task(_reader())
+            processor_task = asyncio.create_task(_processor())
+            await end_event.wait()
+            if processing.is_set():
+                await asyncio.sleep(0.2)
+            try:
                 report = analyzer.get_final_report()
                 await websocket.send_json({"type": "session_ended", "report": report})
-                break
+            except Exception:
+                pass
+            reader_task.cancel()
+            processor_task.cancel()
+            try:
+                await asyncio.gather(reader_task, processor_task, return_exceptions=True)
+            except Exception:
+                pass
+        except WebSocketDisconnect:
+            logger.info(f"Challenge session {session_id}: WebSocket disconnected")
+        except Exception as e:
+            logger.error(f"Challenge session {session_id}: Error: {e}")
 
-            elif msg_type == "ping":
-                await websocket.send_json({"type": "pong"})
+    else:
+        # --- Rep-based: sequential processing, every frame counts ---
+        try:
+            while True:
+                try:
+                    raw_message = await asyncio.wait_for(
+                        websocket.receive_text(), timeout=60.0,
+                    )
+                except asyncio.TimeoutError:
+                    try:
+                        await websocket.send_json({"type": "ping"})
+                        continue
+                    except Exception:
+                        break
 
-    except WebSocketDisconnect:
-        logger.info(f"Challenge session {session_id}: WebSocket disconnected")
-    except Exception as e:
-        logger.error(f"Challenge session {session_id}: Error: {e}")
+                if raw_message == "ping":
+                    await websocket.send_json({"type": "pong"})
+                    continue
+
+                try:
+                    message = json.loads(raw_message)
+                except json.JSONDecodeError:
+                    continue
+
+                msg_type = message.get("type")
+
+                if msg_type == "frame":
+                    frame_b64 = message.get("data", "")
+                    timestamp = message.get("timestamp", 0.0)
+                    if not frame_b64:
+                        continue
+                    frame_data = base64.b64decode(frame_b64)
+                    loop = asyncio.get_event_loop()
+                    result = await loop.run_in_executor(
+                        None, analyzer.process_frame, frame_data, timestamp
+                    )
+                    await websocket.send_json(result)
+
+                elif msg_type == "end_session":
+                    report = analyzer.get_final_report()
+                    await websocket.send_json({"type": "session_ended", "report": report})
+                    break
+
+                elif msg_type == "ping":
+                    await websocket.send_json({"type": "pong"})
+
+        except WebSocketDisconnect:
+            logger.info(f"Challenge session {session_id}: WebSocket disconnected")
+        except Exception as e:
+            logger.error(f"Challenge session {session_id}: Error: {e}")
 
     # ---- Cleanup: end session if still active (e.g. user pressed back) ----
     try:
