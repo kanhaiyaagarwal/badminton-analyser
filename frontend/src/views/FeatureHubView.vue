@@ -20,6 +20,13 @@
         <span class="card-action">Start Challenge &rarr;</span>
       </router-link>
 
+      <router-link to="/mimic" class="feature-card">
+        <div class="card-icon">&#127916;</div>
+        <h2>Mimic Challenge</h2>
+        <p>Watch a reference video and mimic the movements in real-time. Get scored on pose similarity.</p>
+        <span class="card-action">Start Mimic &rarr;</span>
+      </router-link>
+
       <router-link to="/workout" class="feature-card coming-soon">
         <div class="card-icon">&#127947;</div>
         <h2>Workout with Me</h2>

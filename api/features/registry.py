@@ -73,4 +73,11 @@ def build_registry() -> FeatureRegistry:
     except Exception as e:
         logger.warning(f"Failed to register workout feature: {e}")
 
+    # --- Mimic Challenge ---
+    try:
+        from .mimic.feature import MimicFeature
+        registry.register(MimicFeature())
+    except Exception as e:
+        logger.warning(f"Failed to register mimic feature: {e}")
+
     return registry

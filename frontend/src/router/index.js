@@ -115,6 +115,24 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/mimic',
+    name: 'MimicBrowse',
+    component: () => import('../views/MimicBrowseView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/mimic/session/:challengeId',
+    name: 'MimicSession',
+    component: () => import('../views/MimicSessionView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/mimic/results/:sessionId',
+    name: 'MimicResults',
+    component: () => import('../views/MimicResultsView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/workout',
     name: 'Workout',
     component: () => import('../views/WorkoutView.vue'),

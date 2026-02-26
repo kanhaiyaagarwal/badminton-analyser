@@ -502,6 +502,171 @@ async def websocket_challenge(
         logger.error(f"Challenge session {session_id}: cleanup error: {cleanup_err}")
 
 
+# ---------------------------------------------------------------------------
+# WebSocket: mimic challenge sessions
+# ---------------------------------------------------------------------------
+
+@app.websocket("/ws/mimic/{session_id}")
+async def websocket_mimic(
+    websocket: WebSocket,
+    session_id: int,
+    token: str = Query(...)
+):
+    """
+    WebSocket for mimic challenge sessions.
+
+    Protocol:
+      Client sends: { "type": "frame", "data": "<base64 jpeg>", "timestamp": <float> }
+      Server replies: { "type": "mimic_update", ... }
+      Client sends: { "type": "end_session" } to finish.
+    """
+    # Validate token
+    token_data = UserService.decode_token(token)
+    if token_data is None or token_data.user_id is None:
+        await websocket.accept()
+        await websocket.close(code=4001, reason="Invalid or expired token")
+        return
+
+    # Verify session belongs to user
+    db = SessionLocal()
+    try:
+        from .features.mimic.db_models.mimic import MimicSession, MimicSessionStatus
+        session = db.query(MimicSession).filter(
+            MimicSession.id == session_id,
+            MimicSession.user_id == token_data.user_id,
+        ).first()
+
+        if not session:
+            await websocket.accept()
+            await websocket.close(code=4004, reason="Session not found")
+            return
+
+        if session.status == MimicSessionStatus.ENDED:
+            await websocket.accept()
+            await websocket.close(code=4000, reason="Session already ended")
+            return
+    finally:
+        db.close()
+
+    # Get analyzer from generic session manager
+    gsm = get_generic_session_manager()
+    analyzer = gsm.get_session(session_id)
+
+    if not analyzer:
+        await websocket.accept()
+        await websocket.close(code=4004, reason="No analyzer for this session — create session first via REST")
+        return
+
+    await websocket.accept()
+
+    # Mark session as active
+    db = SessionLocal()
+    try:
+        from .features.mimic.db_models.mimic import MimicSession, MimicSessionStatus
+        session = db.query(MimicSession).filter(MimicSession.id == session_id).first()
+        if session:
+            session.status = MimicSessionStatus.ACTIVE
+            db.commit()
+    finally:
+        db.close()
+
+    try:
+        while True:
+            try:
+                raw_message = await asyncio.wait_for(
+                    websocket.receive_text(),
+                    timeout=60.0,
+                )
+            except asyncio.TimeoutError:
+                try:
+                    await websocket.send_json({"type": "ping"})
+                    continue
+                except Exception:
+                    break
+
+            if raw_message == "ping":
+                await websocket.send_json({"type": "pong"})
+                continue
+
+            try:
+                message = json.loads(raw_message)
+            except json.JSONDecodeError:
+                continue
+
+            msg_type = message.get("type")
+
+            if msg_type == "frame":
+                frame_b64 = message.get("data", "")
+                timestamp = message.get("timestamp", 0.0)
+                if not frame_b64:
+                    continue
+
+                frame_data = base64.b64decode(frame_b64)
+
+                loop = asyncio.get_event_loop()
+                result = await loop.run_in_executor(
+                    None, analyzer.process_frame, frame_data, timestamp
+                )
+                await websocket.send_json(result)
+
+            elif msg_type == "end_session":
+                report = analyzer.get_final_report()
+                await websocket.send_json({"type": "session_ended", "report": report})
+                break
+
+            elif msg_type == "ping":
+                await websocket.send_json({"type": "pong"})
+
+    except WebSocketDisconnect:
+        logger.info(f"Mimic session {session_id}: WebSocket disconnected")
+    except Exception as e:
+        logger.error(f"Mimic session {session_id}: Error: {e}")
+
+    # ---- Cleanup: end session if still active ----
+    try:
+        from .features.mimic.db_models.mimic import (
+            MimicSession as MS, MimicSessionStatus, MimicRecord,
+        )
+
+        db2 = SessionLocal()
+        try:
+            sess = db2.query(MS).filter(MS.id == session_id).first()
+            if sess and sess.status != MimicSessionStatus.ENDED:
+                report = gsm.end_session(session_id) or {}
+
+                sess.status = MimicSessionStatus.ENDED
+                sess.ended_at = datetime.utcnow()
+                sess.overall_score = report.get("overall_score", 0)
+                sess.duration_seconds = report.get("duration_seconds", 0)
+                sess.frames_compared = report.get("frames_compared", 0)
+                sess.score_breakdown = report.get("score_breakdown")
+                sess.frame_scores = report.get("frame_scores")
+
+                # Update personal best
+                record = db2.query(MimicRecord).filter(
+                    MimicRecord.user_id == sess.user_id,
+                    MimicRecord.challenge_id == sess.challenge_id,
+                ).first()
+                if record:
+                    record.attempt_count += 1
+                    if sess.overall_score > record.best_score:
+                        record.best_score = sess.overall_score
+                else:
+                    db2.add(MimicRecord(
+                        user_id=sess.user_id,
+                        challenge_id=sess.challenge_id,
+                        best_score=sess.overall_score,
+                        attempt_count=1,
+                    ))
+
+                db2.commit()
+                logger.info(f"Mimic session {session_id}: auto-ended on disconnect (score={sess.overall_score})")
+        finally:
+            db2.close()
+    except Exception as cleanup_err:
+        logger.error(f"Mimic session {session_id}: cleanup error: {cleanup_err}")
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
