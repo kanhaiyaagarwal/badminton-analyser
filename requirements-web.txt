@@ -31,6 +31,7 @@ email-validator>=2.0.0
 
 # Observability (optional — only active when DD_TRACE_ENABLED=1)
 ddtrace>=2.0.0
+datadog>=0.49.0
 
 # Existing dependencies (from badminton analyzer)
 # opencv-python>=4.8.0

@@ -5,6 +5,8 @@ import json
 import base64
 import asyncio
 import logging
+import time
+import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
 
@@ -34,19 +36,32 @@ from .services.job_manager import JobManager
 from .services.stream_service import get_stream_session_manager
 from .features.registry import build_registry
 from .core.streaming.session_manager import get_generic_session_manager
+from .core.metrics import statsd, session_opened, session_closed
+from .core.correlation import CorrelationIdMiddleware, install_log_correlation, request_id_var
 
 # Configure JSON logging for Datadog auto-parse
 import json as _json
 
 class _JSONFormatter(logging.Formatter):
     def format(self, record):
-        return _json.dumps({
+        obj = {
             "timestamp": self.formatTime(record, self.datefmt),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
-            **({"exc_info": self.formatException(record.exc_info)} if record.exc_info else {}),
-        })
+        }
+        # Correlation ID (injected by install_log_correlation)
+        rid = getattr(record, "request_id", "")
+        if rid:
+            obj["request_id"] = rid
+        # Datadog trace correlation (injected by ddtrace when DD_LOGS_INJECTION=true)
+        for field in ("dd.trace_id", "dd.span_id"):
+            val = getattr(record, field.replace(".", "_"), None)
+            if val:
+                obj[field] = val
+        if record.exc_info:
+            obj["exc_info"] = self.formatException(record.exc_info)
+        return _json.dumps(obj)
 
 _handler = logging.StreamHandler()
 _handler.setFormatter(_JSONFormatter())
@@ -58,6 +73,8 @@ for _name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
     _uv_logger = logging.getLogger(_name)
     _uv_logger.handlers = [_handler]
     _uv_logger.propagate = False
+
+install_log_correlation()
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +123,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Correlation ID middleware (HTTP only — WS set manually in handler)
+app.add_middleware(CorrelationIdMiddleware)
 
 # Include existing routers (badminton — stays hardcoded for now)
 app.include_router(auth_router)
@@ -391,6 +411,16 @@ async def websocket_challenge(
 
     await websocket.accept()
 
+    # Correlation ID + metrics for this WS session
+    ws_correlation_id = str(uuid.uuid4())
+    _cid_token = request_id_var.set(ws_correlation_id)
+    session_start_time = time.monotonic()
+    ct_tag = f"challenge_type:{challenge_type}"
+    session_opened(challenge_type)
+    end_reason = "disconnect"  # default — overwritten on clean end
+
+    logger.info(f"Challenge session {session_id}: opened (type={challenge_type})")
+
     # Mark session as active
     db = SessionLocal()
     try:
@@ -436,13 +466,16 @@ async def websocket_challenge(
                         if not frame_b64:
                             continue
                         frame_data = base64.b64decode(frame_b64)
+                        statsd.increment("challenge.frame.received", tags=[ct_tag, "mode:hold"])
                         if latest_frame.full():
                             try:
                                 latest_frame.get_nowait()
+                                statsd.increment("challenge.frame.dropped", tags=[ct_tag])
                             except asyncio.QueueEmpty:
                                 pass
                         await latest_frame.put((frame_data, timestamp))
                     elif msg_type == "end_session":
+                        end_reason = "normal"
                         end_event.set()
                     elif msg_type == "ping":
                         await websocket.send_json({"type": "pong"})
@@ -464,11 +497,16 @@ async def websocket_challenge(
                         continue
                     processing.set()
                     try:
+                        t0 = time.monotonic()
                         result = await loop.run_in_executor(
                             None, analyzer.process_frame, frame_data, timestamp
                         )
+                        elapsed_ms = (time.monotonic() - t0) * 1000
+                        statsd.histogram("challenge.frame.processing_ms", elapsed_ms, tags=[ct_tag])
+                        statsd.increment("challenge.frame.processed", tags=[ct_tag])
                         await websocket.send_json(result)
                     except Exception as e:
+                        statsd.increment("challenge.frame.error", tags=[ct_tag])
                         logger.error(f"Challenge session {session_id}: process error: {e}")
                     finally:
                         processing.clear()
@@ -496,6 +534,7 @@ async def websocket_challenge(
         except WebSocketDisconnect:
             logger.info(f"Challenge session {session_id}: WebSocket disconnected")
         except Exception as e:
+            end_reason = "error"
             logger.error(f"Challenge session {session_id}: Error: {e}")
 
     else:
@@ -530,13 +569,23 @@ async def websocket_challenge(
                     if not frame_b64:
                         continue
                     frame_data = base64.b64decode(frame_b64)
+                    statsd.increment("challenge.frame.received", tags=[ct_tag, "mode:sequential"])
                     loop = asyncio.get_event_loop()
-                    result = await loop.run_in_executor(
-                        None, analyzer.process_frame, frame_data, timestamp
-                    )
-                    await websocket.send_json(result)
+                    try:
+                        t0 = time.monotonic()
+                        result = await loop.run_in_executor(
+                            None, analyzer.process_frame, frame_data, timestamp
+                        )
+                        elapsed_ms = (time.monotonic() - t0) * 1000
+                        statsd.histogram("challenge.frame.processing_ms", elapsed_ms, tags=[ct_tag])
+                        statsd.increment("challenge.frame.processed", tags=[ct_tag])
+                        await websocket.send_json(result)
+                    except Exception as e:
+                        statsd.increment("challenge.frame.error", tags=[ct_tag])
+                        logger.error(f"Challenge session {session_id}: process error: {e}")
 
                 elif msg_type == "end_session":
+                    end_reason = "normal"
                     report = analyzer.get_final_report()
                     await websocket.send_json({"type": "session_ended", "report": report})
                     break
@@ -547,7 +596,15 @@ async def websocket_challenge(
         except WebSocketDisconnect:
             logger.info(f"Challenge session {session_id}: WebSocket disconnected")
         except Exception as e:
+            end_reason = "error"
             logger.error(f"Challenge session {session_id}: Error: {e}")
+
+    # ---- Session-end metrics ----
+    session_elapsed = time.monotonic() - session_start_time
+    statsd.histogram("challenge.session.duration_s", session_elapsed, tags=[ct_tag])
+    statsd.increment("challenge.session.completed", tags=[ct_tag, f"end_reason:{end_reason}"])
+    session_closed(challenge_type)
+    request_id_var.reset(_cid_token)
 
     # ---- Cleanup: end session if still active (e.g. user pressed back) ----
     try:

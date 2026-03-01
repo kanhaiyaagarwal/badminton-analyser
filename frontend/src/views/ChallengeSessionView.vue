@@ -469,6 +469,7 @@ function triggerRepPop(count) {
 // ---------- Camera ----------
 
 async function enumerateCameras() {
+  const cameraInitStart = performance.now()
   try {
     // Need to request permission first
     const tempStream = await navigator.mediaDevices.getUserMedia({ video: true })
@@ -478,6 +479,9 @@ async function enumerateCameras() {
     if (cameras.value.length > 0 && !selectedCamera.value) {
       selectedCamera.value = cameras.value[0].deviceId
       await switchCamera()
+    }
+    if (window.DD_RUM) {
+      window.DD_RUM.addTiming('camera_init_ms', Math.round(performance.now() - cameraInitStart))
     }
   } catch (err) {
     cameraError.value = 'Camera access denied'
@@ -518,13 +522,22 @@ async function switchCamera() {
 
 // ---------- Session lifecycle ----------
 
+let _wsConnectStart = 0
+let _firstFrameSent = false
+
 async function startSession() {
   starting.value = true
   try {
+    const sessionCreateStart = performance.now()
     const data = await challengesStore.createSession(challengeType.value)
+    if (window.DD_RUM) {
+      window.DD_RUM.addTiming('session_create_ms', Math.round(performance.now() - sessionCreateStart))
+    }
     sessionId.value = data.session_id
     analytics.challengeStarted(challengeType.value)
     phase.value = 'connecting'
+    _wsConnectStart = performance.now()
+    _firstFrameSent = false
     await connectWebSocket(data.session_id)
   } catch (err) {
     if (window.DD_RUM) {
@@ -544,6 +557,9 @@ async function connectWebSocket(sid) {
   ws = new WebSocket(wsUrl)
 
   ws.onopen = async () => {
+    if (window.DD_RUM && _wsConnectStart) {
+      window.DD_RUM.addTiming('ws_connect_ms', Math.round(performance.now() - _wsConnectStart))
+    }
     phase.value = 'active'
     starting.value = false
 
@@ -686,6 +702,10 @@ function startFrameCapture() {
           data: base64,
           timestamp: (Date.now() - startTime) / 1000,
         }))
+        if (!_firstFrameSent && window.DD_RUM && _wsConnectStart) {
+          _firstFrameSent = true
+          window.DD_RUM.addTiming('time_to_first_frame_ms', Math.round(performance.now() - _wsConnectStart))
+        }
       }
       reader.readAsDataURL(blob)
     }, 'image/jpeg', 0.7)
@@ -744,6 +764,15 @@ async function endSession() {
 
 function handleSessionEnded(report) {
   if (autoEnded) speak('Session ended')
+  if (window.DD_RUM) {
+    window.DD_RUM.addAction('challenge_session_completed', {
+      challenge_type: challengeType.value,
+      score: report?.score ?? 0,
+      duration_seconds: report?.duration_seconds ?? 0,
+      end_reason: autoEnded ? 'auto_end' : 'normal',
+      frames_processed: report?.frames_processed ?? 0,
+    })
+  }
   cleanup()
   // End session via REST to persist results
   challengesStore.endSession(sessionId.value).then((result) => {
