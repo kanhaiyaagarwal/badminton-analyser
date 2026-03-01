@@ -37,16 +37,17 @@ class CorrelationIdMiddleware(BaseHTTPMiddleware):
             request_id_var.reset(token)
 
 
-def install_log_correlation():
-    """
-    Patch the logging LogRecordFactory to inject ``request_id`` into every
-    log record so JSON formatters can include it automatically.
-    """
-    _old_factory = logging.getLogRecordFactory()
+class _CorrelationFilter(logging.Filter):
+    """Injects request_id into every log record. Works alongside ddtrace's
+    LogRecordFactory patching because filters are additive."""
 
-    def _factory(*args, **kwargs):
-        record = _old_factory(*args, **kwargs)
+    def filter(self, record):
         record.request_id = request_id_var.get()  # type: ignore[attr-defined]
-        return record
+        return True
 
-    logging.setLogRecordFactory(_factory)
+
+def install_log_correlation():
+    """Add a filter to the root logger that injects ``request_id`` into every
+    log record. Uses a Filter (not LogRecordFactory) so it doesn't conflict
+    with ddtrace's own factory patching under ``ddtrace-run``."""
+    logging.root.addFilter(_CorrelationFilter())
