@@ -717,6 +717,15 @@ async def websocket_mimic(
 
     await websocket.accept()
 
+    # Initialise voice recognizer (graceful — disabled if model not present)
+    voice_rec = None
+    try:
+        from .features.mimic.services.voice_recognizer import VoiceRecognizer
+        voice_rec = VoiceRecognizer()
+        logger.info(f"Mimic session {session_id}: voice commands enabled")
+    except Exception:
+        logger.info(f"Mimic session {session_id}: voice commands disabled (Vosk model not available)")
+
     # Mark session as active
     db = SessionLocal()
     try:
@@ -756,6 +765,7 @@ async def websocket_mimic(
             if msg_type == "frame":
                 frame_b64 = message.get("data", "")
                 timestamp = message.get("timestamp", 0.0)
+                ref_time = message.get("ref_time")
                 if not frame_b64:
                     continue
 
@@ -763,9 +773,17 @@ async def websocket_mimic(
 
                 loop = asyncio.get_event_loop()
                 result = await loop.run_in_executor(
-                    None, analyzer.process_frame, frame_data, timestamp
+                    None, analyzer.process_frame, frame_data, timestamp, ref_time
                 )
                 await websocket.send_json(result)
+
+            elif msg_type == "audio":
+                audio_b64 = message.get("data", "")
+                if audio_b64 and voice_rec:
+                    pcm = base64.b64decode(audio_b64)
+                    cmd = voice_rec.feed(pcm)
+                    if cmd:
+                        await websocket.send_json({"type": "voice_command", "command": cmd})
 
             elif msg_type == "end_session":
                 report = analyzer.get_final_report()
@@ -779,6 +797,11 @@ async def websocket_mimic(
         logger.info(f"Mimic session {session_id}: WebSocket disconnected")
     except Exception as e:
         logger.error(f"Mimic session {session_id}: Error: {e}")
+
+    # Cleanup voice recognizer
+    if voice_rec:
+        voice_rec.close()
+        voice_rec = None
 
     # ---- Cleanup: end session if still active ----
     try:
