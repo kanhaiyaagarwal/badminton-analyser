@@ -3,6 +3,7 @@
     <!-- Placement guide overlay -->
     <div v-if="showPlacementGuide" class="placement-overlay" @click="dismissPlacementGuide">
       <div class="placement-card" @click.stop>
+        <button class="placement-close" @click="dismissPlacementGuide">&times;</button>
 
         <div class="guide-steps">
           <div class="guide-step">
@@ -316,6 +317,12 @@ let startTime = null
 let elapsedTimer = null
 let readyTime = null
 
+// Local hold timer — ticks independently of server responses
+let holdTimerInterval = null
+let holdStartedAt = null        // wall-clock ms when hold started
+let holdBaseSeconds = 0         // server-confirmed hold_seconds at that point
+let isInHold = false            // whether the server says the player is actively holding
+
 // Real-time data from backend
 const reps = ref(0)
 const holdSeconds = ref(0)
@@ -422,9 +429,29 @@ watch(playerReady, (ready) => {
   }
 })
 
+// Local hold timer — ticks every 100ms for smooth plank counter
+function startHoldTimer() {
+  stopHoldTimer()
+  holdTimerInterval = setInterval(() => {
+    if (!isInHold || !holdStartedAt) return
+    holdSeconds.value = Math.round((holdBaseSeconds + (Date.now() - holdStartedAt) / 1000) * 10) / 10
+  }, 100)
+}
+
+function stopHoldTimer() {
+  if (holdTimerInterval) {
+    clearInterval(holdTimerInterval)
+    holdTimerInterval = null
+  }
+}
+
 const feedbackClass = computed(() => {
   const fb = formFeedback.value.toLowerCase()
-  if (fb.includes('good') || fb.includes('rep') || fb.includes('ready')) return 'positive'
+  const isNegative = fb.includes('don\'t') || fb.includes('over') || fb.includes('lost') ||
+      fb.includes('break') || fb.includes('get back')
+  if (isNegative) return 'corrective'
+  if (fb.includes('good') || fb.includes('great') || fb.includes('rep') ||
+      fb.includes('ready') || fb.includes('hold') || fb.includes('detected')) return 'positive'
   return 'corrective'
 })
 
@@ -442,6 +469,7 @@ function triggerRepPop(count) {
 // ---------- Camera ----------
 
 async function enumerateCameras() {
+  const cameraInitStart = performance.now()
   try {
     // Need to request permission first
     const tempStream = await navigator.mediaDevices.getUserMedia({ video: true })
@@ -451,6 +479,9 @@ async function enumerateCameras() {
     if (cameras.value.length > 0 && !selectedCamera.value) {
       selectedCamera.value = cameras.value[0].deviceId
       await switchCamera()
+    }
+    if (window.DD_RUM) {
+      window.DD_RUM.addTiming('camera_init_ms', Math.round(performance.now() - cameraInitStart))
     }
   } catch (err) {
     cameraError.value = 'Camera access denied'
@@ -491,13 +522,22 @@ async function switchCamera() {
 
 // ---------- Session lifecycle ----------
 
+let _wsConnectStart = 0
+let _firstFrameSent = false
+
 async function startSession() {
   starting.value = true
   try {
+    const sessionCreateStart = performance.now()
     const data = await challengesStore.createSession(challengeType.value)
+    if (window.DD_RUM) {
+      window.DD_RUM.addTiming('session_create_ms', Math.round(performance.now() - sessionCreateStart))
+    }
     sessionId.value = data.session_id
     analytics.challengeStarted(challengeType.value)
     phase.value = 'connecting'
+    _wsConnectStart = performance.now()
+    _firstFrameSent = false
     await connectWebSocket(data.session_id)
   } catch (err) {
     if (window.DD_RUM) {
@@ -517,6 +557,9 @@ async function connectWebSocket(sid) {
   ws = new WebSocket(wsUrl)
 
   ws.onopen = async () => {
+    if (window.DD_RUM && _wsConnectStart) {
+      window.DD_RUM.addTiming('ws_connect_ms', Math.round(performance.now() - _wsConnectStart))
+    }
     phase.value = 'active'
     starting.value = false
 
@@ -560,16 +603,40 @@ async function connectWebSocket(sid) {
           triggerRepPop(newReps)
         }
         reps.value = newReps
-        holdSeconds.value = data.hold_seconds || 0
+
+        // --- Local hold timer (plank) ---
+        const serverHold = data.hold_seconds || 0
+        if (isHoldType.value) {
+          if (serverHold > 0 && !isInHold) {
+            // Hold just started — begin local ticking
+            isInHold = true
+            holdBaseSeconds = serverHold
+            holdStartedAt = Date.now()
+            holdSeconds.value = serverHold
+            startHoldTimer()
+          } else if (serverHold > 0 && isInHold) {
+            // Correct from server (authoritative) — re-anchor local timer
+            holdBaseSeconds = serverHold
+            holdStartedAt = Date.now()
+          } else if (serverHold === 0 && isInHold) {
+            // Player broke hold
+            isInHold = false
+            stopHoldTimer()
+            holdSeconds.value = 0
+          }
+        } else {
+          holdSeconds.value = serverHold
+        }
+
         // Speak hold time every 5 seconds for hold-based types
-        if (isHoldType.value && data.hold_seconds) {
+        if (isHoldType.value && holdSeconds.value) {
           const prev5 = Math.floor(prevHoldSeconds / 5)
-          const curr5 = Math.floor(data.hold_seconds / 5)
+          const curr5 = Math.floor(holdSeconds.value / 5)
           if (curr5 > prev5 && curr5 > 0) {
             speak(String(curr5 * 5))
           }
         }
-        prevHoldSeconds = data.hold_seconds || 0
+        prevHoldSeconds = holdSeconds.value
         stabilizeFeedback(data.form_feedback || '')
         playerDetected.value = !!data.player_detected
         playerReady.value = !!data.ready
@@ -577,7 +644,7 @@ async function connectWebSocket(sid) {
         if (data.exercise) {
           legsStraight.value = data.exercise.legs_straight !== false
         }
-        if (data.pose) drawPose(data.pose)
+        drawPose(data.pose)
 
         // Auto-end: backend says session is over
         if (data.auto_end) {
@@ -635,6 +702,10 @@ function startFrameCapture() {
           data: base64,
           timestamp: (Date.now() - startTime) / 1000,
         }))
+        if (!_firstFrameSent && window.DD_RUM && _wsConnectStart) {
+          _firstFrameSent = true
+          window.DD_RUM.addTiming('time_to_first_frame_ms', Math.round(performance.now() - _wsConnectStart))
+        }
       }
       reader.readAsDataURL(blob)
     }, 'image/jpeg', 0.7)
@@ -650,6 +721,8 @@ function stopFrameCapture() {
     clearInterval(elapsedTimer)
     elapsedTimer = null
   }
+  stopHoldTimer()
+  isInHold = false
 }
 
 let endingSession = false
@@ -691,6 +764,15 @@ async function endSession() {
 
 function handleSessionEnded(report) {
   if (autoEnded) speak('Session ended')
+  if (window.DD_RUM) {
+    window.DD_RUM.addAction('challenge_session_completed', {
+      challenge_type: challengeType.value,
+      score: report?.score ?? 0,
+      duration_seconds: report?.duration_seconds ?? 0,
+      end_reason: autoEnded ? 'auto_end' : 'normal',
+      frames_processed: report?.frames_processed ?? 0,
+    })
+  }
   cleanup()
   // End session via REST to persist results
   challengesStore.endSession(sessionId.value).then((result) => {
@@ -776,7 +858,7 @@ function jointColor(idx) {
 
 function drawPose(poseData) {
   const canvas = overlayCanvas.value
-  if (!canvas || !poseData) return
+  if (!canvas) return
 
   const video = streamVideo.value
   if (!video) return
@@ -786,14 +868,23 @@ function drawPose(poseData) {
   const ctx = canvas.getContext('2d')
   ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-  if (!showAnnotations.value) return
+  if (!poseData || !showAnnotations.value) return
 
   const landmarks = poseData.landmarks
   if (!landmarks) return
 
+  const pw = poseData.width
+  const ph = poseData.height
+
   // Scale from pose detection resolution to canvas
-  const sx = canvas.width / poseData.width
-  const sy = canvas.height / poseData.height
+  const sx = canvas.width / pw
+  const sy = canvas.height / ph
+
+  // Helper: landmark is visible AND within the camera frame
+  const isUsable = (lm) =>
+      lm && lm.visibility >= 0.5 &&
+      lm.x >= 0 && lm.x <= pw &&
+      lm.y >= 0 && lm.y <= ph
 
   ctx.globalAlpha = 0.75
 
@@ -802,7 +893,7 @@ function drawPose(poseData) {
   for (const [a, b] of poseData.connections) {
     const la = landmarks[a]
     const lb = landmarks[b]
-    if (!la || !lb || la.visibility < 0.3 || lb.visibility < 0.3) continue
+    if (!isUsable(la) || !isUsable(lb)) continue
     ctx.strokeStyle = connectionColor(a, b)
     ctx.beginPath()
     ctx.moveTo(la.x * sx, la.y * sy)
@@ -813,7 +904,7 @@ function drawPose(poseData) {
   // Draw joints with body-part colors
   for (let i = 0; i < landmarks.length; i++) {
     const lm = landmarks[i]
-    if (lm.visibility < 0.3) continue
+    if (!isUsable(lm)) continue
     ctx.fillStyle = jointColor(i)
     ctx.beginPath()
     ctx.arc(lm.x * sx, lm.y * sy, 5, 0, 2 * Math.PI)
@@ -1437,6 +1528,7 @@ onUnmounted(() => {
 }
 
 .placement-card {
+  position: relative;
   background: var(--bg-card);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-xl);
@@ -1446,6 +1538,29 @@ onUnmounted(() => {
   text-align: center;
   margin: auto 0;
   flex-shrink: 0;
+}
+
+.placement-close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  width: 48px;
+  height: 48px;
+  border: none;
+  background: rgba(255, 255, 255, 0.15);
+  color: var(--text-muted);
+  font-size: 2.1rem;
+  line-height: 1;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.placement-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: var(--text-primary);
 }
 
 .placement-img-wrap {

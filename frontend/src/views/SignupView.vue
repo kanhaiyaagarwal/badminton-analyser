@@ -18,13 +18,12 @@
 
         <form @submit.prevent="handleSignup">
           <div class="form-group">
-            <label for="inviteCode">Invite Code</label>
+            <label for="inviteCode">Invite Code <span class="optional">(optional)</span></label>
             <input
               id="inviteCode"
               v-model="inviteCode"
               type="text"
-              placeholder="Enter your invite code"
-              required
+              placeholder="Enter your invite code (or leave blank to join waitlist)"
             />
           </div>
 
@@ -316,7 +315,10 @@ async function handleSignup() {
     const username = email.value.split('@')[0]
     const response = await authStore.signup(email.value, username, password.value, inviteCode.value)
 
-    if (response.requires_verification) {
+    if (response.status === 'waitlisted') {
+      // User was auto-added to waitlist (no invite code)
+      success.value = response.message
+    } else if (response.requires_verification) {
       // Show OTP verification step
       pendingUserId.value = response.user_id
       pendingEmail.value = response.email
@@ -607,6 +609,12 @@ input:focus {
 
 .auth-switch a:hover {
   text-decoration: underline;
+}
+
+.optional {
+  color: var(--text-muted);
+  font-weight: 400;
+  font-size: 0.85rem;
 }
 
 .divider {

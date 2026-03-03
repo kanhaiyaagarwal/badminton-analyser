@@ -5,6 +5,11 @@ const api = axios.create({
   timeout: 60000
 })
 
+// Lazy reference to auth store — avoids circular import at module load time.
+// Set by the auth store itself after it initializes.
+let _authStore = null
+export function _setAuthStoreRef(store) { _authStore = store }
+
 // Request interceptor to add auth token
 api.interceptors.request.use(
   (config) => {
@@ -36,6 +41,12 @@ api.interceptors.response.use(
           const { access_token, refresh_token } = response.data
           localStorage.setItem('accessToken', access_token)
           localStorage.setItem('refreshToken', refresh_token)
+
+          // Sync Pinia store so ensureValidToken / accessToken ref stay current
+          if (_authStore) {
+            _authStore.accessToken = access_token
+            _authStore.refreshToken = refresh_token
+          }
 
           originalRequest.headers.Authorization = `Bearer ${access_token}`
           return api(originalRequest)
