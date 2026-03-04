@@ -9,6 +9,13 @@
       </div>
       <div class="nav-links">
         <router-link to="/hub">Home</router-link>
+        <router-link to="/features" class="nav-explore" title="Explore Features">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>
+          </svg>
+          <span class="explore-text">Explore</span>
+        </router-link>
         <router-link v-if="isAdmin" to="/admin" class="nav-admin">Admin</router-link>
         <router-link to="/profile" class="user-badge">
           <span class="user-avatar">{{ userInitial }}</span>
@@ -114,6 +121,16 @@ const logout = () => {
 .nav-links a.router-link-active {
   background: var(--color-primary-light);
   color: var(--color-primary);
+}
+
+.nav-explore {
+  display: flex !important;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.nav-explore svg {
+  flex-shrink: 0;
 }
 
 .nav-admin {
@@ -224,7 +241,8 @@ const logout = () => {
     height: 16px;
   }
 
-  .logout-text {
+  .logout-text,
+  .explore-text {
     display: none;
   }
 

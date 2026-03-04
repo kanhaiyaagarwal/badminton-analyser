@@ -44,6 +44,7 @@ def init_db():
     _migrate_user_profile()
     _migrate_challenge_form_summary()
     _migrate_squat_variants()
+    _migrate_feature_access_catalog()
     seed_default_tuning_data()
     seed_challenge_defaults()
     seed_feature_access()
@@ -359,6 +360,33 @@ def _migrate_squat_variants():
         db.close()
 
 
+def _migrate_feature_access_catalog():
+    """Add catalog columns to feature_access if missing."""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    new_columns = {
+        "requestable": "BOOLEAN DEFAULT 1",
+        "display_name": "VARCHAR(64)",
+        "description": "VARCHAR(512)",
+        "icon": "VARCHAR(8)",
+    }
+
+    from sqlalchemy import text, inspect
+    try:
+        inspector = inspect(engine)
+        existing = {c["name"] for c in inspector.get_columns("feature_access")}
+        with engine.begin() as conn:
+            for col_name, col_type in new_columns.items():
+                if col_name not in existing:
+                    conn.execute(text(
+                        f"ALTER TABLE feature_access ADD COLUMN {col_name} {col_type}"
+                    ))
+                    logger.info(f"Added column feature_access.{col_name}")
+    except Exception as e:
+        logger.debug(f"feature_access catalog migration skipped: {e}")
+
+
 def seed_challenge_defaults():
     """Ensure ChallengeConfig rows exist for all challenge types with defaults."""
     from .features.challenges.db_models.challenge import ChallengeConfig
@@ -389,17 +417,38 @@ def seed_challenge_defaults():
 
 
 def seed_feature_access():
-    """Ensure FeatureAccess rows exist for all features."""
+    """Ensure FeatureAccess rows exist for all features with display metadata."""
     from .db_models.feature_access import FeatureAccess
     import logging
 
     logger = logging.getLogger(__name__)
 
     FEATURES = {
-        "badminton":      {"access_mode": "per_user", "default_on_signup": False},
-        "pushup":         {"access_mode": "per_user", "default_on_signup": True},
-        "squat":          {"access_mode": "per_user", "default_on_signup": True},
-        "plank":          {"access_mode": "per_user", "default_on_signup": False},
+        "badminton": {
+            "access_mode": "per_user", "default_on_signup": False, "requestable": True,
+            "display_name": "Badminton Analysis", "icon": "\U0001f3f8",
+            "description": "Upload videos or stream live for real-time shot detection, movement tracking, and coaching insights.",
+        },
+        "pushup": {
+            "access_mode": "per_user", "default_on_signup": True, "requestable": True,
+            "display_name": "Pushup Challenge", "icon": "\U0001f4aa",
+            "description": "Test your max pushup reps with live pose detection and real-time form feedback.",
+        },
+        "squat": {
+            "access_mode": "per_user", "default_on_signup": True, "requestable": True,
+            "display_name": "Squat Challenge", "icon": "\U0001f9ce",
+            "description": "Full, half, and hold squat challenges with AI-powered form analysis.",
+        },
+        "plank": {
+            "access_mode": "per_user", "default_on_signup": False, "requestable": True,
+            "display_name": "Plank Challenge", "icon": "\U0001f9d8",
+            "description": "Hold your plank as long as you can with real-time pose tracking and form scoring.",
+        },
+        "mimic": {
+            "access_mode": "per_user", "default_on_signup": False, "requestable": True,
+            "display_name": "MoveMatch", "icon": "\U0001f57a",
+            "description": "Mirror dance moves from reels and videos in real-time. Perfect for learning Zumba, choreography, and trending dances.",
+        },
     }
 
     db = SessionLocal()
@@ -413,9 +462,19 @@ def seed_feature_access():
                     feature_name=name,
                     access_mode=defaults["access_mode"],
                     default_on_signup=defaults["default_on_signup"],
+                    requestable=defaults.get("requestable", True),
+                    display_name=defaults.get("display_name"),
+                    description=defaults.get("description"),
+                    icon=defaults.get("icon"),
                 )
                 db.add(row)
                 logger.info(f"Seeded feature_access for {name}")
+            elif not existing.display_name:
+                existing.display_name = defaults.get("display_name")
+                existing.description = defaults.get("description")
+                existing.icon = defaults.get("icon")
+                existing.requestable = defaults.get("requestable", True)
+                logger.info(f"Updated feature_access display metadata for {name}")
         db.commit()
     except Exception as e:
         db.rollback()

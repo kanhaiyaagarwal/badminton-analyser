@@ -29,6 +29,7 @@ from .database import init_db, get_db, SessionLocal
 from .routers import auth_router, analysis_router, court_router, results_router, upload_router, stream_router
 from .routers.admin import router as admin_router
 from .routers.tuning import router as tuning_router
+from .routers.feature_requests import router as feature_requests_router
 from .websocket.progress_handler import get_ws_manager
 from .websocket.stream_handler import get_stream_connection_manager
 from .services.user_service import UserService
@@ -136,6 +137,7 @@ app.include_router(upload_router)
 app.include_router(stream_router)
 app.include_router(admin_router)
 app.include_router(tuning_router)
+app.include_router(feature_requests_router)
 
 # Include feature-registered routers (challenges, etc.)
 feature_registry.install_routers(app)

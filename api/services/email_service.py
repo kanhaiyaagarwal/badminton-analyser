@@ -238,6 +238,61 @@ If you didn't request a password reset, you can safely ignore this email.
 
         return self.provider.send_email(to_email, subject, body_html, body_text)
 
+    def send_feature_granted_email(self, to_email: str, username: str, feature_display_name: str) -> bool:
+        """Send email notifying user that a feature request has been approved."""
+        subject = f"Access granted: {feature_display_name} - PushUp Pro"
+
+        body_html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body {{ font-family: 'Inter', Arial, sans-serif; line-height: 1.6; color: #1e293b; background: #f0f4ff; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .header {{ background: linear-gradient(135deg, #3b82f6, #a855f7); color: #ffffff; padding: 24px; text-align: center; border-radius: 12px 12px 0 0; }}
+                .header h1 {{ margin: 0; font-size: 24px; font-weight: 700; }}
+                .content {{ background: #ffffff; padding: 32px; border-radius: 0 0 12px 12px; border: 1px solid rgba(0,0,0,0.08); border-top: none; }}
+                .feature-name {{ font-size: 24px; font-weight: bold; color: #7c3aed; text-align: center; padding: 20px; background: #f0f4ff; border-radius: 8px; margin: 20px 0; border: 2px dashed #a855f7; }}
+                .footer {{ text-align: center; margin-top: 20px; color: #94a3b8; font-size: 12px; }}
+                p {{ color: #64748b; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>PushUp Pro</h1>
+                </div>
+                <div class="content">
+                    <p>Hi {username},</p>
+                    <p>Great news! Your request for access to the following feature has been approved:</p>
+                    <div class="feature-name">{feature_display_name}</div>
+                    <p>You can start using it right away. Head over to the app and explore!</p>
+                    <p>If you have any questions, feel free to reach out to us.</p>
+                </div>
+                <div class="footer">
+                    <p>&copy; PushUp Pro. All rights reserved.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+
+        body_text = f"""
+Hi {username},
+
+Great news! Your request for access to the following feature has been approved:
+
+{feature_display_name}
+
+You can start using it right away. Head over to the app and explore!
+
+If you have any questions, feel free to reach out to us.
+
+- PushUp Pro Team
+        """
+
+        return self.provider.send_email(to_email, subject, body_html, body_text)
+
 
 # Singleton instance
 _email_service: Optional[EmailService] = None

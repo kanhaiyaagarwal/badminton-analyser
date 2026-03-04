@@ -34,6 +34,12 @@
         <span class="card-badge">Coming Soon</span>
       </router-link>
     </div>
+
+    <div class="explore-link-wrapper">
+      <router-link to="/features" class="explore-link">
+        Explore more features &rarr;
+      </router-link>
+    </div>
   </div>
 </template>
 
@@ -133,5 +139,27 @@ const hasAnyChallengeFeature = computed(() =>
   font-size: 0.8rem;
   margin-top: 1.25rem;
   width: fit-content;
+}
+
+.explore-link-wrapper {
+  text-align: center;
+  margin-top: 2.5rem;
+}
+
+.explore-link {
+  color: var(--color-primary);
+  text-decoration: none;
+  font-size: 1rem;
+  font-weight: 500;
+  padding: 0.75rem 1.5rem;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-lg);
+  transition: all 0.2s ease;
+  display: inline-block;
+}
+
+.explore-link:hover {
+  background: var(--color-primary);
+  color: white;
 }
 </style>

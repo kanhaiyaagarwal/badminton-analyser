@@ -11,6 +11,7 @@ from ..database import get_db
 from ..db_models.user import User
 from ..db_models.invite import InviteCode, Waitlist, WhitelistEmail
 from ..db_models.stream_session import StreamSession, StreamStatus
+from ..db_models.feature_request import FeatureRequest
 from .auth import get_current_user
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
@@ -303,6 +304,10 @@ class FeatureAccessResponse(BaseModel):
     feature_name: str
     access_mode: str
     default_on_signup: bool
+    requestable: bool = True
+    display_name: Optional[str] = None
+    description: Optional[str] = None
+    icon: Optional[str] = None
     updated_at: Optional[datetime] = None
 
     class Config:
@@ -312,6 +317,10 @@ class FeatureAccessResponse(BaseModel):
 class FeatureAccessUpdate(BaseModel):
     access_mode: Optional[str] = None
     default_on_signup: Optional[bool] = None
+    requestable: Optional[bool] = None
+    display_name: Optional[str] = None
+    description: Optional[str] = None
+    icon: Optional[str] = None
 
 
 # --- Feature Access Endpoints ---
@@ -352,6 +361,14 @@ async def update_feature_access(
 
     if body.default_on_signup is not None:
         row.default_on_signup = body.default_on_signup
+    if body.requestable is not None:
+        row.requestable = body.requestable
+    if body.display_name is not None:
+        row.display_name = body.display_name
+    if body.description is not None:
+        row.description = body.description
+    if body.icon is not None:
+        row.icon = body.icon
 
     db.commit()
     db.refresh(row)
@@ -460,6 +477,118 @@ async def remove_whitelist_email(
     db.delete(entry)
     db.commit()
     return {"status": "deleted"}
+
+
+# --- Feature Request Management ---
+
+@router.get("/feature-requests")
+async def list_feature_requests(
+    status_filter: Optional[str] = Query(None, alias="status"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    admin=Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    """List all feature requests, optionally filtered by status."""
+    query = db.query(
+        FeatureRequest, User.username, User.email
+    ).join(User, User.id == FeatureRequest.user_id)
+
+    if status_filter:
+        query = query.filter(FeatureRequest.status == status_filter)
+
+    total = query.count()
+    rows = query.order_by(FeatureRequest.created_at.desc()).offset(skip).limit(limit).all()
+    return {
+        "requests": [
+            {
+                "id": req.id,
+                "user_id": req.user_id,
+                "username": user_name,
+                "email": email,
+                "feature_name": req.feature_name,
+                "status": req.status,
+                "created_at": req.created_at.isoformat() if req.created_at else None,
+                "reviewed_at": req.reviewed_at.isoformat() if req.reviewed_at else None,
+                "reviewed_by": req.reviewed_by,
+            }
+            for req, user_name, email in rows
+        ],
+        "total": total,
+        "skip": skip,
+        "limit": limit,
+    }
+
+
+@router.post("/feature-requests/{request_id}/approve")
+async def approve_feature_request(
+    request_id: int,
+    admin=Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    """Approve a feature request and grant access to the user."""
+    req = db.query(FeatureRequest).filter(FeatureRequest.id == request_id).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Feature request not found")
+    if req.status != "pending":
+        raise HTTPException(status_code=400, detail=f"Request already {req.status}")
+
+    req.status = "approved"
+    req.reviewed_at = datetime.utcnow()
+    req.reviewed_by = admin.id
+
+    # Grant the feature to the user
+    user = db.query(User).filter(User.id == req.user_id).first()
+    if user:
+        features = list(user.enabled_features or [])
+        if req.feature_name not in features:
+            features.append(req.feature_name)
+            user.enabled_features = features
+
+    db.commit()
+
+    # Send notification email
+    if user:
+        try:
+            from ..db_models.feature_access import FeatureAccess
+            from ..services.email_service import get_email_service
+
+            fa = db.query(FeatureAccess).filter(
+                FeatureAccess.feature_name == req.feature_name
+            ).first()
+            display_name = fa.display_name if fa and fa.display_name else req.feature_name
+
+            email_service = get_email_service()
+            email_service.send_feature_granted_email(
+                to_email=user.email,
+                username=user.username,
+                feature_display_name=display_name,
+            )
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Failed to send feature grant email: {e}")
+
+    return {"status": "approved", "feature_name": req.feature_name, "user_id": req.user_id}
+
+
+@router.post("/feature-requests/{request_id}/reject")
+async def reject_feature_request(
+    request_id: int,
+    admin=Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    """Reject a feature request."""
+    req = db.query(FeatureRequest).filter(FeatureRequest.id == request_id).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Feature request not found")
+    if req.status != "pending":
+        raise HTTPException(status_code=400, detail=f"Request already {req.status}")
+
+    req.status = "rejected"
+    req.reviewed_at = datetime.utcnow()
+    req.reviewed_by = admin.id
+    db.commit()
+    return {"status": "rejected", "feature_name": req.feature_name}
 
 
 # --- Badminton Stream Sessions ---

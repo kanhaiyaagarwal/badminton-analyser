@@ -274,6 +274,59 @@
         </div>
       </div>
 
+      <!-- Feature Requests Tab -->
+      <div v-if="activeTab === 'feature-requests'" class="tab-content">
+        <div class="section-header">
+          <h2>Feature Requests</h2>
+          <select v-model="featureRequestFilter" @change="loadFeatureRequests()">
+            <option value="">All Statuses</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+          </select>
+        </div>
+
+        <div v-if="loadingFeatureRequests" class="loading">Loading...</div>
+
+        <div v-else class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Email</th>
+              <th>Feature</th>
+              <th>Status</th>
+              <th>Date</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="req in featureRequests" :key="req.id">
+              <td>{{ req.username }}</td>
+              <td>{{ req.email }}</td>
+              <td>{{ req.feature_name }}</td>
+              <td>
+                <span :class="['status', req.status === 'approved' ? 'active' : req.status === 'pending' ? 'pending' : 'inactive']">
+                  {{ req.status }}
+                </span>
+              </td>
+              <td>{{ formatDate(req.created_at) }}</td>
+              <td class="actions">
+                <template v-if="req.status === 'pending'">
+                  <button @click="approveFeatureRequest(req)" class="btn-small btn-success">Approve</button>
+                  <button @click="rejectFeatureRequest(req)" class="btn-small btn-danger">Reject</button>
+                </template>
+                <span v-else class="text-muted">-</span>
+              </td>
+            </tr>
+            <tr v-if="featureRequests.length === 0">
+              <td colspan="6" class="empty">No feature requests</td>
+            </tr>
+          </tbody>
+        </table>
+        </div>
+      </div>
+
       <!-- Challenge Sessions Tab -->
       <div v-if="activeTab === 'sessions'" class="tab-content">
         <div class="section-header">
@@ -588,6 +641,7 @@ const tabs = [
   { id: 'waitlist', label: 'Waitlist' },
   { id: 'users', label: 'Users' },
   { id: 'feature-access', label: 'Feature Access' },
+  { id: 'feature-requests', label: 'Feature Requests' },
   { id: 'sessions', label: 'Challenge Sessions' },
   { id: 'challenge-config', label: 'Challenge Config' },
   { id: 'badminton', label: 'Badminton Sessions' },
@@ -633,6 +687,11 @@ const PAGE_SIZE = 20
 const featureAccess = ref([])
 const loadingFeatureAccess = ref(false)
 
+// Feature Requests
+const featureRequests = ref([])
+const loadingFeatureRequests = ref(false)
+const featureRequestFilter = ref('')
+
 // Challenge Config
 const challengeConfig = ref({})
 const loadingConfig = ref(false)
@@ -652,6 +711,9 @@ onMounted(async () => {
 watch(activeTab, (tab) => {
   if (tab === 'feature-access' && featureAccess.value.length === 0) {
     loadFeatureAccess()
+  }
+  if (tab === 'feature-requests' && featureRequests.value.length === 0) {
+    loadFeatureRequests()
   }
   if (tab === 'sessions' && challengeSessions.value.length === 0) {
     loadChallengeSessions()
@@ -927,6 +989,39 @@ async function updateFeatureAccess(featureName, patch) {
     await loadFeatureAccess()
   } catch (err) {
     console.error('Failed to update feature access:', err)
+  }
+}
+
+// ---------- Feature Requests ----------
+
+async function loadFeatureRequests() {
+  loadingFeatureRequests.value = true
+  try {
+    const params = featureRequestFilter.value ? { status: featureRequestFilter.value } : {}
+    const response = await api.get('/api/v1/admin/feature-requests', { params })
+    featureRequests.value = response.data.requests
+  } catch (err) {
+    console.error('Failed to load feature requests:', err)
+  } finally {
+    loadingFeatureRequests.value = false
+  }
+}
+
+async function approveFeatureRequest(req) {
+  try {
+    await api.post(`/api/v1/admin/feature-requests/${req.id}/approve`)
+    await loadFeatureRequests()
+  } catch (err) {
+    console.error('Failed to approve feature request:', err)
+  }
+}
+
+async function rejectFeatureRequest(req) {
+  try {
+    await api.post(`/api/v1/admin/feature-requests/${req.id}/reject`)
+    await loadFeatureRequests()
+  } catch (err) {
+    console.error('Failed to reject feature request:', err)
   }
 }
 
