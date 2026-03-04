@@ -16,4 +16,8 @@ class FeatureAccess(Base):
     feature_name = Column(String(32), unique=True, nullable=False)
     access_mode = Column(String(16), default="per_user")  # "global" | "disabled" | "per_user"
     default_on_signup = Column(Boolean, default=False)
+    requestable = Column(Boolean, default=True)
+    display_name = Column(String(64), nullable=True)
+    description = Column(String(512), nullable=True)
+    icon = Column(String(8), nullable=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
