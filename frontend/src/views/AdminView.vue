@@ -185,6 +185,7 @@
               <th>#</th>
               <th>Email</th>
               <th>Username</th>
+              <th>Invite Code</th>
               <th>Admin</th>
               <th>Features</th>
               <th>Created</th>
@@ -196,6 +197,7 @@
               <td>{{ index + 1 }}</td>
               <td>{{ user.email }}</td>
               <td>{{ user.username }}</td>
+              <td>{{ user.signed_up_with_code || '-' }}</td>
               <td>
                 <span :class="['status', user.is_admin ? 'active' : '']">
                   {{ user.is_admin ? 'Yes' : 'No' }}

@@ -45,6 +45,7 @@ def init_db():
     _migrate_challenge_form_summary()
     _migrate_squat_variants()
     _migrate_feature_access_catalog()
+    _migrate_user_signup_code()
     seed_default_tuning_data()
     seed_challenge_defaults()
     seed_feature_access()
@@ -385,6 +386,24 @@ def _migrate_feature_access_catalog():
                     logger.info(f"Added column feature_access.{col_name}")
     except Exception as e:
         logger.debug(f"feature_access catalog migration skipped: {e}")
+
+
+def _migrate_user_signup_code():
+    """Add signed_up_with_code column to users table."""
+    import logging
+    logger = logging.getLogger(__name__)
+    from sqlalchemy import text, inspect
+    try:
+        inspector = inspect(engine)
+        existing = {c["name"] for c in inspector.get_columns("users")}
+        if "signed_up_with_code" not in existing:
+            with engine.begin() as conn:
+                conn.execute(text(
+                    "ALTER TABLE users ADD COLUMN signed_up_with_code VARCHAR(50)"
+                ))
+                logger.info("Added column users.signed_up_with_code")
+    except Exception as e:
+        logger.debug(f"users signup code migration skipped: {e}")
 
 
 def seed_challenge_defaults():

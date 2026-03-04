@@ -25,6 +25,7 @@ class User(Base):
     enabled_features = Column(JSON, default=list, nullable=True)
     email_verified = Column(Boolean, default=False)
     email_verified_at = Column(DateTime(timezone=True), nullable=True)
+    signed_up_with_code = Column(String(50), nullable=True)  # invite code used at signup
     failed_login_attempts = Column(Integer, default=0)
     locked_until = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

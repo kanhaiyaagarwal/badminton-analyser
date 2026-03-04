@@ -118,6 +118,15 @@ async def submit_request(
         existing.reviewed_by = None
         db.commit()
         db.refresh(existing)
+
+        try:
+            from ..services.email_service import get_email_service
+            get_email_service().notify_admins_feature_request(
+                db, current_user.username, current_user.email, body.feature_name,
+            )
+        except Exception:
+            pass
+
         return existing
 
     req = FeatureRequest(
@@ -127,6 +136,15 @@ async def submit_request(
     db.add(req)
     db.commit()
     db.refresh(req)
+
+    try:
+        from ..services.email_service import get_email_service
+        get_email_service().notify_admins_feature_request(
+            db, current_user.username, current_user.email, body.feature_name,
+        )
+    except Exception:
+        pass
+
     return req
 
 

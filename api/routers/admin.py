@@ -274,6 +274,12 @@ async def join_waitlist(
     db.add(entry)
     db.commit()
 
+    try:
+        from ..services.email_service import get_email_service
+        get_email_service().notify_admins_waitlist_join(db, data.email, data.name)
+    except Exception:
+        pass
+
     return {"status": "joined", "message": "You've been added to the waitlist! We'll notify you when access is available."}
 
 
@@ -294,6 +300,7 @@ async def list_users(
             "is_active": u.is_active,
             "is_admin": u.is_admin,
             "enabled_features": u.enabled_features or [],
+            "signed_up_with_code": u.signed_up_with_code,
             "created_at": u.created_at
         }
         for u in users

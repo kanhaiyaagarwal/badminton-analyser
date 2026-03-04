@@ -165,6 +165,12 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
                 db.add(new_entry)
                 db.commit()
 
+                try:
+                    from ..services.email_service import get_email_service
+                    get_email_service().notify_admins_waitlist_join(db, email_lower, user_data.username)
+                except Exception:
+                    pass
+
                 from fastapi.responses import JSONResponse
                 return JSONResponse(
                     status_code=200,
@@ -213,8 +219,9 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
     # Create user (email_verified=False by default)
     user = UserService.create_user(db, user_data)
 
-    # Increment invite code usage if from DB
+    # Track which invite code was used and increment usage
     if invite_code_record:
+        user.signed_up_with_code = invite_code_record.code
         invite_code_record.times_used += 1
 
         # Update waitlist entry status if this code came from waitlist approval
@@ -233,6 +240,9 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
         if email_waitlist and (not waitlist_entry or email_waitlist.id != waitlist_entry.id):
             email_waitlist.status = "registered"
 
+        db.commit()
+    elif is_whitelisted:
+        user.signed_up_with_code = "WHITELIST"
         db.commit()
 
     # Check if email verification is required
@@ -457,8 +467,9 @@ async def google_auth(request: GoogleAuthRequest, db: Session = Depends(get_db))
 
     user = UserService.create_google_user(db, email, username)
 
-    # Increment invite code usage
+    # Track which invite code was used and increment usage
     if invite_code_record:
+        user.signed_up_with_code = invite_code_record.code
         invite_code_record.times_used += 1
         waitlist_entry = db.query(Waitlist).filter(
             Waitlist.invite_code_id == invite_code_record.id,
@@ -466,6 +477,9 @@ async def google_auth(request: GoogleAuthRequest, db: Session = Depends(get_db))
         ).first()
         if waitlist_entry:
             waitlist_entry.status = "registered"
+        db.commit()
+    elif is_whitelisted:
+        user.signed_up_with_code = "WHITELIST"
         db.commit()
 
     tokens = UserService.create_tokens(user)
