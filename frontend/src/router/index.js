@@ -124,19 +124,19 @@ const routes = [
     path: '/mimic',
     name: 'MimicBrowse',
     component: () => import('../views/MimicBrowseView.vue'),
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true, requiredFeature: 'mimic' }
   },
   {
     path: '/mimic/session/:challengeId',
     name: 'MimicSession',
     component: () => import('../views/MimicSessionView.vue'),
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true, requiredFeature: 'mimic' }
   },
   {
     path: '/mimic/results/:sessionId',
     name: 'MimicResults',
     component: () => import('../views/MimicResultsView.vue'),
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true, requiredFeature: 'mimic' }
   },
   {
     path: '/workout',
@@ -166,6 +166,8 @@ const router = createRouter({
 function getHomePath(authStore) {
   // If user has badminton access, show hub (multiple features)
   if (authStore.hasFeature('badminton')) return '/hub'
+  // If user has mimic access, show hub (it's a standalone feature like badminton)
+  if (authStore.hasFeature('mimic')) return '/hub'
   // If user only has challenge features, go straight to challenges
   const challengeFeatures = ['pushup', 'squat', 'plank']
   if (challengeFeatures.some(f => authStore.hasFeature(f))) return '/challenges'

@@ -6,7 +6,7 @@ from sqlalchemy.sql import func
 
 from ..database import Base
 
-ALL_FEATURES = ["badminton", "pushup", "squat", "plank"]
+ALL_FEATURES = ["badminton", "pushup", "squat", "plank", "mimic"]
 
 
 class User(Base):

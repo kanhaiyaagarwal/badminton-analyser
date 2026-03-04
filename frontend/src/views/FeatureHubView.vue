@@ -15,24 +15,18 @@
 
       <router-link v-if="hasAnyChallengeFeature" to="/challenges" class="feature-card">
         <div class="card-icon">&#9889;</div>
-        <h2>Challenges</h2>
+        <h2>Challenges (Plank, Squat, Pushups)</h2>
         <p>Test your fitness with timed plank holds, max squat reps, and pushup challenges using live pose detection.</p>
         <span class="card-action">Start Challenge &rarr;</span>
       </router-link>
 
-      <router-link to="/mimic" class="feature-card">
-        <div class="card-icon">&#127916;</div>
-        <h2>Mimic Challenge</h2>
-        <p>Watch a reference video and mimic the movements in real-time. Get scored on pose similarity.</p>
-        <span class="card-action">Start Mimic &rarr;</span>
+      <router-link v-if="authStore.hasFeature('mimic')" to="/mimic" class="feature-card">
+        <div class="card-icon">&#128378;</div>
+        <h2>MoveMatch</h2>
+        <p>Mirror dance moves from reels and videos in real-time. Perfect for learning Zumba, choreography, and trending dances.</p>
+        <span class="card-action">Start MoveMatch &rarr;</span>
       </router-link>
 
-      <router-link to="/workout" class="feature-card coming-soon">
-        <div class="card-icon">&#127947;</div>
-        <h2>Workout with Me</h2>
-        <p>Follow guided workout routines with real-time form feedback and rep counting.</p>
-        <span class="card-badge">Coming Soon</span>
-      </router-link>
     </div>
 
     <div class="explore-link-wrapper">
