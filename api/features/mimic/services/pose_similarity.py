@@ -33,6 +33,22 @@ ANGLE_DEFINITIONS = [
     ("R_hip", 12, 24, 26),       # right hip
 ]
 
+# Per-joint Gaussian sigma (degrees) — larger = more forgiving
+JOINT_SIGMA = {
+    "L_elbow": 20.0, "R_elbow": 20.0,
+    "L_shoulder": 25.0, "R_shoulder": 25.0,
+    "L_knee": 20.0, "R_knee": 20.0,
+    "L_hip": 25.0, "R_hip": 25.0,
+}
+
+# Per-joint importance weights
+JOINT_WEIGHT = {
+    "L_elbow": 1.3, "R_elbow": 1.3,
+    "L_shoulder": 1.2, "R_shoulder": 1.2,
+    "L_knee": 1.0, "R_knee": 1.0,
+    "L_hip": 0.8, "R_hip": 0.8,
+}
+
 # Feedback joint names for user-facing messages
 JOINT_NAMES = {
     "L_elbow": "left elbow",
@@ -61,6 +77,43 @@ def _dot(a: List[float], b: List[float]) -> float:
 
 def _magnitude(v: List[float]) -> float:
     return math.sqrt(sum(x * x for x in v))
+
+
+def _sigmoid_map(raw: float, center: float = 50.0, steepness: float = 0.08) -> float:
+    """Map raw 0-100 through sigmoid for intuitive distribution.
+
+    ~30 raw -> ~20, ~50 raw -> ~50, ~70 raw -> ~80, ~90 raw -> ~97
+    """
+    return 100.0 / (1.0 + math.exp(-steepness * (raw - center)))
+
+
+def _normalize_landmarks(lm_list: List[Dict]) -> Optional[List[Dict]]:
+    """Center on mid-hip, scale by shoulder width. Returns list or None on failure."""
+    if len(lm_list) < 25:
+        return None
+    try:
+        lh = _lm_to_xy(lm_list[23])
+        rh = _lm_to_xy(lm_list[24])
+        cx = (lh[0] + rh[0]) / 2
+        cy = (lh[1] + rh[1]) / 2
+
+        ls = _lm_to_xy(lm_list[11])
+        rs = _lm_to_xy(lm_list[12])
+        sw = math.sqrt((ls[0] - rs[0]) ** 2 + (ls[1] - rs[1]) ** 2)
+        if sw < 1e-6:
+            sw = 1.0
+
+        normalized = []
+        for i in range(len(lm_list)):
+            x, y = _lm_to_xy(lm_list[i])
+            normalized.append({
+                "nx": (x - cx) / sw,
+                "ny": (y - cy) / sw,
+                "visibility": _visibility(lm_list[i]),
+            })
+        return normalized
+    except (IndexError, ZeroDivisionError):
+        return None
 
 
 def weighted_cosine_score(user_lm: List[Dict], ref_lm: List[Dict]) -> float:
@@ -105,38 +158,9 @@ def normalized_cosine_score(user_lm: List[Dict], ref_lm: List[Dict]) -> float:
     if not user_lm or not ref_lm:
         return 0.0
 
-    n = min(len(user_lm), len(ref_lm))
-    if n < 25:
-        return weighted_cosine_score(user_lm, ref_lm)
-
-    def _normalize(lm_list):
-        # Mid-hip = average of landmarks 23 and 24
-        lh = _lm_to_xy(lm_list[23])
-        rh = _lm_to_xy(lm_list[24])
-        cx = (lh[0] + rh[0]) / 2
-        cy = (lh[1] + rh[1]) / 2
-
-        # Shoulder width = distance between landmarks 11 and 12
-        ls = _lm_to_xy(lm_list[11])
-        rs = _lm_to_xy(lm_list[12])
-        sw = math.sqrt((ls[0] - rs[0]) ** 2 + (ls[1] - rs[1]) ** 2)
-        if sw < 1e-6:
-            sw = 1.0
-
-        normalized = []
-        for i in range(len(lm_list)):
-            x, y = _lm_to_xy(lm_list[i])
-            normalized.append({
-                "nx": (x - cx) / sw,
-                "ny": (y - cy) / sw,
-                "visibility": _visibility(lm_list[i]),
-            })
-        return normalized
-
-    try:
-        u_norm = _normalize(user_lm)
-        r_norm = _normalize(ref_lm)
-    except (IndexError, ZeroDivisionError):
+    u_norm = _normalize_landmarks(user_lm)
+    r_norm = _normalize_landmarks(ref_lm)
+    if u_norm is None or r_norm is None:
         return weighted_cosine_score(user_lm, ref_lm)
 
     return weighted_cosine_score(u_norm, r_norm)
@@ -156,7 +180,7 @@ def angle_comparison_score(user_lm: List[Dict], ref_lm: List[Dict]) -> float:
     if n < 29:
         return 0.0
 
-    scores = []
+    score_weights = []
     for name, a_idx, b_idx, c_idx in ANGLE_DEFINITIONS:
         if a_idx >= n or b_idx >= n or c_idx >= n:
             continue
@@ -177,12 +201,15 @@ def angle_comparison_score(user_lm: List[Dict], ref_lm: List[Dict]) -> float:
         )
 
         diff = abs(u_angle - r_angle)
-        angle_score = max(0.0, 1.0 - diff / 45.0) * 100.0
-        scores.append(angle_score)
+        sigma = JOINT_SIGMA.get(name, 20.0)
+        score = math.exp(-(diff ** 2) / (2 * sigma ** 2)) * 100.0
+        weight = JOINT_WEIGHT.get(name, 1.0)
+        score_weights.append((score, weight))
 
-    if not scores:
+    if not score_weights:
         return 0.0
-    return sum(scores) / len(scores)
+    total = sum(s * w for s, w in score_weights)
+    return total / sum(w for _, w in score_weights)
 
 
 def region_score(
@@ -192,13 +219,16 @@ def region_score(
     if not user_lm or not ref_lm:
         return 0.0
 
-    n = min(len(user_lm), len(ref_lm))
+    u_norm = _normalize_landmarks(user_lm) or user_lm
+    r_norm = _normalize_landmarks(ref_lm) or ref_lm
+
+    n = min(len(u_norm), len(r_norm))
     valid_indices = [i for i in indices if i < n]
     if not valid_indices:
         return 0.0
 
-    sub_user = [user_lm[i] for i in valid_indices]
-    sub_ref = [ref_lm[i] for i in valid_indices]
+    sub_user = [u_norm[i] for i in valid_indices]
+    sub_ref = [r_norm[i] for i in valid_indices]
 
     return weighted_cosine_score(sub_user, sub_ref)
 
@@ -214,7 +244,7 @@ def compute_all_similarities(
     return {
         "cosine_raw": round(weighted_cosine_score(user_lm, ref_lm), 1),
         "cosine_normalized": round(normalized_cosine_score(user_lm, ref_lm), 1),
-        "angle_score": round(angle_comparison_score(user_lm, ref_lm), 1),
+        "angle_score": round(_sigmoid_map(angle_comparison_score(user_lm, ref_lm)), 1),
         "upper_body": round(region_score(user_lm, ref_lm, UPPER_INDICES), 1),
         "lower_body": round(region_score(user_lm, ref_lm, LOWER_INDICES), 1),
     }

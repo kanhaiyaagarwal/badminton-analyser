@@ -41,6 +41,25 @@ class MimicAnalyzer(BaseStreamAnalyzer):
         self.frame_scores: List[dict] = []
         self.start_time: Optional[float] = None
         self.frames_processed = 0
+        self._prev_landmarks: Optional[List[Dict]] = None
+
+    _EMA_ALPHA = 0.4  # responsive but smooth
+
+    def _ema_smooth(self, current_lm: List[Dict]) -> List[Dict]:
+        """Apply exponential moving average to landmarks for jitter reduction."""
+        if self._prev_landmarks is None or len(current_lm) != len(self._prev_landmarks):
+            self._prev_landmarks = list(current_lm)
+            return current_lm
+        alpha = self._EMA_ALPHA
+        smoothed = []
+        for curr, prev in zip(current_lm, self._prev_landmarks):
+            smoothed.append({
+                "nx": alpha * curr.get("nx", 0) + (1 - alpha) * prev.get("nx", 0),
+                "ny": alpha * curr.get("ny", 0) + (1 - alpha) * prev.get("ny", 0),
+                "visibility": curr.get("visibility", 0),
+            })
+        self._prev_landmarks = smoothed
+        return smoothed
 
     def process_frame(self, frame_data: bytes, timestamp: float, ref_time: float = None) -> Dict:
         """Process a single camera frame and return similarity scores.
@@ -85,10 +104,12 @@ class MimicAnalyzer(BaseStreamAnalyzer):
             "elapsed": round(elapsed, 3),
         }
 
-        # Add user pose data for frontend skeleton overlay
+        # Smooth user landmarks (EMA) for stable scoring and overlay
+        user_lm_smoothed = None
         if pose_result.player_detected and pose_result.landmark_list:
+            user_lm_smoothed = self._ema_smooth(pose_result.landmark_list)
             response["pose"] = {
-                "landmarks": pose_result.landmark_list,
+                "landmarks": user_lm_smoothed,
                 "connections": SKELETON_CONNECTIONS,
             }
 
@@ -104,12 +125,11 @@ class MimicAnalyzer(BaseStreamAnalyzer):
 
         # Compute similarity scores
         if (
-            pose_result.player_detected
-            and pose_result.landmark_list
+            user_lm_smoothed
             and ref_lm_dicts
         ):
-            scores = compute_all_similarities(pose_result.landmark_list, ref_lm_dicts)
-            feedback = generate_feedback(pose_result.landmark_list, ref_lm_dicts)
+            scores = compute_all_similarities(user_lm_smoothed, ref_lm_dicts)
+            feedback = generate_feedback(user_lm_smoothed, ref_lm_dicts)
 
             response["scores"] = scores
             response["feedback"] = feedback
@@ -223,6 +243,7 @@ class MimicAnalyzer(BaseStreamAnalyzer):
         self.frame_scores = []
         self.start_time = None
         self.frames_processed = 0
+        self._prev_landmarks = None
 
     def close(self):
         """Release resources."""

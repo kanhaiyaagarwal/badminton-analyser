@@ -19,7 +19,7 @@
       />
       <!-- Score text -->
       <text x="100" y="95" text-anchor="middle" :fill="arcColor" font-size="32" font-weight="700">
-        {{ Math.round(score) }}
+        {{ Math.round(score) }}%
       </text>
       <text x="100" y="112" text-anchor="middle" fill="var(--text-muted, #888)" font-size="11">
         {{ label }}

@@ -34,19 +34,19 @@
         <h2>Score Breakdown</h2>
         <div class="breakdown-grid" v-if="session.score_breakdown">
           <div class="breakdown-card">
-            <span class="bk-value">{{ session.score_breakdown.angle_score || 0 }}</span>
+            <span class="bk-value">{{ session.score_breakdown.angle_score || 0 }}%</span>
             <span class="bk-label">Angle Match</span>
           </div>
           <div class="breakdown-card">
-            <span class="bk-value">{{ session.score_breakdown.cosine_normalized || 0 }}</span>
+            <span class="bk-value">{{ session.score_breakdown.cosine_normalized || 0 }}%</span>
             <span class="bk-label">Pose Similarity</span>
           </div>
           <div class="breakdown-card">
-            <span class="bk-value">{{ session.score_breakdown.upper_body || 0 }}</span>
+            <span class="bk-value">{{ session.score_breakdown.upper_body || 0 }}%</span>
             <span class="bk-label">Upper Body</span>
           </div>
           <div class="breakdown-card">
-            <span class="bk-value">{{ session.score_breakdown.lower_body || 0 }}</span>
+            <span class="bk-value">{{ session.score_breakdown.lower_body || 0 }}%</span>
             <span class="bk-label">Lower Body</span>
           </div>
         </div>

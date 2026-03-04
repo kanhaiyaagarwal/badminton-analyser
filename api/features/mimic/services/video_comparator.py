@@ -186,7 +186,7 @@ def _process_user_video(
     frame_scores = []
     frame_idx = 0
     last_ref_frame = None
-    recent_scores = []  # rolling buffer for smoothed video overlay
+    recent_scores = []  # rolling buffer for median-smoothed video overlay
 
     try:
         while True:
@@ -225,12 +225,17 @@ def _process_user_video(
                     **scores,
                 })
 
-            # Rolling mean of last 5 scores for stable video overlay
+            # Rolling median of last 15 scores for stable video overlay
             if score is not None:
                 recent_scores.append(score)
-                if len(recent_scores) > 5:
+                if len(recent_scores) > 15:
                     recent_scores.pop(0)
-            display_score = sum(recent_scores) / len(recent_scores) if recent_scores else None
+            if recent_scores:
+                sorted_scores = sorted(recent_scores)
+                mid = len(sorted_scores) // 2
+                display_score = sorted_scores[mid] if len(sorted_scores) % 2 else (sorted_scores[mid - 1] + sorted_scores[mid]) / 2
+            else:
+                display_score = None
 
             # Generate side-by-side frame
             if ref_cap is not None:
@@ -327,10 +332,9 @@ def _make_canvas(ref_panel, user_panel, score: Optional[float] = None):
     cv2.putText(canvas, "Reference", (10, 30), font, 0.8, (255, 200, 0), 2)
     cv2.putText(canvas, "You", (rw + 10, 30), font, 0.8, (0, 255, 0), 2)
 
-    # Score overlay at bottom center (displayed out of 10)
+    # Score overlay at bottom center
     if score is not None:
-        score_10 = score / 10.0
-        score_text = f"{score_10:.1f} / 10"
+        score_text = f"{score:.0f}%"
         text_size = cv2.getTextSize(score_text, font, 1.0, 2)[0]
         tx = (canvas_w - text_size[0]) // 2
         ty = canvas_h - 20

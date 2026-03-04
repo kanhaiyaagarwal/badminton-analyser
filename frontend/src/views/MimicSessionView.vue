@@ -74,16 +74,16 @@
       <!-- Score HUD -->
       <div class="score-hud">
         <div class="score-main">
-          <span class="score-value" :style="{ color: scoreColor }">{{ currentScore }}</span>
+          <span class="score-value" :style="{ color: scoreColor }">{{ currentScore }}%</span>
           <span class="score-label">Score</span>
         </div>
         <div class="score-details">
           <div class="score-detail">
-            <span class="detail-value">{{ scores.upper_body || 0 }}</span>
+            <span class="detail-value">{{ displayScores.upper }}%</span>
             <span class="detail-label">Upper</span>
           </div>
           <div class="score-detail">
-            <span class="detail-value">{{ scores.lower_body || 0 }}</span>
+            <span class="detail-value">{{ displayScores.lower }}%</span>
             <span class="detail-label">Lower</span>
           </div>
         </div>
@@ -171,6 +171,38 @@ const scores = ref({ cosine_raw: 0, cosine_normalized: 0, angle_score: 0, upper_
 const feedback = ref('')
 const playerDetected = ref(false)
 
+// Running median buffer for stable HUD display
+const SCORE_WINDOW = 10
+const scoreHistory = { angle: [], upper: [], lower: [] }
+
+function medianOf(arr) {
+  if (!arr.length) return 0
+  const sorted = [...arr].sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2
+}
+
+function pushScore(raw) {
+  scoreHistory.angle.push(raw.angle_score || 0)
+  scoreHistory.upper.push(raw.upper_body || 0)
+  scoreHistory.lower.push(raw.lower_body || 0)
+  if (scoreHistory.angle.length > SCORE_WINDOW) {
+    scoreHistory.angle.shift()
+    scoreHistory.upper.shift()
+    scoreHistory.lower.shift()
+  }
+}
+
+const displayScores = ref({ angle: 0, upper: 0, lower: 0 })
+
+function updateDisplayScores() {
+  displayScores.value = {
+    angle: Math.round(medianOf(scoreHistory.angle)),
+    upper: Math.round(medianOf(scoreHistory.upper)),
+    lower: Math.round(medianOf(scoreHistory.lower)),
+  }
+}
+
 // Speed / Pause / Voice
 const speedPresets = [0.5, 0.6, 0.8, 1.0]
 const playbackRate = ref(1.0)
@@ -182,7 +214,7 @@ let audioCtx = null
 let audioWorkletNode = null
 let pauseStartTime = null
 
-const currentScore = computed(() => scores.value.angle_score || 0)
+const currentScore = computed(() => displayScores.value.angle)
 const scoreColor = computed(() => {
   const s = currentScore.value
   if (s >= 80) return '#2ecc71'
@@ -310,6 +342,8 @@ async function connectWebSocket(sid) {
       if (data.type === 'mimic_update') {
         if (data.scores) {
           scores.value = data.scores
+          pushScore(data.scores)
+          updateDisplayScores()
         }
         feedback.value = data.feedback || ''
         playerDetected.value = !!data.player_detected
