@@ -32,6 +32,13 @@ RUN pip install --no-cache-dir -r requirements-web.txt
 RUN pip install --no-cache-dir gunicorn numpy ddtrace && \
     pip install --no-cache-dir mediapipe==0.10.9 opencv-python-headless==4.8.1.78
 
+# Download Vosk speech model for offline voice commands (~40MB)
+COPY scripts/download_vosk_model.sh ./scripts/
+RUN apt-get update && apt-get install -y --no-install-recommends curl unzip \
+    && bash scripts/download_vosk_model.sh \
+    && apt-get purge -y curl unzip && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy application code
 COPY api/ ./api/
 COPY v2_court_bounded_analyzer.py .

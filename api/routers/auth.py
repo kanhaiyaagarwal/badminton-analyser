@@ -3,7 +3,7 @@
 import random
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
@@ -21,24 +21,34 @@ from ..services.otp_service import OTPService
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
 MAX_FAILED_ATTEMPTS = 10
 LOCKOUT_DURATION_HOURS = 5
 
 
 async def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db)
+    bearer_token: str | None = Depends(oauth2_scheme),
+    token: str | None = Query(None, alias="token"),
+    db: Session = Depends(get_db),
 ):
-    """Dependency to get current authenticated user."""
+    """Dependency to get current authenticated user.
+
+    Accepts a Bearer token (Authorization header) or a ``token`` query param
+    as fallback — the latter allows ``<img src>`` and ``<video src>`` elements
+    to authenticate without JavaScript fetch.
+    """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-    token_data = UserService.decode_token(token)
+    resolved_token = bearer_token or token
+    if not resolved_token:
+        raise credentials_exception
+
+    token_data = UserService.decode_token(resolved_token)
     if token_data is None or token_data.user_id is None:
         raise credentials_exception
 

@@ -42,8 +42,16 @@ class MimicAnalyzer(BaseStreamAnalyzer):
         self.start_time: Optional[float] = None
         self.frames_processed = 0
 
-    def process_frame(self, frame_data: bytes, timestamp: float) -> Dict:
-        """Process a single camera frame and return similarity scores."""
+    def process_frame(self, frame_data: bytes, timestamp: float, ref_time: float = None) -> Dict:
+        """Process a single camera frame and return similarity scores.
+
+        Args:
+            frame_data: JPEG-encoded frame bytes.
+            timestamp: Wall-clock timestamp (seconds since epoch or session start).
+            ref_time: Optional video position sent by client.  When the client
+                      controls playback speed/pause, this is the authoritative
+                      reference time.  Falls back to elapsed-based calculation.
+        """
         if self.start_time is None:
             self.start_time = timestamp
 
@@ -60,8 +68,12 @@ class MimicAnalyzer(BaseStreamAnalyzer):
         pose_result = self.detector.detect(frame)
         self.frames_processed += 1
 
-        # Time alignment: wrap around if session is longer than reference
-        ref_time = elapsed % self.ref_duration if self.ref_duration > 0 else 0
+        # Time alignment: use client-provided ref_time when available,
+        # otherwise fall back to wall-clock elapsed with wrapping.
+        if ref_time is not None:
+            ref_time = ref_time % self.ref_duration if self.ref_duration > 0 else 0
+        else:
+            ref_time = elapsed % self.ref_duration if self.ref_duration > 0 else 0
         ref_frame_idx = self._find_closest_ref_frame(ref_time)
         ref_entry = self.ref_timeline[ref_frame_idx] if ref_frame_idx is not None else None
 

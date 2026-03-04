@@ -71,6 +71,7 @@ class MimicSession(Base):
 
     score_breakdown = Column(JSON, nullable=True)
     frame_scores = Column(JSON, nullable=True)
+    comparison_video_path = Column(String(512), nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     ended_at = Column(DateTime, nullable=True)

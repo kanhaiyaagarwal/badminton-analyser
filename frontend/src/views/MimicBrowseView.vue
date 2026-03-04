@@ -25,6 +25,31 @@
       </div>
     </div>
 
+    <!-- My Recent Sessions -->
+    <section v-if="mimicStore.sessions.length > 0" class="section">
+      <h2 class="section-title">My Recent Sessions</h2>
+      <div class="sessions-list">
+        <div
+          v-for="s in mimicStore.sessions"
+          :key="s.id"
+          class="session-row"
+          @click="router.push(`/mimic/results/${s.id}`)"
+        >
+          <div class="session-info">
+            <span class="session-challenge">{{ s.challenge_title || `Challenge #${s.challenge_id}` }}</span>
+            <span class="session-meta">
+              <span class="session-source">{{ s.source === 'upload' ? 'Upload' : 'Live' }}</span>
+              &middot;
+              {{ formatTimeAgo(s.ended_at) }}
+            </span>
+          </div>
+          <div class="session-score" :class="scoreClass(s.overall_score)">
+            {{ Math.round(s.overall_score) }}
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Trending section -->
     <section v-if="mimicStore.trending.length > 0" class="section">
       <h2 class="section-title">Trending</h2>
@@ -35,7 +60,7 @@
           class="challenge-card"
         >
           <div class="card-thumb" @click="goToChallenge(ch)">
-            <img v-if="ch.has_thumbnail" :src="`/api/v1/mimic/challenges/${ch.id}/thumbnail`" alt="" />
+            <img v-if="ch.has_thumbnail" :src="`/api/v1/mimic/challenges/${ch.id}/thumbnail?token=${authStore.accessToken}`" alt="" />
             <div v-else class="thumb-placeholder">&#127916;</div>
           </div>
           <div class="card-info">
@@ -55,6 +80,7 @@
               >
                 {{ comparingId === ch.id ? 'Processing...' : 'Upload Video' }}
               </button>
+              <button v-if="isAdmin" class="action-btn delete-btn" @click="confirmDelete(ch)">Delete</button>
             </div>
           </div>
         </div>
@@ -75,7 +101,7 @@
           class="challenge-card"
         >
           <div class="card-thumb" @click="goToChallenge(ch)">
-            <img v-if="ch.has_thumbnail" :src="`/api/v1/mimic/challenges/${ch.id}/thumbnail`" alt="" />
+            <img v-if="ch.has_thumbnail" :src="`/api/v1/mimic/challenges/${ch.id}/thumbnail?token=${authStore.accessToken}`" alt="" />
             <div v-else class="thumb-placeholder">&#127916;</div>
           </div>
           <div class="card-info">
@@ -97,6 +123,10 @@
               >
                 {{ comparingId === ch.id ? 'Processing...' : 'Upload Video' }}
               </button>
+              <button v-if="isAdmin" class="action-btn delete-btn" @click="confirmDelete(ch)">Delete</button>
+            </div>
+            <div v-else-if="isAdmin" class="card-actions">
+              <button class="action-btn delete-btn" @click="confirmDelete(ch)">Delete</button>
             </div>
           </div>
         </div>
@@ -115,12 +145,16 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
 import { useMimicStore } from '../stores/mimic'
 
 const router = useRouter()
+const authStore = useAuthStore()
 const mimicStore = useMimicStore()
+
+const isAdmin = computed(() => authStore.user?.is_admin)
 
 const showUpload = ref(false)
 const uploadTitle = ref('')
@@ -137,6 +171,7 @@ let pendingChallengeId = null
 onMounted(() => {
   mimicStore.fetchChallenges()
   mimicStore.fetchTrending()
+  mimicStore.fetchSessions({ limit: 5 })
 })
 
 function onFileSelected(e) {
@@ -200,11 +235,38 @@ async function onCompareFileSelected(e) {
   }
 }
 
+async function confirmDelete(ch) {
+  if (!confirm(`Delete "${ch.title}"? This will remove all sessions and records.`)) return
+  try {
+    await mimicStore.deleteChallenge(ch.id)
+  } catch (err) {
+    alert('Failed to delete challenge')
+  }
+}
+
 function formatDuration(seconds) {
   if (!seconds) return ''
   const m = Math.floor(seconds / 60)
   const s = Math.round(seconds % 60)
   return m > 0 ? `${m}m ${s}s` : `${s}s`
+}
+
+function formatTimeAgo(isoString) {
+  if (!isoString) return ''
+  const diff = Date.now() - new Date(isoString).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  return `${days}d ago`
+}
+
+function scoreClass(score) {
+  if (score >= 80) return 'score-high'
+  if (score >= 50) return 'score-mid'
+  return 'score-low'
 }
 </script>
 
@@ -429,14 +491,76 @@ function formatDuration(seconds) {
 }
 
 .upload-compare-btn {
-  background: var(--bg-secondary, #2a2a3e);
-  color: var(--text-primary);
-  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--color-primary, #6c5ce7);
+  border: 1px solid var(--color-primary, #6c5ce7);
+}
+
+.delete-btn {
+  background: transparent;
+  color: #e74c3c;
+  border: 1px solid #e74c3c;
 }
 
 .card-thumb {
   cursor: pointer;
 }
+
+.sessions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.session-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md, 8px);
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.session-row:hover {
+  border-color: var(--color-primary);
+}
+
+.session-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.session-challenge {
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.session-meta {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.session-source {
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.session-score {
+  font-size: 1.3rem;
+  font-weight: 700;
+  min-width: 2.5rem;
+  text-align: right;
+}
+
+.score-high { color: #2ecc71; }
+.score-mid  { color: #f39c12; }
+.score-low  { color: #e74c3c; }
 
 .loading, .empty {
   color: var(--text-muted);

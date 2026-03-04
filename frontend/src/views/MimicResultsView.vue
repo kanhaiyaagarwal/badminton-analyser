@@ -13,6 +13,22 @@
         <SimilarityGauge :score="session.overall_score" label="Overall Score" :size="220" />
       </div>
 
+      <!-- Side-by-side comparison video -->
+      <div v-if="comparisonVideoUrl" class="comparison-video-section">
+        <h2>Side-by-Side Comparison</h2>
+        <video
+          ref="videoRef"
+          :src="comparisonVideoUrl"
+          controls
+          playsinline
+          class="comparison-video"
+          @timeupdate="onTimeUpdate"
+        ></video>
+        <button @click="downloadVideo" class="download-btn" :disabled="downloading">
+          {{ downloading ? 'Downloading...' : 'Download Video' }}
+        </button>
+      </div>
+
       <!-- Score breakdown -->
       <div class="breakdown-section">
         <h2>Score Breakdown</h2>
@@ -32,6 +48,28 @@
           <div class="breakdown-card">
             <span class="bk-value">{{ session.score_breakdown.lower_body || 0 }}</span>
             <span class="bk-label">Lower Body</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Feedback section -->
+      <div v-if="session.feedback && session.feedback.items?.length" class="feedback-section">
+        <h2>Feedback</h2>
+        <p v-if="session.feedback.summary" class="feedback-summary">{{ session.feedback.summary }}</p>
+        <div class="feedback-cards">
+          <div
+            v-for="(item, idx) in session.feedback.items"
+            :key="idx"
+            class="feedback-card"
+            :class="`feedback-${item.status}`"
+          >
+            <span class="feedback-icon">
+              <template v-if="item.status === 'good'">&#10003;</template>
+              <template v-else-if="item.status === 'fair'">~</template>
+              <template v-else-if="item.status === 'poor'">!</template>
+              <template v-else>i</template>
+            </span>
+            <span class="feedback-msg">{{ item.message }}</span>
           </div>
         </div>
       </div>
@@ -88,18 +126,50 @@ import {
   LinearScale,
   Filler,
 } from 'chart.js'
+import annotationPlugin from 'chartjs-plugin-annotation'
+import { useAuthStore } from '../stores/auth'
 import { useMimicStore } from '../stores/mimic'
 import SimilarityGauge from '../components/SimilarityGauge.vue'
 
-ChartJS.register(Title, Tooltip, Legend, LineElement, PointElement, CategoryScale, LinearScale, Filler)
+ChartJS.register(Title, Tooltip, Legend, LineElement, PointElement, CategoryScale, LinearScale, Filler, annotationPlugin)
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
 const mimicStore = useMimicStore()
 
 const sessionId = parseInt(route.params.sessionId)
 const session = ref(null)
 const loading = ref(true)
+const videoRef = ref(null)
+const currentVideoTime = ref(0)
+
+const downloading = ref(false)
+
+const comparisonVideoUrl = computed(() =>
+  session.value?.has_comparison_video
+    ? `/api/v1/mimic/sessions/${sessionId}/comparison-video?token=${authStore.accessToken}`
+    : null
+)
+
+async function downloadVideo() {
+  if (!comparisonVideoUrl.value || downloading.value) return
+  downloading.value = true
+  try {
+    const resp = await fetch(comparisonVideoUrl.value)
+    const blob = await resp.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `comparison_${sessionId}.mp4`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch (e) {
+    console.error('Download failed:', e)
+  } finally {
+    downloading.value = false
+  }
+}
 
 onMounted(async () => {
   try {
@@ -111,58 +181,121 @@ onMounted(async () => {
   }
 })
 
-const chartData = computed(() => {
+function onTimeUpdate() {
+  if (videoRef.value) {
+    currentVideoTime.value = videoRef.value.currentTime
+  }
+}
+
+// Downsample scores for chart, shared between chartData and chartOptions
+const sampledScores = computed(() => {
   const scores = session.value?.frame_scores
   if (!scores || scores.length < 2) return null
-
-  // Downsample if too many points
   const step = Math.max(1, Math.floor(scores.length / 100))
-  const sampled = scores.filter((_, i) => i % step === 0)
+  return scores.filter((_, i) => i % step === 0)
+})
+
+const seekbarIndex = computed(() => {
+  const sampled = sampledScores.value
+  if (!sampled || !sampled.length) return null
+
+  const t = currentVideoTime.value
+  // Find closest index by timestamp
+  let best = 0
+  let bestDiff = Math.abs(sampled[0].t - t)
+  for (let i = 1; i < sampled.length; i++) {
+    const diff = Math.abs(sampled[i].t - t)
+    if (diff < bestDiff) {
+      bestDiff = diff
+      best = i
+    }
+  }
+  return best
+})
+
+const chartData = computed(() => {
+  const sampled = sampledScores.value
+  if (!sampled) return null
+
+  // Use smoothed keys when available, fall back to raw for backward compat
+  const hasSmoothed = 'angle_score_smoothed' in sampled[0]
 
   return {
     labels: sampled.map(f => f.t.toFixed(1) + 's'),
     datasets: [
       {
-        label: 'Angle Score',
-        data: sampled.map(f => f.angle_score),
+        label: 'Overall',
+        data: sampled.map(f => hasSmoothed ? f.angle_score_smoothed : f.angle_score),
         borderColor: '#2ecc71',
         backgroundColor: 'rgba(46, 204, 113, 0.1)',
         fill: true,
         tension: 0.3,
         pointRadius: 0,
+        borderWidth: 2,
       },
       {
-        label: 'Pose Similarity',
-        data: sampled.map(f => f.cosine_normalized),
-        borderColor: '#3498db',
-        backgroundColor: 'rgba(52, 152, 219, 0.1)',
-        fill: true,
+        label: 'Upper Body',
+        data: sampled.map(f => hasSmoothed ? f.upper_body_smoothed : f.upper_body),
+        borderColor: '#e67e22',
+        backgroundColor: 'transparent',
+        fill: false,
         tension: 0.3,
         pointRadius: 0,
+        borderWidth: 1.5,
+        borderDash: [6, 3],
+      },
+      {
+        label: 'Lower Body',
+        data: sampled.map(f => hasSmoothed ? f.lower_body_smoothed : f.lower_body),
+        borderColor: '#9b59b6',
+        backgroundColor: 'transparent',
+        fill: false,
+        tension: 0.3,
+        pointRadius: 0,
+        borderWidth: 1.5,
+        borderDash: [6, 3],
       },
     ],
   }
 })
 
-const chartOptions = {
-  responsive: true,
-  maintainAspectRatio: false,
-  plugins: {
-    legend: { labels: { color: '#888' } },
-  },
-  scales: {
-    x: {
-      ticks: { color: '#888', maxTicksLimit: 10 },
-      grid: { color: 'rgba(255,255,255,0.05)' },
+const chartOptions = computed(() => {
+  const idx = seekbarIndex.value
+  const annotations = {}
+
+  if (idx !== null) {
+    annotations.seekbar = {
+      type: 'line',
+      xMin: idx,
+      xMax: idx,
+      borderColor: 'rgba(255, 255, 255, 0.8)',
+      borderWidth: 1.5,
+      borderDash: [4, 3],
+    }
+  }
+
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 0 },
+    plugins: {
+      legend: { labels: { color: '#888' } },
+      annotation: { annotations },
     },
-    y: {
-      min: 0,
-      max: 100,
-      ticks: { color: '#888' },
-      grid: { color: 'rgba(255,255,255,0.05)' },
+    scales: {
+      x: {
+        ticks: { color: '#888', maxTicksLimit: 10 },
+        grid: { color: 'rgba(255,255,255,0.05)' },
+      },
+      y: {
+        min: 0,
+        max: 100,
+        ticks: { color: '#888' },
+        grid: { color: 'rgba(255,255,255,0.05)' },
+      },
     },
-  },
-}
+  }
+})
 
 function tryAgain() {
   if (session.value?.challenge_id) {
@@ -203,6 +336,35 @@ h1 {
   color: var(--text-secondary);
   font-size: 1rem;
   margin-bottom: 1rem;
+}
+
+.comparison-video-section {
+  margin: 1.5rem 0;
+}
+
+.comparison-video-section h2 {
+  color: var(--text-primary);
+  font-size: 1.1rem;
+  margin-bottom: 0.75rem;
+}
+
+.comparison-video {
+  width: 100%;
+  border-radius: var(--radius-md, 8px);
+  background: #000;
+}
+
+.download-btn {
+  display: inline-block;
+  margin-top: 0.5rem;
+  padding: 0.4rem 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md, 8px);
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 0.85rem;
+  cursor: pointer;
 }
 
 .gauge-section {
@@ -246,6 +408,74 @@ h1 {
 .bk-label {
   font-size: 0.75rem;
   color: var(--text-muted);
+}
+
+/* Feedback section */
+.feedback-section {
+  margin: 1.5rem 0;
+}
+
+.feedback-section h2 {
+  color: var(--text-primary);
+  font-size: 1.1rem;
+  margin-bottom: 0.5rem;
+}
+
+.feedback-summary {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin-bottom: 0.75rem;
+}
+
+.feedback-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.feedback-card {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--radius-md, 8px);
+  border-left: 3px solid;
+  font-size: 0.85rem;
+}
+
+.feedback-good {
+  border-left-color: #2ecc71;
+  background: rgba(46, 204, 113, 0.08);
+  color: #2ecc71;
+}
+
+.feedback-fair {
+  border-left-color: #f1c40f;
+  background: rgba(241, 196, 15, 0.08);
+  color: #f1c40f;
+}
+
+.feedback-poor {
+  border-left-color: #e74c3c;
+  background: rgba(231, 76, 60, 0.08);
+  color: #e74c3c;
+}
+
+.feedback-tip {
+  border-left-color: #3498db;
+  background: rgba(52, 152, 219, 0.08);
+  color: #3498db;
+}
+
+.feedback-icon {
+  font-weight: 700;
+  font-size: 0.95rem;
+  min-width: 1.2em;
+  text-align: center;
+}
+
+.feedback-msg {
+  flex: 1;
 }
 
 .stats-row {

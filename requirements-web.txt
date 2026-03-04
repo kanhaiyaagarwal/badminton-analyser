@@ -36,6 +36,9 @@ datadog>=0.49.0
 # Offline speech recognition for voice commands
 vosk>=0.3.45
 
+# Audio cross-correlation for video alignment (used by mimic upload-to-compare)
+scipy>=1.11.0
+
 # Existing dependencies (from badminton analyzer)
 # opencv-python>=4.8.0
 # mediapipe>=0.10.0

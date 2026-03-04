@@ -272,3 +272,66 @@ def generate_feedback(user_lm: List[Dict], ref_lm: List[Dict]) -> str:
         action = "Straighten" if "knee" in joint or "elbow" in joint else "Raise"
 
     return f"{action} your {joint} more"
+
+
+def generate_summary_feedback(score_breakdown: dict) -> dict:
+    """Generate summary feedback items from aggregate score breakdown.
+
+    Returns {"items": [...], "summary": "..."} where each item has
+    region, status (good/fair/poor/tip), and message.
+    """
+    if not score_breakdown:
+        return {"items": [], "summary": ""}
+
+    def _status(score: float) -> str:
+        if score >= 75:
+            return "good"
+        if score >= 50:
+            return "fair"
+        return "poor"
+
+    def _msg(region: str, score: float, status: str) -> str:
+        label = "Upper body" if region == "upper_body" else "Lower body"
+        if status == "good":
+            return f"{label} matched well (score {score:.0f})"
+        if status == "fair":
+            return f"{label} was close but could be tighter (score {score:.0f})"
+        return f"{label} needs more work (score {score:.0f})"
+
+    items = []
+    for region in ("upper_body", "lower_body"):
+        score = score_breakdown.get(region, 0)
+        st = _status(score)
+        items.append({
+            "region": region,
+            "status": st,
+            "message": _msg(region, score, st),
+        })
+
+    # Identify weaker region and add a tip
+    upper = score_breakdown.get("upper_body", 0)
+    lower = score_breakdown.get("lower_body", 0)
+    if upper < lower and upper < 75:
+        items.append({
+            "region": "upper_body",
+            "status": "tip",
+            "message": "Focus on matching arm and shoulder positions more closely",
+        })
+    elif lower < upper and lower < 75:
+        items.append({
+            "region": "lower_body",
+            "status": "tip",
+            "message": "Pay more attention to leg positioning and knee bends",
+        })
+
+    overall = score_breakdown.get("angle_score", 0)
+    if overall >= 80:
+        summary = "Excellent work! Your pose closely matched the reference."
+    elif overall >= 60:
+        summary = "Good effort! Some body regions could use more precision."
+    elif overall >= 40:
+        summary = "Decent attempt. Focus on the weaker areas highlighted below."
+    else:
+        summary = "Keep practicing! Try mirroring the reference movements more closely."
+
+    return {"items": items, "summary": summary}

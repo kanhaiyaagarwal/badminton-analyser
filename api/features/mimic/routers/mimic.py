@@ -25,6 +25,7 @@ from ..models.mimic import (
 )
 from ..services.mimic_analyzer import MimicAnalyzer
 from ..services.reference_processor import process_reference_video
+from ..services.pose_similarity import generate_summary_feedback
 from ..services.video_comparator import compare_video
 
 logger = logging.getLogger(__name__)
@@ -410,7 +411,10 @@ def list_mimic_sessions(
     user=Depends(get_current_user),
 ):
     """List past mimic sessions for the current user."""
-    q = db.query(MimicSession).filter(
+    # Defer frame_scores — it's huge JSON and causes MySQL sort buffer OOM
+    q = db.query(MimicSession).options(
+        defer(MimicSession.frame_scores)
+    ).filter(
         MimicSession.user_id == user.id,
         MimicSession.status == MimicSessionStatus.ENDED,
     )
@@ -420,13 +424,24 @@ def list_mimic_sessions(
     total = q.count()
     sessions = q.order_by(MimicSession.created_at.desc()).offset(offset).limit(limit).all()
 
+    # Batch-fetch challenge titles for display
+    challenge_ids = {s.challenge_id for s in sessions}
+    titles = {}
+    if challenge_ids:
+        for ch in db.query(
+            MimicChallenge.id, MimicChallenge.title
+        ).filter(MimicChallenge.id.in_(challenge_ids)).all():
+            titles[ch.id] = ch.title
+
     results = []
     for s in sessions:
         record = db.query(MimicRecord).filter(
             MimicRecord.user_id == user.id,
             MimicRecord.challenge_id == s.challenge_id,
         ).first()
-        results.append(_build_session_response(s, record))
+        resp = _build_session_response(s, record, include_frames=False)
+        resp["challenge_title"] = titles.get(s.challenge_id)
+        results.append(resp)
 
     return {"sessions": results, "total": total}
 
@@ -459,6 +474,33 @@ def get_mimic_session(
         resp["challenge_title"] = challenge.title
 
     return resp
+
+
+@router.get("/sessions/{session_id}/comparison-video")
+def get_comparison_video(
+    session_id: int,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """Serve the side-by-side comparison video for an upload-to-compare session."""
+    session = db.query(MimicSession).filter(
+        MimicSession.id == session_id,
+        MimicSession.user_id == user.id,
+    ).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if (
+        not session.comparison_video_path
+        or not Path(session.comparison_video_path).exists()
+    ):
+        raise HTTPException(status_code=404, detail="Comparison video not available")
+
+    return FileResponse(
+        path=session.comparison_video_path,
+        media_type="video/mp4",
+        filename=f"comparison_{session_id}.mp4",
+    )
 
 
 @router.get("/records")
@@ -506,6 +548,41 @@ def toggle_trending(
     return {"id": challenge.id, "is_trending": challenge.is_trending}
 
 
+@router.delete("/admin/challenges/{challenge_id}")
+def delete_challenge(
+    challenge_id: int,
+    db: Session = Depends(get_db),
+    admin=Depends(require_admin),
+):
+    """Delete a challenge and all associated sessions/records/files (admin only)."""
+    challenge = db.query(MimicChallenge).filter(
+        MimicChallenge.id == challenge_id
+    ).first()
+    if not challenge:
+        raise HTTPException(status_code=404, detail="Challenge not found")
+
+    # Delete associated sessions and records
+    db.query(MimicSession).filter(MimicSession.challenge_id == challenge_id).delete()
+    db.query(MimicRecord).filter(MimicRecord.challenge_id == challenge_id).delete()
+
+    # Clean up local files
+    for path in (
+        challenge.video_local_path,
+        challenge.thumbnail_local_path,
+        challenge.annotated_video_local_path,
+    ):
+        if path:
+            try:
+                Path(path).unlink(missing_ok=True)
+            except OSError:
+                pass
+
+    db.delete(challenge)
+    db.commit()
+
+    return {"detail": f"Challenge {challenge_id} deleted"}
+
+
 @router.get("/admin/challenges/{challenge_id}/annotated-video")
 def get_annotated_video(
     challenge_id: int,
@@ -551,18 +628,29 @@ def get_annotated_video(
 # ---------- Helpers ----------
 
 
-def _build_session_response(session: MimicSession, record: Optional[MimicRecord] = None) -> dict:
+def _build_session_response(
+    session: MimicSession,
+    record: Optional[MimicRecord] = None,
+    include_frames: bool = True,
+) -> dict:
+    feedback = generate_summary_feedback(session.score_breakdown) if session.score_breakdown else None
     return {
         "id": session.id,
         "challenge_id": session.challenge_id,
+        "source": session.source or "live",
         "status": session.status.value,
         "overall_score": session.overall_score or 0,
         "duration_seconds": session.duration_seconds or 0,
         "frames_compared": session.frames_compared or 0,
         "score_breakdown": session.score_breakdown,
-        "frame_scores": session.frame_scores,
+        "frame_scores": session.frame_scores if include_frames else None,
+        "feedback": feedback,
+        "has_comparison_video": bool(
+            session.comparison_video_path
+            and Path(session.comparison_video_path).exists()
+        ),
         "personal_best": record.best_score if record else None,
         "attempt_count": record.attempt_count if record else 0,
-        "created_at": session.created_at.isoformat() if session.created_at else None,
-        "ended_at": session.ended_at.isoformat() if session.ended_at else None,
+        "created_at": (session.created_at.isoformat() + "Z") if session.created_at else None,
+        "ended_at": (session.ended_at.isoformat() + "Z") if session.ended_at else None,
     }

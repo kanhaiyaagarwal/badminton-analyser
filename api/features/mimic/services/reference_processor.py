@@ -18,6 +18,11 @@ from ....core.streaming.pose_detector import PoseDetector, SKELETON_CONNECTIONS
 
 logger = logging.getLogger(__name__)
 
+# Shared semaphore to limit concurrent background video processing threads
+# (reference processing + video comparison). Prevents CPU/RAM exhaustion
+# from too many simultaneous MediaPipe instances.
+_processing_semaphore = threading.Semaphore(2)
+
 
 def process_reference_video(challenge_id: int):
     """
@@ -36,6 +41,7 @@ def _process(challenge_id: int):
     from ....database import SessionLocal
     from ..db_models.mimic import MimicChallenge, MimicProcessingStatus
 
+    _processing_semaphore.acquire()
     db = SessionLocal()
     try:
         challenge = db.query(MimicChallenge).filter(
@@ -97,6 +103,7 @@ def _process(challenge_id: int):
             db.rollback()
     finally:
         db.close()
+        _processing_semaphore.release()
 
 
 def _extract_pose_timeline(video_path: str) -> Optional[dict]:
