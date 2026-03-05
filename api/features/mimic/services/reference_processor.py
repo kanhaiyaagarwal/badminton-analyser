@@ -89,6 +89,33 @@ def _process(challenge_id: int):
             challenge.annotated_video_local_path = annotated_path
 
         db.commit()
+
+        # Upload processed files to S3 (non-fatal on failure)
+        try:
+            from ....services.storage_service import get_storage_service
+            storage = get_storage_service()
+            if storage.is_s3():
+                s3_prefix = f"mimic/challenges/{challenge_id}"
+                if challenge.video_local_path and Path(challenge.video_local_path).exists():
+                    with open(challenge.video_local_path, "rb") as f:
+                        challenge.video_s3_key = storage.outputs.save(
+                            f"{s3_prefix}/reference.mp4", f, content_type="video/mp4"
+                        )
+                if challenge.thumbnail_local_path and Path(challenge.thumbnail_local_path).exists():
+                    with open(challenge.thumbnail_local_path, "rb") as f:
+                        challenge.thumbnail_s3_key = storage.outputs.save(
+                            f"{s3_prefix}/thumbnail.jpg", f, content_type="image/jpeg"
+                        )
+                if challenge.annotated_video_local_path and Path(challenge.annotated_video_local_path).exists():
+                    with open(challenge.annotated_video_local_path, "rb") as f:
+                        challenge.annotated_video_s3_key = storage.outputs.save(
+                            f"{s3_prefix}/annotated.mp4", f, content_type="video/mp4"
+                        )
+                db.commit()
+                logger.info(f"Uploaded mimic challenge {challenge_id} files to S3")
+        except Exception as s3_err:
+            logger.warning(f"Failed to upload mimic challenge {challenge_id} to S3: {s3_err}")
+
         logger.info(
             f"Processed mimic challenge {challenge_id}: "
             f"{timeline['total_frames']} frames, {timeline['duration']:.1f}s"

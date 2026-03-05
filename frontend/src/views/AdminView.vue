@@ -519,6 +519,135 @@
         </div>
       </div>
 
+      <!-- MoveMatch Challenges Tab -->
+      <div v-if="activeTab === 'mimic-challenges'" class="tab-content">
+        <div class="section-header">
+          <h2>MoveMatch Challenges</h2>
+        </div>
+
+        <div v-if="loadingMimicChallenges" class="loading">Loading...</div>
+
+        <div v-else class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Title</th>
+              <th>Creator</th>
+              <th>Status</th>
+              <th>Duration</th>
+              <th>Plays</th>
+              <th>Public</th>
+              <th>Trending</th>
+              <th>Date</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="ch in mimicChallenges" :key="ch.id">
+              <td>{{ ch.id }}</td>
+              <td>{{ ch.title }}</td>
+              <td>{{ ch.creator_username || '-' }}<br v-if="ch.creator_email" /><span v-if="ch.creator_email" class="text-muted" style="font-size:0.75rem">{{ ch.creator_email }}</span></td>
+              <td>
+                <span :class="['status', ch.processing_status === 'ready' ? 'active' : 'pending']">
+                  {{ ch.processing_status }}
+                </span>
+              </td>
+              <td>{{ ch.video_duration ? ch.video_duration.toFixed(1) + 's' : '-' }}</td>
+              <td>{{ ch.play_count }}</td>
+              <td>
+                <button @click="toggleMimicPublic(ch)" class="btn-small" :class="ch.is_public ? 'btn-success' : ''">
+                  {{ ch.is_public ? 'Yes' : 'No' }}
+                </button>
+              </td>
+              <td>
+                <button @click="toggleMimicTrending(ch)" class="btn-small" :class="ch.is_trending ? 'btn-success' : ''">
+                  {{ ch.is_trending ? 'Yes' : 'No' }}
+                </button>
+              </td>
+              <td>{{ formatDate(ch.created_at) }}</td>
+              <td class="actions">
+                <button @click="deleteMimicChallenge(ch)" class="btn-small btn-danger">Delete</button>
+              </td>
+            </tr>
+            <tr v-if="mimicChallenges.length === 0">
+              <td colspan="10" class="empty">No MoveMatch challenges found</td>
+            </tr>
+          </tbody>
+        </table>
+        </div>
+
+        <div v-if="mimicChallengesTotal > PAGE_SIZE" class="pagination">
+          <button @click="mimicChallengesPageChange(-1)" :disabled="mimicChallengesPage === 0" class="btn-small">Prev</button>
+          <span class="page-info">{{ mimicChallengesPage * PAGE_SIZE + 1 }}–{{ Math.min((mimicChallengesPage + 1) * PAGE_SIZE, mimicChallengesTotal) }} of {{ mimicChallengesTotal }}</span>
+          <button @click="mimicChallengesPageChange(1)" :disabled="(mimicChallengesPage + 1) * PAGE_SIZE >= mimicChallengesTotal" class="btn-small">Next</button>
+        </div>
+      </div>
+
+      <!-- MoveMatch Sessions Tab -->
+      <div v-if="activeTab === 'mimic-sessions'" class="tab-content">
+        <div class="section-header">
+          <h2>MoveMatch Sessions</h2>
+        </div>
+
+        <div v-if="loadingMimicSessions" class="loading">Loading...</div>
+
+        <div v-else class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>User</th>
+              <th>Challenge</th>
+              <th>Source</th>
+              <th>Score</th>
+              <th>Duration</th>
+              <th>Frames</th>
+              <th>Date</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="s in mimicSessions" :key="s.id">
+              <td>{{ s.id }}</td>
+              <td>{{ s.username }}</td>
+              <td>{{ s.challenge_title || `#${s.challenge_id}` }}</td>
+              <td>{{ s.source }}</td>
+              <td>{{ s.overall_score.toFixed(1) }}</td>
+              <td>{{ s.duration_seconds.toFixed(1) }}s</td>
+              <td>{{ s.frames_compared }}</td>
+              <td>{{ formatDate(s.created_at) }}</td>
+              <td>
+                <span :class="['status', s.status === 'ended' ? 'active' : 'pending']">
+                  {{ s.status }}
+                </span>
+              </td>
+              <td class="actions">
+                <button
+                  v-if="s.has_screenshots"
+                  @click="viewMimicScreenshots(s.id, s.screenshot_count)"
+                  class="btn-small"
+                >
+                  Screenshots ({{ s.screenshot_count }})
+                </button>
+                <span v-else class="no-data">-</span>
+              </td>
+            </tr>
+            <tr v-if="mimicSessions.length === 0">
+              <td colspan="10" class="empty">No MoveMatch sessions found</td>
+            </tr>
+          </tbody>
+        </table>
+        </div>
+
+        <div v-if="mimicSessionsTotal > PAGE_SIZE" class="pagination">
+          <button @click="mimicSessionsPageChange(-1)" :disabled="mimicSessionsPage === 0" class="btn-small">Prev</button>
+          <span class="page-info">{{ mimicSessionsPage * PAGE_SIZE + 1 }}–{{ Math.min((mimicSessionsPage + 1) * PAGE_SIZE, mimicSessionsTotal) }} of {{ mimicSessionsTotal }}</span>
+          <button @click="mimicSessionsPageChange(1)" :disabled="(mimicSessionsPage + 1) * PAGE_SIZE >= mimicSessionsTotal" class="btn-small">Next</button>
+        </div>
+      </div>
+
       <!-- Create Code Modal -->
       <div v-if="showCreateCode" class="modal-overlay" @click="showCreateCode = false">
         <div class="modal-content" @click.stop>
@@ -580,6 +709,50 @@
         </div>
       </div>
     </template>
+    <!-- MoveMatch Screenshots modal -->
+    <div v-if="mimicSsModal.open" class="modal-overlay" @click.self="mimicSsModal.open = false">
+      <div class="modal-panel screenshots-panel">
+        <div class="modal-header">
+          <h3>MoveMatch Session #{{ mimicSsModal.sessionId }} Screenshots</h3>
+          <div class="modal-header-actions">
+            <button @click="downloadMimicScreenshots" class="btn-small" :disabled="mimicSsDownloading">
+              {{ mimicSsDownloading ? 'Downloading...' : 'Download All' }}
+            </button>
+            <button class="modal-close" @click="mimicSsModal.open = false">&times;</button>
+          </div>
+        </div>
+        <div v-if="mimicSsModal.loading" class="modal-loading">Loading screenshots...</div>
+        <div v-else class="screenshots-scroll">
+          <div class="screenshots-nav">
+            <span class="screenshots-count">Page {{ mimicSsCurrentPage }} of {{ mimicSsTotalPages }} ({{ mimicSsModal.total }} screenshots)</span>
+            <div class="screenshots-page-controls">
+              <button @click="mimicSsGoToPage(mimicSsCurrentPage - 1)" class="btn-small" :disabled="mimicSsCurrentPage <= 1 || mimicSsModal.loadingMore">&laquo; Prev</button>
+              <div class="screenshots-jump">
+                <label>Page</label>
+                <input
+                  type="number"
+                  v-model.number="mimicSsJumpPage"
+                  :min="1"
+                  :max="mimicSsTotalPages"
+                  @keyup.enter="mimicSsGoToPage(mimicSsJumpPage)"
+                  class="jump-input"
+                />
+                <button @click="mimicSsGoToPage(mimicSsJumpPage)" class="btn-small" :disabled="mimicSsModal.loadingMore">Go</button>
+              </div>
+              <button @click="mimicSsGoToPage(mimicSsCurrentPage + 1)" class="btn-small" :disabled="mimicSsCurrentPage >= mimicSsTotalPages || mimicSsModal.loadingMore">Next &raquo;</button>
+            </div>
+          </div>
+          <div v-if="mimicSsModal.loadingMore" class="modal-loading">Loading page...</div>
+          <div v-else class="screenshots-grid">
+            <div v-for="entry in mimicSsPageEntries" :key="entry.idx" class="screenshot-item">
+              <img :src="entry.src" :alt="`Screenshot ${entry.idx + 1}`" />
+              <span class="screenshot-index">{{ entry.idx + 1 }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Screenshots modal -->
     <div v-if="screenshotModal.open" class="modal-overlay" @click.self="screenshotModal.open = false">
       <div class="modal-panel screenshots-panel">
@@ -647,6 +820,8 @@ const tabs = [
   { id: 'sessions', label: 'Challenge Sessions' },
   { id: 'challenge-config', label: 'Challenge Config' },
   { id: 'badminton', label: 'Badminton Sessions' },
+  { id: 'mimic-challenges', label: 'MoveMatch Challenges' },
+  { id: 'mimic-sessions', label: 'MoveMatch Sessions' },
 ]
 const activeTab = ref('codes')
 
@@ -704,6 +879,28 @@ const loadingBadminton = ref(false)
 const badmintonPage = ref(0)
 const badmintonTotal = ref(0)
 
+// MoveMatch Challenges (paginated)
+const mimicChallenges = ref([])
+const loadingMimicChallenges = ref(false)
+const mimicChallengesPage = ref(0)
+const mimicChallengesTotal = ref(0)
+
+// MoveMatch Sessions (paginated)
+const mimicSessions = ref([])
+const loadingMimicSessions = ref(false)
+const mimicSessionsPage = ref(0)
+const mimicSessionsTotal = ref(0)
+
+// MoveMatch screenshot modal
+const mimicSsModal = ref({ open: false, sessionId: null, loading: false, loadingMore: false, total: 0 })
+const mimicSsDownloading = ref(false)
+const mimicSsCurrentPage = ref(1)
+const mimicSsJumpPage = ref(1)
+const mimicSsPageCache = ref({})
+const MIMIC_SS_PAGE_SIZE = 10
+const mimicSsTotalPages = computed(() => Math.ceil(mimicSsModal.value.total / MIMIC_SS_PAGE_SIZE) || 1)
+const mimicSsPageEntries = computed(() => mimicSsPageCache.value[mimicSsCurrentPage.value] || [])
+
 onMounted(async () => {
   if (isAdmin.value) {
     await Promise.all([loadCodes(), loadWhitelist(), loadWaitlist(), loadUsers()])
@@ -725,6 +922,12 @@ watch(activeTab, (tab) => {
   }
   if (tab === 'badminton' && badmintonSessions.value.length === 0) {
     loadBadmintonSessions()
+  }
+  if (tab === 'mimic-challenges' && mimicChallenges.value.length === 0) {
+    loadMimicChallenges()
+  }
+  if (tab === 'mimic-sessions' && mimicSessions.value.length === 0) {
+    loadMimicSessions()
   }
 })
 
@@ -1147,6 +1350,142 @@ async function downloadAllScreenshots() {
     console.error('Failed to download screenshots:', err)
   }
   ssDownloading.value = false
+}
+
+// ---------- MoveMatch Challenges ----------
+
+async function loadMimicChallenges() {
+  loadingMimicChallenges.value = true
+  try {
+    const params = { offset: mimicChallengesPage.value * PAGE_SIZE, limit: PAGE_SIZE }
+    const response = await api.get('/api/v1/mimic/admin/challenges', { params })
+    mimicChallenges.value = response.data.challenges
+    mimicChallengesTotal.value = response.data.total
+  } catch (err) {
+    console.error('Failed to load mimic challenges:', err)
+  } finally {
+    loadingMimicChallenges.value = false
+  }
+}
+
+function mimicChallengesPageChange(dir) {
+  mimicChallengesPage.value += dir
+  loadMimicChallenges()
+}
+
+async function toggleMimicPublic(ch) {
+  try {
+    const res = await api.put(`/api/v1/mimic/admin/challenges/${ch.id}/public`)
+    ch.is_public = res.data.is_public
+  } catch (err) {
+    console.error('Failed to toggle public:', err)
+  }
+}
+
+async function toggleMimicTrending(ch) {
+  try {
+    const res = await api.put(`/api/v1/mimic/admin/challenges/${ch.id}/trending`)
+    ch.is_trending = res.data.is_trending
+  } catch (err) {
+    console.error('Failed to toggle trending:', err)
+  }
+}
+
+async function deleteMimicChallenge(ch) {
+  if (!confirm(`Delete "${ch.title}"? This will remove all sessions, records, and files.`)) return
+  try {
+    await api.delete(`/api/v1/mimic/admin/challenges/${ch.id}`)
+    await loadMimicChallenges()
+  } catch (err) {
+    console.error('Failed to delete mimic challenge:', err)
+  }
+}
+
+// ---------- MoveMatch Sessions ----------
+
+async function loadMimicSessions() {
+  loadingMimicSessions.value = true
+  try {
+    const params = { offset: mimicSessionsPage.value * PAGE_SIZE, limit: PAGE_SIZE }
+    const response = await api.get('/api/v1/mimic/admin/sessions', { params })
+    mimicSessions.value = response.data.sessions
+    mimicSessionsTotal.value = response.data.total
+  } catch (err) {
+    console.error('Failed to load mimic sessions:', err)
+  } finally {
+    loadingMimicSessions.value = false
+  }
+}
+
+function mimicSessionsPageChange(dir) {
+  mimicSessionsPage.value += dir
+  loadMimicSessions()
+}
+
+async function viewMimicScreenshots(sessionId, count) {
+  for (const entries of Object.values(mimicSsPageCache.value)) {
+    for (const e of entries) URL.revokeObjectURL(e.src)
+  }
+  mimicSsPageCache.value = {}
+  mimicSsCurrentPage.value = 1
+  mimicSsJumpPage.value = 1
+  mimicSsModal.value = { open: true, sessionId, loading: true, loadingMore: false, total: count }
+  try {
+    await mimicSsLoadPage(1)
+  } catch (err) {
+    console.error('Failed to load mimic screenshots:', err)
+  }
+  mimicSsModal.value.loading = false
+}
+
+async function mimicSsLoadPage(page) {
+  if (mimicSsPageCache.value[page]) return
+  const modal = mimicSsModal.value
+  const start = (page - 1) * MIMIC_SS_PAGE_SIZE
+  const end = Math.min(start + MIMIC_SS_PAGE_SIZE, modal.total)
+  const entries = []
+  for (let i = start; i < end; i++) {
+    const res = await api.get(
+      `/api/v1/mimic/admin/sessions/${modal.sessionId}/screenshots/${i}`,
+      { responseType: 'blob' }
+    )
+    entries.push({ idx: i, src: URL.createObjectURL(res.data) })
+  }
+  mimicSsPageCache.value = { ...mimicSsPageCache.value, [page]: entries }
+}
+
+async function mimicSsGoToPage(page) {
+  page = Math.max(1, Math.min(page, mimicSsTotalPages.value))
+  if (page === mimicSsCurrentPage.value && mimicSsPageCache.value[page]) return
+  mimicSsModal.value.loadingMore = true
+  try {
+    await mimicSsLoadPage(page)
+    mimicSsCurrentPage.value = page
+    mimicSsJumpPage.value = page
+  } catch (err) {
+    console.error('Failed to load mimic screenshot page:', err)
+  }
+  mimicSsModal.value.loadingMore = false
+}
+
+async function downloadMimicScreenshots() {
+  const sid = mimicSsModal.value.sessionId
+  mimicSsDownloading.value = true
+  try {
+    const res = await api.get(
+      `/api/v1/mimic/admin/sessions/${sid}/screenshots/download`,
+      { responseType: 'blob' }
+    )
+    const url = URL.createObjectURL(res.data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `mimic_session_${sid}_screenshots.zip`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch (err) {
+    console.error('Failed to download mimic screenshots:', err)
+  }
+  mimicSsDownloading.value = false
 }
 
 function formatThresholdLabel(key) {

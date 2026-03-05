@@ -161,6 +161,17 @@ export const useMimicStore = defineStore('mimic', () => {
     }
   }
 
+  async function userDeleteChallenge(challengeId) {
+    try {
+      await api.delete(`/api/v1/mimic/challenges/${challengeId}`)
+      challenges.value = challenges.value.filter(c => c.id !== challengeId)
+      trending.value = trending.value.filter(c => c.id !== challengeId)
+    } catch (err) {
+      error.value = err.response?.data?.detail || 'Failed to delete challenge'
+      throw err
+    }
+  }
+
   async function fetchRecords() {
     try {
       const response = await api.get('/api/v1/mimic/records')
@@ -191,6 +202,7 @@ export const useMimicStore = defineStore('mimic', () => {
     uploadComparison,
     pollSession,
     deleteChallenge,
+    userDeleteChallenge,
     fetchRecords,
   }
 })

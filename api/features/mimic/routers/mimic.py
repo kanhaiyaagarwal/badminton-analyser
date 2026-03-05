@@ -1,7 +1,9 @@
 """Mimic Challenge REST endpoints."""
 
+import io
 import logging
 import shutil
+import zipfile
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -41,12 +43,16 @@ def require_admin(user=Depends(get_current_user)):
     return user
 
 
-def _build_challenge_response(ch: MimicChallenge) -> MimicChallengeResponse:
+def _build_challenge_response(
+    ch: MimicChallenge, creator_username: str = None, creator_email: str = None
+) -> MimicChallengeResponse:
     return MimicChallengeResponse(
         id=ch.id,
         title=ch.title,
         description=ch.description,
         created_by=ch.created_by,
+        creator_username=creator_username,
+        creator_email=creator_email,
         video_duration=ch.video_duration,
         video_fps=ch.video_fps,
         total_frames=ch.total_frames or 0,
@@ -78,6 +84,25 @@ async def upload_challenge(
         raise HTTPException(
             status_code=400,
             detail=f"Invalid video format. Allowed: {ALLOWED_VIDEO_EXTENSIONS}"
+        )
+
+    # Check file size (100MB limit)
+    contents = await video.read()
+    if len(contents) > 100 * 1024 * 1024:
+        raise HTTPException(
+            status_code=413,
+            detail="Video file too large. Maximum size is 100MB."
+        )
+    await video.seek(0)
+
+    # Check per-user challenge limit
+    user_count = db.query(MimicChallenge).filter(
+        MimicChallenge.created_by == user.id
+    ).count()
+    if user_count >= 5:
+        raise HTTPException(
+            status_code=400,
+            detail="Maximum 5 challenges per user. Delete an existing challenge to upload a new one."
         )
 
     settings = get_settings()
@@ -120,16 +145,21 @@ def list_challenges(
     user=Depends(get_current_user),
 ):
     """List public challenges and user's own challenges."""
-    q = db.query(MimicChallenge).options(
+    from ....db_models.user import User
+
+    q = db.query(MimicChallenge, User.username, User.email).options(
         defer(MimicChallenge.pose_timeline)
-    ).filter(
+    ).outerjoin(User, MimicChallenge.created_by == User.id).filter(
         (MimicChallenge.is_public == True) | (MimicChallenge.created_by == user.id)
     )
     total = q.count()
-    challenges = q.order_by(MimicChallenge.created_at.desc()).offset(offset).limit(limit).all()
+    rows = q.order_by(MimicChallenge.created_at.desc()).offset(offset).limit(limit).all()
 
     return {
-        "challenges": [_build_challenge_response(c) for c in challenges],
+        "challenges": [
+            _build_challenge_response(ch, creator_username=uname, creator_email=email)
+            for ch, uname, email in rows
+        ],
         "total": total,
     }
 
@@ -273,6 +303,7 @@ def get_challenge_thumbnail(
     user=Depends(get_current_user),
 ):
     """Serve the challenge thumbnail."""
+    storage = get_storage_service()
     challenge = db.query(MimicChallenge).options(
         defer(MimicChallenge.pose_timeline)
     ).filter(
@@ -281,6 +312,19 @@ def get_challenge_thumbnail(
     if not challenge:
         raise HTTPException(status_code=404, detail="Challenge not found")
 
+    # Check S3 first
+    if challenge.thumbnail_s3_key and storage.is_s3():
+        try:
+            thumb_data = storage.outputs.load(challenge.thumbnail_s3_key)
+            return Response(
+                content=thumb_data,
+                media_type="image/jpeg",
+                headers={"Content-Disposition": f'inline; filename="mimic_{challenge_id}_thumb.jpg"'},
+            )
+        except Exception as e:
+            logger.error(f"Failed to load mimic thumbnail from S3: {e}")
+
+    # Check local
     if challenge.thumbnail_local_path and Path(challenge.thumbnail_local_path).exists():
         return FileResponse(
             path=challenge.thumbnail_local_path,
@@ -289,6 +333,32 @@ def get_challenge_thumbnail(
         )
 
     raise HTTPException(status_code=404, detail="Thumbnail not available")
+
+
+@router.delete("/challenges/{challenge_id}")
+def user_delete_challenge(
+    challenge_id: int,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """Delete a challenge owned by the current user."""
+    challenge = db.query(MimicChallenge).filter(
+        MimicChallenge.id == challenge_id,
+        MimicChallenge.created_by == user.id,
+    ).first()
+    if not challenge:
+        raise HTTPException(status_code=404, detail="Challenge not found or not owned by you")
+
+    _cleanup_challenge_files(challenge, db)
+
+    # Delete associated sessions and records
+    db.query(MimicSession).filter(MimicSession.challenge_id == challenge_id).delete()
+    db.query(MimicRecord).filter(MimicRecord.challenge_id == challenge_id).delete()
+
+    db.delete(challenge)
+    db.commit()
+
+    return {"detail": f"Challenge {challenge_id} deleted"}
 
 
 # ---------- Sessions ----------
@@ -367,6 +437,13 @@ def end_mimic_session(
         return _build_session_response(session, record)
 
     gsm = get_generic_session_manager()
+
+    # Grab screenshots before ending session (which destroys the analyzer)
+    screenshots = []
+    analyzer_ref = gsm.get_session(session_id)
+    if analyzer_ref and hasattr(analyzer_ref, 'get_screenshots'):
+        screenshots = analyzer_ref.get_screenshots()
+
     report = gsm.end_session(session_id) or {}
 
     session.status = MimicSessionStatus.ENDED
@@ -395,6 +472,9 @@ def end_mimic_session(
             attempt_count=1,
         )
         db.add(record)
+
+    # Save screenshots
+    _save_mimic_screenshots(screenshots, session, user.id)
 
     db.commit()
     db.refresh(session)
@@ -527,6 +607,31 @@ def get_mimic_records(
 # ---------- Admin endpoints ----------
 
 
+@router.get("/admin/challenges")
+def admin_list_challenges(
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+    admin=Depends(require_admin),
+):
+    """List all challenges with creator info (admin only)."""
+    from ....db_models.user import User
+
+    q = db.query(MimicChallenge, User.username, User.email).options(
+        defer(MimicChallenge.pose_timeline)
+    ).outerjoin(User, MimicChallenge.created_by == User.id)
+
+    total = q.count()
+    rows = q.order_by(MimicChallenge.created_at.desc()).offset(offset).limit(limit).all()
+
+    results = [
+        _build_challenge_response(ch, creator_username=username, creator_email=email)
+        for ch, username, email in rows
+    ]
+
+    return {"challenges": results, "total": total}
+
+
 @router.put("/admin/challenges/{challenge_id}/trending")
 def toggle_trending(
     challenge_id: int,
@@ -548,6 +653,27 @@ def toggle_trending(
     return {"id": challenge.id, "is_trending": challenge.is_trending}
 
 
+@router.put("/admin/challenges/{challenge_id}/public")
+def toggle_public(
+    challenge_id: int,
+    db: Session = Depends(get_db),
+    admin=Depends(require_admin),
+):
+    """Toggle public visibility for a challenge (admin only)."""
+    challenge = db.query(MimicChallenge).options(
+        defer(MimicChallenge.pose_timeline)
+    ).filter(
+        MimicChallenge.id == challenge_id
+    ).first()
+    if not challenge:
+        raise HTTPException(status_code=404, detail="Challenge not found")
+
+    challenge.is_public = not challenge.is_public
+    db.commit()
+
+    return {"id": challenge.id, "is_public": challenge.is_public}
+
+
 @router.delete("/admin/challenges/{challenge_id}")
 def delete_challenge(
     challenge_id: int,
@@ -561,26 +687,151 @@ def delete_challenge(
     if not challenge:
         raise HTTPException(status_code=404, detail="Challenge not found")
 
+    _cleanup_challenge_files(challenge, db)
+
     # Delete associated sessions and records
     db.query(MimicSession).filter(MimicSession.challenge_id == challenge_id).delete()
     db.query(MimicRecord).filter(MimicRecord.challenge_id == challenge_id).delete()
-
-    # Clean up local files
-    for path in (
-        challenge.video_local_path,
-        challenge.thumbnail_local_path,
-        challenge.annotated_video_local_path,
-    ):
-        if path:
-            try:
-                Path(path).unlink(missing_ok=True)
-            except OSError:
-                pass
 
     db.delete(challenge)
     db.commit()
 
     return {"detail": f"Challenge {challenge_id} deleted"}
+
+
+@router.get("/admin/sessions")
+def admin_list_sessions(
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+    admin=Depends(require_admin),
+):
+    """List all mimic sessions with user info (admin only)."""
+    from ....db_models.user import User
+
+    q = db.query(MimicSession, User.username, User.email).options(
+        defer(MimicSession.frame_scores)
+    ).outerjoin(User, MimicSession.user_id == User.id)
+
+    total = q.count()
+    rows = q.order_by(MimicSession.created_at.desc()).offset(offset).limit(limit).all()
+
+    # Batch-fetch challenge titles
+    challenge_ids = {s.challenge_id for s, _, _ in rows}
+    titles = {}
+    if challenge_ids:
+        for ch in db.query(
+            MimicChallenge.id, MimicChallenge.title
+        ).filter(MimicChallenge.id.in_(challenge_ids)).all():
+            titles[ch.id] = ch.title
+
+    results = []
+    for sess, username, email in rows:
+        results.append({
+            "id": sess.id,
+            "user_id": sess.user_id,
+            "username": username,
+            "email": email,
+            "challenge_id": sess.challenge_id,
+            "challenge_title": titles.get(sess.challenge_id),
+            "source": sess.source or "live",
+            "status": sess.status.value,
+            "overall_score": sess.overall_score or 0,
+            "duration_seconds": sess.duration_seconds or 0,
+            "frames_compared": sess.frames_compared or 0,
+            "has_screenshots": bool(sess.screenshots_s3_prefix),
+            "screenshot_count": sess.screenshot_count or 0,
+            "created_at": (sess.created_at.isoformat() + "Z") if sess.created_at else None,
+            "ended_at": (sess.ended_at.isoformat() + "Z") if sess.ended_at else None,
+        })
+
+    return {"sessions": results, "total": total}
+
+
+@router.get("/admin/sessions/{session_id}/screenshots")
+def admin_list_session_screenshots(
+    session_id: int,
+    db: Session = Depends(get_db),
+    admin=Depends(require_admin),
+):
+    """List screenshot URLs for a mimic session (admin only)."""
+    session = db.query(MimicSession).filter(MimicSession.id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if not session.screenshots_s3_prefix or not session.screenshot_count:
+        return {"count": 0, "urls": []}
+
+    urls = []
+    for i in range(session.screenshot_count):
+        urls.append(f"/api/v1/mimic/admin/sessions/{session_id}/screenshots/{i}")
+
+    return {"count": session.screenshot_count, "urls": urls}
+
+
+@router.get("/admin/sessions/{session_id}/screenshots/download")
+def admin_download_session_screenshots(
+    session_id: int,
+    db: Session = Depends(get_db),
+    admin=Depends(require_admin),
+):
+    """Download all screenshots for a mimic session as a ZIP (admin only)."""
+    session = db.query(MimicSession).filter(MimicSession.id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if not session.screenshots_s3_prefix or not session.screenshot_count:
+        raise HTTPException(status_code=404, detail="No screenshots available")
+
+    storage = get_storage_service()
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for i in range(session.screenshot_count):
+            key = f"{session.screenshots_s3_prefix}{i:04d}.jpg"
+            try:
+                data = storage.outputs.load(key)
+                zf.writestr(f"screenshot_{i:04d}.jpg", data)
+            except Exception as e:
+                logger.warning(f"Missing screenshot {key}: {e}")
+
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="mimic_session_{session_id}_screenshots.zip"'
+        },
+    )
+
+
+@router.get("/admin/sessions/{session_id}/screenshots/{index}")
+def admin_get_session_screenshot(
+    session_id: int,
+    index: int,
+    db: Session = Depends(get_db),
+    admin=Depends(require_admin),
+):
+    """Get a single screenshot by index for a mimic session (admin only)."""
+    session = db.query(MimicSession).filter(MimicSession.id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if not session.screenshots_s3_prefix or index < 0 or index >= (session.screenshot_count or 0):
+        raise HTTPException(status_code=404, detail="Screenshot not found")
+
+    storage = get_storage_service()
+    key = f"{session.screenshots_s3_prefix}{index:04d}.jpg"
+    try:
+        data = storage.outputs.load(key)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Screenshot file not found")
+
+    return Response(
+        content=data,
+        media_type="image/jpeg",
+        headers={
+            "Content-Disposition": f'inline; filename="mimic_session_{session_id}_screenshot_{index:04d}.jpg"'
+        },
+    )
 
 
 @router.get("/admin/challenges/{challenge_id}/annotated-video")
@@ -626,6 +877,63 @@ def get_annotated_video(
 
 
 # ---------- Helpers ----------
+
+
+def _save_mimic_screenshots(screenshots: list, session: MimicSession, user_id: int):
+    """Save per-second annotated screenshots to storage."""
+    if not screenshots:
+        return
+    storage = get_storage_service()
+    prefix = f"mimic/{user_id}/session_{session.id}/screenshots/"
+    for i, jpg_bytes in enumerate(screenshots):
+        key = f"{prefix}{i:04d}.jpg"
+        storage.outputs.save(key, jpg_bytes, content_type="image/jpeg")
+    session.screenshots_s3_prefix = prefix
+    session.screenshot_count = len(screenshots)
+    logger.info(f"Saved {len(screenshots)} mimic screenshots for session {session.id}")
+
+
+def _cleanup_challenge_files(challenge: MimicChallenge, db: Session):
+    """Clean up local + S3 files for a challenge and its sessions."""
+    storage = get_storage_service()
+
+    # Clean up local files
+    for path in (
+        challenge.video_local_path,
+        challenge.thumbnail_local_path,
+        challenge.annotated_video_local_path,
+    ):
+        if path:
+            try:
+                Path(path).unlink(missing_ok=True)
+            except OSError:
+                pass
+
+    # Clean up S3 challenge files
+    if storage.is_s3():
+        for key in (
+            challenge.video_s3_key,
+            challenge.thumbnail_s3_key,
+            challenge.annotated_video_s3_key,
+        ):
+            if key:
+                try:
+                    storage.outputs.delete(key)
+                except Exception as e:
+                    logger.warning(f"Failed to delete S3 key {key}: {e}")
+
+    # Clean up session screenshots from S3
+    sessions = db.query(MimicSession).filter(
+        MimicSession.challenge_id == challenge.id
+    ).all()
+    for sess in sessions:
+        if sess.screenshots_s3_prefix and storage.is_s3():
+            for i in range(sess.screenshot_count or 0):
+                key = f"{sess.screenshots_s3_prefix}{i:04d}.jpg"
+                try:
+                    storage.outputs.delete(key)
+                except Exception:
+                    pass
 
 
 def _build_session_response(

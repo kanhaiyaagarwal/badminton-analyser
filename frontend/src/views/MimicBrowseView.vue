@@ -65,6 +65,7 @@
           </div>
           <div class="card-info">
             <h3>{{ ch.title }}</h3>
+            <span v-if="ch.creator_username" class="card-creator">by {{ ch.creator_username }}</span>
             <div class="card-meta">
               <span v-if="ch.video_duration">{{ formatDuration(ch.video_duration) }}</span>
               <span>{{ ch.play_count }} plays</span>
@@ -80,7 +81,7 @@
               >
                 {{ comparingId === ch.id ? 'Processing...' : 'Upload Video' }}
               </button>
-              <button v-if="isAdmin" class="action-btn delete-btn" @click="confirmDelete(ch)">Delete</button>
+              <button v-if="isAdmin || ch.created_by === authStore.user?.id" class="action-btn delete-btn" @click="confirmDelete(ch)">Delete</button>
             </div>
           </div>
         </div>
@@ -106,6 +107,7 @@
           </div>
           <div class="card-info">
             <h3>{{ ch.title }}</h3>
+            <span v-if="ch.creator_username" class="card-creator">by {{ ch.creator_username }}</span>
             <p v-if="ch.description" class="card-desc">{{ ch.description }}</p>
             <div class="card-meta">
               <span v-if="ch.video_duration">{{ formatDuration(ch.video_duration) }}</span>
@@ -123,9 +125,9 @@
               >
                 {{ comparingId === ch.id ? 'Processing...' : 'Upload Video' }}
               </button>
-              <button v-if="isAdmin" class="action-btn delete-btn" @click="confirmDelete(ch)">Delete</button>
+              <button v-if="isAdmin || ch.created_by === authStore.user?.id" class="action-btn delete-btn" @click="confirmDelete(ch)">Delete</button>
             </div>
-            <div v-else-if="isAdmin" class="card-actions">
+            <div v-else-if="isAdmin || ch.created_by === authStore.user?.id" class="card-actions">
               <button class="action-btn delete-btn" @click="confirmDelete(ch)">Delete</button>
             </div>
           </div>
@@ -238,7 +240,11 @@ async function onCompareFileSelected(e) {
 async function confirmDelete(ch) {
   if (!confirm(`Delete "${ch.title}"? This will remove all sessions and records.`)) return
   try {
-    await mimicStore.deleteChallenge(ch.id)
+    if (isAdmin.value) {
+      await mimicStore.deleteChallenge(ch.id)
+    } else {
+      await mimicStore.userDeleteChallenge(ch.id)
+    }
   } catch (err) {
     alert('Failed to delete challenge')
   }
@@ -423,6 +429,13 @@ function scoreClass(score) {
   color: var(--text-primary);
   font-size: 1rem;
   margin: 0 0 0.25rem;
+}
+
+.card-creator {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  display: block;
+  margin-bottom: 0.25rem;
 }
 
 .card-desc {

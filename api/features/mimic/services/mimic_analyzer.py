@@ -43,6 +43,10 @@ class MimicAnalyzer(BaseStreamAnalyzer):
         self.frames_processed = 0
         self._prev_landmarks: Optional[List[Dict]] = None
 
+        # Per-second screenshots (for admin review)
+        self._screenshots: List[bytes] = []
+        self._last_screenshot_ts: float = -1.0
+
     _EMA_ALPHA = 0.4  # responsive but smooth
 
     def _ema_smooth(self, current_lm: List[Dict]) -> List[Dict]:
@@ -108,6 +112,12 @@ class MimicAnalyzer(BaseStreamAnalyzer):
         user_lm_smoothed = None
         if pose_result.player_detected and pose_result.landmark_list:
             user_lm_smoothed = self._ema_smooth(pose_result.landmark_list)
+            # Rebuild pixel coords from smoothed normalized values
+            # (_ema_smooth only preserves nx/ny; frontend needs x/y for drawing)
+            h_px, w_px = frame.shape[:2]
+            for lm in user_lm_smoothed:
+                lm["x"] = int(lm.get("nx", 0) * w_px)
+                lm["y"] = int(lm.get("ny", 0) * h_px)
             response["pose"] = {
                 "landmarks": user_lm_smoothed,
                 "connections": SKELETON_CONNECTIONS,
@@ -124,6 +134,7 @@ class MimicAnalyzer(BaseStreamAnalyzer):
             ref_lm_dicts = None
 
         # Compute similarity scores
+        scores = {}
         if (
             user_lm_smoothed
             and ref_lm_dicts
@@ -152,7 +163,57 @@ class MimicAnalyzer(BaseStreamAnalyzer):
             }
             response["feedback"] = "Reference pose not available"
 
+        # Capture 1 screenshot per second (for admin review)
+        if pose_result.player_detected and elapsed - self._last_screenshot_ts >= 1.0:
+            annotated = self._draw_screenshot_overlay(frame, pose_result, scores, ref_time)
+            _, buf = cv2.imencode('.jpg', annotated, [cv2.IMWRITE_JPEG_QUALITY, 80])
+            self._screenshots.append(buf.tobytes())
+            self._last_screenshot_ts = elapsed
+
         return response
+
+    def _draw_screenshot_overlay(self, frame, pose_result, scores: Dict, ref_time: float):
+        """Draw user skeleton and score HUD on a frame copy for screenshots."""
+        img = frame.copy()
+        h, w = img.shape[:2]
+
+        # Draw user skeleton (green)
+        if pose_result.player_detected and pose_result.landmark_list:
+            points = []
+            for lm in pose_result.landmark_list:
+                px = int(lm.get("nx", 0) * w)
+                py = int(lm.get("ny", 0) * h)
+                vis = lm.get("visibility", 0)
+                points.append((px, py, vis))
+
+            for a_idx, b_idx in SKELETON_CONNECTIONS:
+                if a_idx >= len(points) or b_idx >= len(points):
+                    continue
+                ax, ay, a_vis = points[a_idx]
+                bx, by, b_vis = points[b_idx]
+                if a_vis < 0.3 or b_vis < 0.3:
+                    continue
+                cv2.line(img, (ax, ay), (bx, by), (0, 200, 0), 2)
+
+            for px, py, vis in points:
+                if vis < 0.3:
+                    continue
+                cv2.circle(img, (px, py), 4, (0, 255, 0), -1)
+
+        # Draw score HUD
+        y_offset = 30
+        if scores.get("angle_score") is not None:
+            cv2.putText(img, f"Score: {scores['angle_score']:.0f}",
+                        (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+            y_offset += 25
+        cv2.putText(img, f"Ref: {ref_time:.1f}s",
+                    (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (200, 200, 200), 1)
+
+        return img
+
+    def get_screenshots(self) -> List[bytes]:
+        """Return captured per-second screenshots."""
+        return self._screenshots
 
     def get_final_report(self) -> Dict:
         """Generate summary report when the session ends."""
@@ -244,6 +305,8 @@ class MimicAnalyzer(BaseStreamAnalyzer):
         self.start_time = None
         self.frames_processed = 0
         self._prev_landmarks = None
+        self._screenshots = []
+        self._last_screenshot_ts = -1.0
 
     def close(self):
         """Release resources."""

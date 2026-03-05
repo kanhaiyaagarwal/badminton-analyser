@@ -46,6 +46,7 @@ def init_db():
     _migrate_squat_variants()
     _migrate_feature_access_catalog()
     _migrate_user_signup_code()
+    _migrate_mimic_session_screenshots()
     seed_default_tuning_data()
     seed_challenge_defaults()
     seed_feature_access()
@@ -404,6 +405,31 @@ def _migrate_user_signup_code():
                 logger.info("Added column users.signed_up_with_code")
     except Exception as e:
         logger.debug(f"users signup code migration skipped: {e}")
+
+
+def _migrate_mimic_session_screenshots():
+    """Add screenshot columns to mimic_sessions if missing."""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    new_columns = {
+        "screenshots_s3_prefix": "VARCHAR(512)",
+        "screenshot_count": "INTEGER DEFAULT 0",
+    }
+
+    from sqlalchemy import text, inspect
+    try:
+        inspector = inspect(engine)
+        existing = {c["name"] for c in inspector.get_columns("mimic_sessions")}
+        with engine.begin() as conn:
+            for col_name, col_type in new_columns.items():
+                if col_name not in existing:
+                    conn.execute(text(
+                        f"ALTER TABLE mimic_sessions ADD COLUMN {col_name} {col_type}"
+                    ))
+                    logger.info(f"Added column mimic_sessions.{col_name}")
+    except Exception as e:
+        logger.debug(f"mimic_sessions screenshot migration skipped: {e}")
 
 
 def seed_challenge_defaults():

@@ -810,11 +810,18 @@ async def websocket_mimic(
         from .features.mimic.db_models.mimic import (
             MimicSession as MS, MimicSessionStatus, MimicRecord,
         )
+        from .features.mimic.routers.mimic import _save_mimic_screenshots
 
         db2 = SessionLocal()
         try:
             sess = db2.query(MS).filter(MS.id == session_id).first()
             if sess and sess.status != MimicSessionStatus.ENDED:
+                # Grab screenshots before ending session
+                screenshots = []
+                analyzer_ref = gsm.get_session(session_id)
+                if analyzer_ref and hasattr(analyzer_ref, 'get_screenshots'):
+                    screenshots = analyzer_ref.get_screenshots()
+
                 report = gsm.end_session(session_id) or {}
 
                 sess.status = MimicSessionStatus.ENDED
@@ -841,6 +848,9 @@ async def websocket_mimic(
                         best_score=sess.overall_score,
                         attempt_count=1,
                     ))
+
+                # Save screenshots
+                _save_mimic_screenshots(screenshots, sess, sess.user_id)
 
                 db2.commit()
                 logger.info(f"Mimic session {session_id}: auto-ended on disconnect (score={sess.overall_score})")

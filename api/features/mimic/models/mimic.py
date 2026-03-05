@@ -15,12 +15,14 @@ class MimicChallengeResponse(BaseModel):
     title: str
     description: Optional[str] = None
     created_by: int
+    creator_username: Optional[str] = None
+    creator_email: Optional[str] = None
     video_duration: Optional[float] = None
     video_fps: Optional[float] = None
     total_frames: int = 0
     processing_status: str
     is_trending: bool = False
-    is_public: bool = True
+    is_public: bool = False
     play_count: int = 0
     has_video: bool = False
     has_thumbnail: bool = False

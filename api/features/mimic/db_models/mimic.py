@@ -49,7 +49,7 @@ class MimicChallenge(Base):
     )
 
     is_trending = Column(Boolean, default=False)
-    is_public = Column(Boolean, default=True)
+    is_public = Column(Boolean, default=False)
     play_count = Column(Integer, default=0)
 
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -72,6 +72,8 @@ class MimicSession(Base):
     score_breakdown = Column(JSON, nullable=True)
     frame_scores = Column(JSON, nullable=True)
     comparison_video_path = Column(String(512), nullable=True)
+    screenshots_s3_prefix = Column(String(512), nullable=True)
+    screenshot_count = Column(Integer, default=0)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     ended_at = Column(DateTime, nullable=True)
