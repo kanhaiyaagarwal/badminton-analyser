@@ -290,6 +290,9 @@ async def compare_challenge(
     with open(video_path, "wb") as f:
         shutil.copyfileobj(video.file, f)
 
+    session.uploaded_video_path = video_path
+    db.commit()
+
     # Kick off background comparison
     compare_video(challenge.id, video_path, session.id)
 
@@ -741,6 +744,12 @@ def admin_list_sessions(
             "frames_compared": sess.frames_compared or 0,
             "has_screenshots": bool(sess.screenshots_s3_prefix),
             "screenshot_count": sess.screenshot_count or 0,
+            "has_comparison_video": bool(
+                sess.comparison_video_path and Path(sess.comparison_video_path).exists()
+            ),
+            "has_uploaded_video": bool(
+                sess.uploaded_video_path and Path(sess.uploaded_video_path).exists()
+            ),
             "created_at": (sess.created_at.isoformat() + "Z") if sess.created_at else None,
             "ended_at": (sess.ended_at.isoformat() + "Z") if sess.ended_at else None,
         })
@@ -832,6 +841,85 @@ def admin_get_session_screenshot(
             "Content-Disposition": f'inline; filename="mimic_session_{session_id}_screenshot_{index:04d}.jpg"'
         },
     )
+
+
+@router.get("/admin/sessions/{session_id}/comparison-video")
+def admin_get_comparison_video(
+    session_id: int,
+    db: Session = Depends(get_db),
+    admin=Depends(require_admin),
+):
+    """Serve the comparison video for a mimic session (admin only)."""
+    session = db.query(MimicSession).filter(MimicSession.id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if (
+        not session.comparison_video_path
+        or not Path(session.comparison_video_path).exists()
+    ):
+        raise HTTPException(status_code=404, detail="Comparison video not available")
+
+    return FileResponse(
+        path=session.comparison_video_path,
+        media_type="video/mp4",
+        filename=f"comparison_{session_id}.mp4",
+    )
+
+
+@router.get("/admin/sessions/{session_id}/uploaded-video")
+def admin_get_uploaded_video(
+    session_id: int,
+    db: Session = Depends(get_db),
+    admin=Depends(require_admin),
+):
+    """Serve the original uploaded video for a mimic session (admin only)."""
+    session = db.query(MimicSession).filter(MimicSession.id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if (
+        not session.uploaded_video_path
+        or not Path(session.uploaded_video_path).exists()
+    ):
+        raise HTTPException(status_code=404, detail="Uploaded video not available")
+
+    return FileResponse(
+        path=session.uploaded_video_path,
+        media_type="video/mp4",
+        filename=f"upload_{session_id}.mp4",
+    )
+
+
+@router.get("/admin/sessions/{session_id}/details")
+def admin_get_session_details(
+    session_id: int,
+    db: Session = Depends(get_db),
+    admin=Depends(require_admin),
+):
+    """Get detailed scoring data for a mimic session (admin only)."""
+    session = db.query(MimicSession).options(
+        defer(MimicSession.frame_scores)
+    ).filter(MimicSession.id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    feedback = generate_summary_feedback(session.score_breakdown) if session.score_breakdown else None
+
+    return {
+        "id": session.id,
+        "score_breakdown": session.score_breakdown,
+        "overall_score": session.overall_score or 0,
+        "feedback": feedback,
+        "duration_seconds": session.duration_seconds or 0,
+        "frames_compared": session.frames_compared or 0,
+        "source": session.source or "live",
+        "has_comparison_video": bool(
+            session.comparison_video_path and Path(session.comparison_video_path).exists()
+        ),
+        "created_at": (session.created_at.isoformat() + "Z") if session.created_at else None,
+        "ended_at": (session.ended_at.isoformat() + "Z") if session.ended_at else None,
+    }
 
 
 @router.get("/admin/challenges/{challenge_id}/annotated-video")

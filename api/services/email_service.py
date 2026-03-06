@@ -296,6 +296,73 @@ If you have any questions, feel free to reach out to us.
 
         return self.provider.send_email(to_email, subject, body_html, body_text)
 
+    def send_feature_review_email(
+        self, to_email: str, username: str,
+        feature_display_name: str, admin_message: str,
+    ) -> bool:
+        """Send email notifying user that their feature request is being reviewed."""
+        subject = f"Update on your request: {feature_display_name} - PushUp Pro"
+
+        # Convert newlines in admin message to <p> tags for HTML
+        message_paragraphs = "".join(
+            f"<p style=\"color: #1e293b; margin: 8px 0;\">{line}</p>"
+            for line in admin_message.split("\n") if line.strip()
+        )
+
+        body_html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body {{ font-family: 'Inter', Arial, sans-serif; line-height: 1.6; color: #1e293b; background: #f0f4ff; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .header {{ background: linear-gradient(135deg, #3b82f6, #a855f7); color: #ffffff; padding: 24px; text-align: center; border-radius: 12px 12px 0 0; }}
+                .header h1 {{ margin: 0; font-size: 24px; font-weight: 700; }}
+                .content {{ background: #ffffff; padding: 32px; border-radius: 0 0 12px 12px; border: 1px solid rgba(0,0,0,0.08); border-top: none; }}
+                .feature-name {{ font-size: 18px; font-weight: bold; color: #7c3aed; text-align: center; padding: 16px; background: #f0f4ff; border-radius: 8px; margin: 16px 0; border: 2px dashed #a855f7; }}
+                .admin-message {{ background: #f8fafc; border-left: 4px solid #3b82f6; padding: 16px; border-radius: 0 8px 8px 0; margin: 20px 0; }}
+                .footer {{ text-align: center; margin-top: 20px; color: #94a3b8; font-size: 12px; }}
+                p {{ color: #64748b; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>PushUp Pro</h1>
+                </div>
+                <div class="content">
+                    <p>Hi {username},</p>
+                    <p>We're reviewing your request for:</p>
+                    <div class="feature-name">{feature_display_name}</div>
+                    <p><strong>Message from our team:</strong></p>
+                    <div class="admin-message">
+                        {message_paragraphs}
+                    </div>
+                    <p>Please reply to this email if you have any questions.</p>
+                </div>
+                <div class="footer">
+                    <p>&copy; PushUp Pro. All rights reserved.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+
+        body_text = f"""Hi {username},
+
+We're reviewing your request for: {feature_display_name}
+
+Message from our team:
+
+{admin_message}
+
+Please reply to this email if you have any questions.
+
+- PushUp Pro Team
+        """
+
+        return self.provider.send_email(to_email, subject, body_html, body_text)
+
     def notify_admins_waitlist_join(self, db, email: str, name: Optional[str] = None) -> None:
         """Notify all admins that someone joined the waitlist."""
         from ..db_models.user import User

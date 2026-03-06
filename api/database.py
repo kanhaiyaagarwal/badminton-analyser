@@ -47,6 +47,7 @@ def init_db():
     _migrate_feature_access_catalog()
     _migrate_user_signup_code()
     _migrate_mimic_session_screenshots()
+    _migrate_mimic_session_uploaded_video()
     seed_default_tuning_data()
     seed_challenge_defaults()
     seed_feature_access()
@@ -430,6 +431,25 @@ def _migrate_mimic_session_screenshots():
                     logger.info(f"Added column mimic_sessions.{col_name}")
     except Exception as e:
         logger.debug(f"mimic_sessions screenshot migration skipped: {e}")
+
+
+def _migrate_mimic_session_uploaded_video():
+    """Add uploaded_video_path column to mimic_sessions if missing."""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    from sqlalchemy import text, inspect
+    try:
+        inspector = inspect(engine)
+        existing = {c["name"] for c in inspector.get_columns("mimic_sessions")}
+        if "uploaded_video_path" not in existing:
+            with engine.begin() as conn:
+                conn.execute(text(
+                    "ALTER TABLE mimic_sessions ADD COLUMN uploaded_video_path VARCHAR(512)"
+                ))
+                logger.info("Added column mimic_sessions.uploaded_video_path")
+    except Exception as e:
+        logger.debug(f"mimic_sessions uploaded_video_path migration skipped: {e}")
 
 
 def seed_challenge_defaults():

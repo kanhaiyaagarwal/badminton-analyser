@@ -283,6 +283,7 @@
           <select v-model="featureRequestFilter" @change="loadFeatureRequests()">
             <option value="">All Statuses</option>
             <option value="pending">Pending</option>
+            <option value="in_review">In Review</option>
             <option value="approved">Approved</option>
             <option value="rejected">Rejected</option>
           </select>
@@ -308,14 +309,15 @@
               <td>{{ req.email }}</td>
               <td>{{ req.feature_name }}</td>
               <td>
-                <span :class="['status', req.status === 'approved' ? 'active' : req.status === 'pending' ? 'pending' : 'inactive']">
-                  {{ req.status }}
+                <span :class="['status', req.status === 'approved' ? 'active' : req.status === 'pending' ? 'pending' : req.status === 'in_review' ? 'review' : 'inactive']">
+                  {{ req.status === 'in_review' ? 'In Review' : req.status }}
                 </span>
               </td>
               <td>{{ formatDate(req.created_at) }}</td>
               <td class="actions">
-                <template v-if="req.status === 'pending'">
+                <template v-if="req.status === 'pending' || req.status === 'in_review'">
                   <button @click="approveFeatureRequest(req)" class="btn-small btn-success">Approve</button>
+                  <button @click="openReviewModal(req)" class="btn-small btn-review">In Review</button>
                   <button @click="rejectFeatureRequest(req)" class="btn-small btn-danger">Reject</button>
                 </template>
                 <span v-else class="text-muted">-</span>
@@ -326,6 +328,37 @@
             </tr>
           </tbody>
         </table>
+        </div>
+
+        <!-- Review Modal -->
+        <div v-if="reviewModal.show" class="modal-overlay" @click.self="reviewModal.show = false">
+          <div class="modal-content" @click.stop>
+            <h2>Review: {{ reviewModal.req?.feature_name }}</h2>
+            <p class="text-muted" style="margin-bottom: 1rem;">Email will be sent to {{ reviewModal.req?.email }}</p>
+
+            <form @submit.prevent="submitReview">
+              <div class="form-group">
+                <label>Message to user</label>
+                <textarea
+                  v-model="reviewModal.message"
+                  rows="6"
+                  placeholder="Enter your message to the user..."
+                  style="width: 100%; resize: vertical;"
+                ></textarea>
+              </div>
+
+              <button
+                type="submit"
+                class="btn-primary"
+                :disabled="!reviewModal.message.trim() || reviewModal.sending"
+              >
+                {{ reviewModal.sending ? 'Sending...' : 'Send Review Email' }}
+              </button>
+              <button type="button" @click="reviewModal.show = false" class="btn-secondary">
+                Cancel
+              </button>
+            </form>
+          </div>
         </div>
       </div>
 
@@ -625,13 +658,32 @@
               </td>
               <td class="actions">
                 <button
+                  v-if="s.has_comparison_video"
+                  @click="openMimicVideo(s)"
+                  class="btn-small btn-info"
+                >
+                  Video
+                </button>
+                <button
+                  v-if="s.has_uploaded_video"
+                  @click="downloadMimicUpload(s)"
+                  class="btn-small"
+                >
+                  Original
+                </button>
+                <button
+                  @click="openMimicDetails(s)"
+                  class="btn-small"
+                >
+                  Details
+                </button>
+                <button
                   v-if="s.has_screenshots"
                   @click="viewMimicScreenshots(s.id, s.screenshot_count)"
                   class="btn-small"
                 >
                   Screenshots ({{ s.screenshot_count }})
                 </button>
-                <span v-else class="no-data">-</span>
               </td>
             </tr>
             <tr v-if="mimicSessions.length === 0">
@@ -753,6 +805,89 @@
       </div>
     </div>
 
+    <!-- MoveMatch Video modal -->
+    <div v-if="mimicVideoModal.open" class="modal-overlay" @click.self="closeMimicVideo">
+      <div class="modal-panel video-panel">
+        <div class="modal-header">
+          <h3>Comparison Video — Session #{{ mimicVideoModal.sessionId }} ({{ mimicVideoModal.username }})</h3>
+          <button class="modal-close" @click="closeMimicVideo">&times;</button>
+        </div>
+        <div v-if="mimicVideoModal.loading" class="modal-loading">Loading video...</div>
+        <video
+          v-else-if="mimicVideoModal.src"
+          ref="mimicVideoEl"
+          controls
+          autoplay
+          :src="mimicVideoModal.src"
+          class="mimic-video-player"
+        ></video>
+      </div>
+    </div>
+
+    <!-- MoveMatch Details modal -->
+    <div v-if="mimicDetailsModal.open" class="modal-overlay" @click.self="mimicDetailsModal.open = false">
+      <div class="modal-panel details-panel">
+        <div class="modal-header">
+          <h3>Session Details — #{{ mimicDetailsModal.sessionId }}</h3>
+          <button class="modal-close" @click="mimicDetailsModal.open = false">&times;</button>
+        </div>
+        <div v-if="mimicDetailsModal.loading" class="modal-loading">Loading details...</div>
+        <template v-else-if="mimicDetailsModal.data">
+          <div class="detail-score-grid">
+            <div class="detail-score-card">
+              <span class="detail-score-label">Overall Score</span>
+              <span class="detail-score-value" :style="{ color: scoreColor(mimicDetailsModal.data.overall_score) }">
+                {{ mimicDetailsModal.data.overall_score.toFixed(1) }}
+              </span>
+            </div>
+            <template v-if="mimicDetailsModal.data.score_breakdown">
+              <div class="detail-score-card" v-if="mimicDetailsModal.data.score_breakdown.cosine_raw != null">
+                <span class="detail-score-label">Cosine Raw</span>
+                <span class="detail-score-value">{{ mimicDetailsModal.data.score_breakdown.cosine_raw.toFixed(2) }}</span>
+              </div>
+              <div class="detail-score-card" v-if="mimicDetailsModal.data.score_breakdown.cosine_normalized != null">
+                <span class="detail-score-label">Cosine Normalized</span>
+                <span class="detail-score-value">{{ mimicDetailsModal.data.score_breakdown.cosine_normalized.toFixed(2) }}</span>
+              </div>
+              <div class="detail-score-card" v-if="mimicDetailsModal.data.score_breakdown.angle_score != null">
+                <span class="detail-score-label">Angle Score</span>
+                <span class="detail-score-value">{{ mimicDetailsModal.data.score_breakdown.angle_score.toFixed(2) }}</span>
+              </div>
+              <div class="detail-score-card" v-if="mimicDetailsModal.data.score_breakdown.upper_body != null">
+                <span class="detail-score-label">Upper Body</span>
+                <span class="detail-score-value">{{ mimicDetailsModal.data.score_breakdown.upper_body.toFixed(2) }}</span>
+              </div>
+              <div class="detail-score-card" v-if="mimicDetailsModal.data.score_breakdown.lower_body != null">
+                <span class="detail-score-label">Lower Body</span>
+                <span class="detail-score-value">{{ mimicDetailsModal.data.score_breakdown.lower_body.toFixed(2) }}</span>
+              </div>
+            </template>
+          </div>
+          <div v-if="mimicDetailsModal.data.feedback" class="detail-feedback">
+            <h4>Feedback</h4>
+            <p class="feedback-summary">{{ mimicDetailsModal.data.feedback.summary }}</p>
+            <div v-if="mimicDetailsModal.data.feedback.items" class="feedback-items">
+              <div
+                v-for="(item, idx) in mimicDetailsModal.data.feedback.items"
+                :key="idx"
+                :class="['feedback-item', `feedback-${item.status}`]"
+              >
+                <span class="feedback-region">{{ item.region.replace('_', ' ') }}</span>
+                <span class="feedback-message">{{ item.message }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="detail-meta">
+            <span><strong>Source:</strong> {{ mimicDetailsModal.data.source }}</span>
+            <span><strong>Duration:</strong> {{ mimicDetailsModal.data.duration_seconds.toFixed(1) }}s</span>
+            <span><strong>Frames:</strong> {{ mimicDetailsModal.data.frames_compared }}</span>
+            <span v-if="mimicDetailsModal.data.created_at"><strong>Started:</strong> {{ formatDate(mimicDetailsModal.data.created_at) }}</span>
+            <span v-if="mimicDetailsModal.data.ended_at"><strong>Ended:</strong> {{ formatDate(mimicDetailsModal.data.ended_at) }}</span>
+          </div>
+        </template>
+      </div>
+    </div>
+
     <!-- Screenshots modal -->
     <div v-if="screenshotModal.open" class="modal-overlay" @click.self="screenshotModal.open = false">
       <div class="modal-panel screenshots-panel">
@@ -868,6 +1003,7 @@ const loadingFeatureAccess = ref(false)
 const featureRequests = ref([])
 const loadingFeatureRequests = ref(false)
 const featureRequestFilter = ref('')
+const reviewModal = ref({ show: false, req: null, message: '', sending: false })
 
 // Challenge Config
 const challengeConfig = ref({})
@@ -890,6 +1026,13 @@ const mimicSessions = ref([])
 const loadingMimicSessions = ref(false)
 const mimicSessionsPage = ref(0)
 const mimicSessionsTotal = ref(0)
+
+// MoveMatch video modal
+const mimicVideoModal = ref({ open: false, sessionId: null, username: '', src: null, loading: false })
+const mimicVideoEl = ref(null)
+
+// MoveMatch details modal
+const mimicDetailsModal = ref({ open: false, loading: false, data: null, sessionId: null })
 
 // MoveMatch screenshot modal
 const mimicSsModal = ref({ open: false, sessionId: null, loading: false, loadingMore: false, total: 0 })
@@ -1230,6 +1373,25 @@ async function rejectFeatureRequest(req) {
   }
 }
 
+function openReviewModal(req) {
+  reviewModal.value = { show: true, req, message: '', sending: false }
+}
+
+async function submitReview() {
+  const { req, message } = reviewModal.value
+  if (!req || !message.trim()) return
+  reviewModal.value.sending = true
+  try {
+    await api.post(`/api/v1/admin/feature-requests/${req.id}/review`, { message: message.trim() })
+    reviewModal.value.show = false
+    await loadFeatureRequests()
+  } catch (err) {
+    console.error('Failed to submit review:', err)
+  } finally {
+    reviewModal.value.sending = false
+  }
+}
+
 async function downloadPoseData(sessionId) {
   try {
     const response = await api.get(`/api/v1/challenges/admin/sessions/${sessionId}/pose-data`)
@@ -1488,6 +1650,69 @@ async function downloadMimicScreenshots() {
   mimicSsDownloading.value = false
 }
 
+async function downloadMimicUpload(session) {
+  try {
+    const res = await api.get(
+      `/api/v1/mimic/admin/sessions/${session.id}/uploaded-video`,
+      { responseType: 'blob' }
+    )
+    const url = URL.createObjectURL(res.data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `mimic_upload_${session.id}.mp4`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch (err) {
+    console.error('Failed to download uploaded video:', err)
+  }
+}
+
+async function openMimicVideo(session) {
+  mimicVideoModal.value = { open: true, sessionId: session.id, username: session.username || '', src: null, loading: true }
+  try {
+    const res = await api.get(
+      `/api/v1/mimic/admin/sessions/${session.id}/comparison-video`,
+      { responseType: 'blob' }
+    )
+    mimicVideoModal.value.src = URL.createObjectURL(res.data)
+  } catch (err) {
+    console.error('Failed to load comparison video:', err)
+  } finally {
+    mimicVideoModal.value.loading = false
+  }
+}
+
+function closeMimicVideo() {
+  // Revoke blob URL and stop playback
+  if (mimicVideoModal.value.src) {
+    URL.revokeObjectURL(mimicVideoModal.value.src)
+  }
+  if (mimicVideoEl.value) {
+    mimicVideoEl.value.pause()
+  }
+  mimicVideoModal.value = { open: false, sessionId: null, username: '', src: null, loading: false }
+}
+
+async function openMimicDetails(session) {
+  mimicDetailsModal.value = { open: true, loading: true, data: null, sessionId: session.id }
+  try {
+    const res = await api.get(`/api/v1/mimic/admin/sessions/${session.id}/details`)
+    mimicDetailsModal.value.data = res.data
+  } catch (err) {
+    console.error('Failed to load session details:', err)
+    mimicDetailsModal.value.data = null
+  } finally {
+    mimicDetailsModal.value.loading = false
+  }
+}
+
+function scoreColor(score) {
+  if (score >= 80) return '#22c55e'
+  if (score >= 60) return '#eab308'
+  if (score >= 40) return '#f97316'
+  return '#ef4444'
+}
+
 function formatThresholdLabel(key) {
   return key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) + ' (\u00b0)'
 }
@@ -1657,6 +1882,11 @@ h1 {
   color: var(--color-primary);
 }
 
+.status.review {
+  background: rgba(59, 130, 246, 0.2);
+  color: #3b82f6;
+}
+
 .status.rejected {
   background: var(--color-destructive-light);
   color: var(--color-destructive);
@@ -1709,6 +1939,15 @@ h1 {
 
 .btn-small.btn-success:hover {
   background: var(--color-primary-light);
+}
+
+.btn-small.btn-review {
+  background: rgba(59, 130, 246, 0.2);
+  color: #3b82f6;
+}
+
+.btn-small.btn-review:hover {
+  background: rgba(59, 130, 246, 0.3);
 }
 
 .btn-small.btn-info {
@@ -2138,5 +2377,128 @@ select {
   border-radius: var(--radius-sm);
   color: var(--text-primary);
   font-size: 0.85rem;
+}
+
+/* Video modal */
+.video-panel {
+  max-width: 960px;
+  width: 95vw;
+}
+
+.mimic-video-player {
+  width: 100%;
+  max-height: 70vh;
+  border-radius: var(--radius-md);
+  background: #000;
+}
+
+/* Details modal */
+.details-panel {
+  max-width: 600px;
+  width: 95vw;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.detail-score-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.detail-score-card {
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 0.75rem;
+  text-align: center;
+}
+
+.detail-score-label {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.detail-score-value {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.detail-feedback {
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.detail-feedback h4 {
+  margin: 0 0 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.feedback-summary {
+  margin: 0 0 0.75rem;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.feedback-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.feedback-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+}
+
+.feedback-region {
+  font-weight: 600;
+  text-transform: capitalize;
+  min-width: 80px;
+}
+
+.feedback-message {
+  color: var(--text-primary);
+}
+
+.feedback-good {
+  background: rgba(34, 197, 94, 0.1);
+  border-left: 3px solid #22c55e;
+}
+
+.feedback-needs_work {
+  background: rgba(234, 179, 8, 0.1);
+  border-left: 3px solid #eab308;
+}
+
+.feedback-poor {
+  background: rgba(239, 68, 68, 0.1);
+  border-left: 3px solid #ef4444;
+}
+
+.detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.detail-meta strong {
+  color: var(--text-secondary);
 }
 </style>

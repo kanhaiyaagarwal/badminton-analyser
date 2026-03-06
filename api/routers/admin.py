@@ -54,6 +54,10 @@ class WaitlistJoin(BaseModel):
     name: Optional[str] = None
 
 
+class FeatureReviewBody(BaseModel):
+    message: str
+
+
 class WhitelistEmailCreate(BaseModel):
     email: EmailStr
     note: Optional[str] = None
@@ -537,7 +541,7 @@ async def approve_feature_request(
     req = db.query(FeatureRequest).filter(FeatureRequest.id == request_id).first()
     if not req:
         raise HTTPException(status_code=404, detail="Feature request not found")
-    if req.status != "pending":
+    if req.status not in ("pending", "in_review"):
         raise HTTPException(status_code=400, detail=f"Request already {req.status}")
 
     req.status = "approved"
@@ -588,7 +592,7 @@ async def reject_feature_request(
     req = db.query(FeatureRequest).filter(FeatureRequest.id == request_id).first()
     if not req:
         raise HTTPException(status_code=404, detail="Feature request not found")
-    if req.status != "pending":
+    if req.status not in ("pending", "in_review"):
         raise HTTPException(status_code=400, detail=f"Request already {req.status}")
 
     req.status = "rejected"
@@ -596,6 +600,54 @@ async def reject_feature_request(
     req.reviewed_by = admin.id
     db.commit()
     return {"status": "rejected", "feature_name": req.feature_name}
+
+
+@router.post("/feature-requests/{request_id}/review")
+async def review_feature_request(
+    request_id: int,
+    body: FeatureReviewBody,
+    admin=Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    """Send a review/follow-up email for a feature request."""
+    req = db.query(FeatureRequest).filter(FeatureRequest.id == request_id).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Feature request not found")
+    if req.status not in ("pending", "in_review"):
+        raise HTTPException(status_code=400, detail=f"Request already {req.status}")
+
+    req.status = "in_review"
+    req.reviewed_at = datetime.utcnow()
+    req.reviewed_by = admin.id
+
+    # Look up user and feature display name
+    user = db.query(User).filter(User.id == req.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    from ..db_models.feature_access import FeatureAccess
+    fa = db.query(FeatureAccess).filter(
+        FeatureAccess.feature_name == req.feature_name
+    ).first()
+    display_name = fa.display_name if fa and fa.display_name else req.feature_name
+
+    db.commit()
+
+    # Send review email
+    try:
+        from ..services.email_service import get_email_service
+        email_service = get_email_service()
+        email_service.send_feature_review_email(
+            to_email=user.email,
+            username=user.username,
+            feature_display_name=display_name,
+            admin_message=body.message,
+        )
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Failed to send feature review email: {e}")
+
+    return {"status": "in_review", "feature_name": req.feature_name}
 
 
 # --- Badminton Stream Sessions ---
