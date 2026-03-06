@@ -559,6 +559,35 @@ def get_mimic_session(
     return resp
 
 
+@router.post("/sessions/{session_id}/force-compare")
+def force_compare(
+    session_id: int,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """Force comparison despite audio mismatch, using offset=0."""
+    session = db.query(MimicSession).filter(
+        MimicSession.id == session_id,
+        MimicSession.user_id == user.id,
+    ).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if session.status != MimicSessionStatus.AUDIO_MISMATCH:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Session is not in audio_mismatch state (status: {session.status.value})"
+        )
+
+    if not session.uploaded_video_path:
+        raise HTTPException(status_code=400, detail="No uploaded video found for this session")
+
+    # Re-kick background comparison (will detect AUDIO_MISMATCH status and use offset=0)
+    compare_video(session.challenge_id, session.uploaded_video_path, session.id)
+
+    return {"session_id": session.id, "status": "processing"}
+
+
 @router.get("/sessions/{session_id}/comparison-video")
 def get_comparison_video(
     session_id: int,
@@ -922,6 +951,31 @@ def admin_get_session_details(
     }
 
 
+@router.get("/admin/sessions/{session_id}/frame-scores")
+def admin_get_frame_scores(
+    session_id: int,
+    db: Session = Depends(get_db),
+    admin=Depends(require_admin),
+):
+    """Download per-frame scoring data for a mimic session (admin only)."""
+    session = db.query(MimicSession).filter(
+        MimicSession.id == session_id
+    ).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if not session.frame_scores:
+        raise HTTPException(status_code=404, detail="No frame score data available")
+
+    return {
+        "session_id": session.id,
+        "overall_score": session.overall_score or 0,
+        "frames_compared": session.frames_compared or 0,
+        "duration_seconds": session.duration_seconds or 0,
+        "frame_scores": session.frame_scores,
+    }
+
+
 @router.get("/admin/challenges/{challenge_id}/annotated-video")
 def get_annotated_video(
     challenge_id: int,
@@ -1030,7 +1084,7 @@ def _build_session_response(
     include_frames: bool = True,
 ) -> dict:
     feedback = generate_summary_feedback(session.score_breakdown) if session.score_breakdown else None
-    return {
+    resp = {
         "id": session.id,
         "challenge_id": session.challenge_id,
         "source": session.source or "live",
@@ -1050,3 +1104,8 @@ def _build_session_response(
         "created_at": (session.created_at.isoformat() + "Z") if session.created_at else None,
         "ended_at": (session.ended_at.isoformat() + "Z") if session.ended_at else None,
     }
+    if session.audio_confidence is not None:
+        resp["audio_confidence"] = session.audio_confidence
+    if session.audio_offset is not None:
+        resp["audio_offset"] = session.audio_offset
+    return resp

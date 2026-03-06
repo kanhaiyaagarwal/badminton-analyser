@@ -69,7 +69,7 @@ def extract_audio_wav(video_path: str) -> Optional[str]:
         return None
 
 
-def compute_audio_offset(ref_video: str, user_video: str) -> float:
+def compute_audio_offset(ref_video: str, user_video: str) -> tuple:
     """
     Compute the time offset (in seconds) between reference and user video audio.
 
@@ -81,7 +81,9 @@ def compute_audio_offset(ref_video: str, user_video: str) -> float:
     to 4kHz) for accurate alignment. The old amplitude-envelope approach
     was too lossy and gave wrong offsets.
 
-    Returns 0.0 on any failure (graceful fallback to naive alignment).
+    Returns (offset, confidence) tuple. Confidence is peak/mean correlation
+    ratio — values >= 5.0 indicate a strong match. Returns (0.0, 0.0) on
+    any failure (graceful fallback to naive alignment).
     """
     from scipy.io import wavfile
     from scipy.signal import fftconvolve
@@ -95,14 +97,14 @@ def compute_audio_offset(ref_video: str, user_video: str) -> float:
 
         if not ref_wav or not user_wav:
             logger.info("Audio extraction failed for one or both videos, using offset=0")
-            return 0.0
+            return (0.0, 0.0)
 
         ref_rate, ref_data = wavfile.read(ref_wav)
         user_rate, user_data = wavfile.read(user_wav)
 
         if ref_rate != user_rate:
             logger.warning(f"Sample rate mismatch: ref={ref_rate}, user={user_rate}")
-            return 0.0
+            return (0.0, 0.0)
 
         sample_rate = ref_rate
 
@@ -112,7 +114,7 @@ def compute_audio_offset(ref_video: str, user_video: str) -> float:
         user_f = user_data[:max_samples].astype(np.float32)
 
         if len(ref_f) == 0 or len(user_f) == 0:
-            return 0.0
+            return (0.0, 0.0)
 
         # Downsample to _ANALYSIS_RATE for speed (keeps waveform shape)
         ref_ds = ref_f[::_DS_FACTOR]
@@ -145,11 +147,11 @@ def compute_audio_offset(ref_video: str, user_video: str) -> float:
             f"ref_dur={ref_duration:.1f}s, user_dur={len(user_f)/sample_rate:.1f}s"
         )
 
-        return offset
+        return (offset, confidence)
 
     except Exception as e:
         logger.warning(f"Audio offset computation failed: {e}")
-        return 0.0
+        return (0.0, 0.0)
 
     finally:
         for path in (ref_wav, user_wav):

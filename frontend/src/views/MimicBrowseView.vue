@@ -143,6 +143,24 @@
       style="display: none"
       @change="onCompareFileSelected"
     />
+
+    <!-- Audio mismatch warning modal -->
+    <div v-if="audioMismatchSession" class="modal-overlay" @click.self="cancelMismatch">
+      <div class="modal-card">
+        <h3>Audio Mismatch</h3>
+        <p>The audio in your video doesn't seem to match the reference video. The comparison may not be accurate.</p>
+        <p class="mismatch-detail">
+          Confidence: {{ audioMismatchSession.audio_confidence?.toFixed(1) || '0.0' }}
+          (minimum: 5.0)
+        </p>
+        <div class="modal-actions">
+          <button class="modal-btn cancel-btn" @click="cancelMismatch">Cancel</button>
+          <button class="modal-btn compare-btn" @click="handleForceCompare" :disabled="forceComparing">
+            {{ forceComparing ? 'Comparing...' : 'Compare Anyway' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -168,6 +186,8 @@ const fileInput = ref(null)
 // Compare upload state
 const compareFileInput = ref(null)
 const comparingId = ref(null)
+const audioMismatchSession = ref(null)
+const forceComparing = ref(false)
 let pendingChallengeId = null
 
 onMounted(() => {
@@ -228,10 +248,40 @@ async function onCompareFileSelected(e) {
     formData.append('video', file)
     const result = await mimicStore.uploadComparison(challengeId, formData)
     const session = await mimicStore.pollSession(result.session_id)
+
+    if (session.status === 'audio_mismatch') {
+      audioMismatchSession.value = session
+      return
+    }
+
+    router.push(`/mimic/results/${session.id}`)
+  } catch (err) {
+    // error is in store
+    comparingId.value = null
+    pendingChallengeId = null
+  }
+}
+
+function cancelMismatch() {
+  audioMismatchSession.value = null
+  comparingId.value = null
+  pendingChallengeId = null
+}
+
+async function handleForceCompare() {
+  if (!audioMismatchSession.value) return
+  const sessionId = audioMismatchSession.value.id
+  forceComparing.value = true
+
+  try {
+    await mimicStore.forceCompare(sessionId)
+    audioMismatchSession.value = null
+    const session = await mimicStore.pollSession(sessionId)
     router.push(`/mimic/results/${session.id}`)
   } catch (err) {
     // error is in store
   } finally {
+    forceComparing.value = false
     comparingId.value = null
     pendingChallengeId = null
   }
@@ -579,5 +629,76 @@ function scoreClass(score) {
   color: var(--text-muted);
   text-align: center;
   padding: 2rem;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-card {
+  background: var(--bg-card, #1e1e2e);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg, 12px);
+  padding: 1.5rem 2rem;
+  max-width: 420px;
+  width: 90%;
+  box-shadow: var(--shadow-lg, 0 8px 32px rgba(0,0,0,0.4));
+}
+
+.modal-card h3 {
+  color: #f39c12;
+  margin: 0 0 0.75rem;
+  font-size: 1.2rem;
+}
+
+.modal-card p {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin: 0 0 0.5rem;
+  line-height: 1.5;
+}
+
+.mismatch-detail {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-style: italic;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  margin-top: 1.25rem;
+}
+
+.modal-btn {
+  border: none;
+  padding: 0.5rem 1.2rem;
+  border-radius: var(--radius-md, 8px);
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.modal-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.modal-btn.cancel-btn {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
+}
+
+.modal-btn.compare-btn {
+  background: #f39c12;
+  color: #000;
 }
 </style>

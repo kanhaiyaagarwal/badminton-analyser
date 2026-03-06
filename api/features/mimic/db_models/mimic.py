@@ -20,6 +20,7 @@ class MimicSessionStatus(str, enum.Enum):
     READY = "ready"
     ACTIVE = "active"
     ENDED = "ended"
+    AUDIO_MISMATCH = "audio_mismatch"
 
 
 class MimicChallenge(Base):
@@ -73,6 +74,8 @@ class MimicSession(Base):
     frame_scores = Column(JSON, nullable=True)
     comparison_video_path = Column(String(512), nullable=True)
     uploaded_video_path = Column(String(512), nullable=True)
+    audio_confidence = Column(Float, nullable=True)
+    audio_offset = Column(Float, nullable=True)
     screenshots_s3_prefix = Column(String(512), nullable=True)
     screenshot_count = Column(Integer, default=0)
 

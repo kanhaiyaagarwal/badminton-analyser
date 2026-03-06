@@ -71,16 +71,39 @@ def _compare(challenge_id: int, video_path: str, session_id: int):
             db.commit()
             return
 
+        # Capture status before overwriting — needed for force-compare re-entry
+        is_force_compare = session.status == MimicSessionStatus.AUDIO_MISMATCH
+
         session.status = MimicSessionStatus.ACTIVE
         db.commit()
 
         # Compute audio-based time offset for alignment
         from .audio_sync import compute_audio_offset
         ref_video_path = challenge.video_local_path
-        audio_offset = 0.0
-        if ref_video_path:
-            audio_offset = compute_audio_offset(ref_video_path, video_path)
-            logger.info(f"Audio offset for session {session_id}: {audio_offset:.3f}s")
+
+        # On re-entry from force-compare (AUDIO_MISMATCH), skip audio check
+        if is_force_compare:
+            audio_offset = 0.0
+            logger.info(f"Force-compare for session {session_id}: using offset=0")
+        elif ref_video_path:
+            audio_offset, audio_confidence = compute_audio_offset(ref_video_path, video_path)
+            session.audio_offset = audio_offset
+            session.audio_confidence = audio_confidence
+            logger.info(
+                f"Audio offset for session {session_id}: {audio_offset:.3f}s, "
+                f"confidence={audio_confidence:.1f}"
+            )
+
+            if audio_confidence < 5.0:
+                session.status = MimicSessionStatus.AUDIO_MISMATCH
+                db.commit()
+                logger.info(
+                    f"Audio mismatch for session {session_id}: "
+                    f"confidence={audio_confidence:.1f} < 5.0, awaiting user decision"
+                )
+                return
+        else:
+            audio_offset = 0.0
 
         report, comparison_video_path = _process_user_video(
             video_path, ref_timeline, ref_duration, audio_offset,

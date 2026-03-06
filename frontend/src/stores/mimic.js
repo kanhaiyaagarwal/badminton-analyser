@@ -144,10 +144,24 @@ export const useMimicStore = defineStore('mimic', () => {
     const start = Date.now()
     while (Date.now() - start < timeout) {
       const session = await fetchSession(sessionId)
-      if (session.status === 'ended') return session
+      if (session.status === 'ended' || session.status === 'audio_mismatch') return session
       await new Promise(r => setTimeout(r, interval))
     }
     throw new Error('Polling timed out')
+  }
+
+  async function forceCompare(sessionId) {
+    loading.value = true
+    error.value = null
+    try {
+      const response = await api.post(`/api/v1/mimic/sessions/${sessionId}/force-compare`)
+      return response.data
+    } catch (err) {
+      error.value = err.response?.data?.detail || 'Failed to force compare'
+      throw err
+    } finally {
+      loading.value = false
+    }
   }
 
   async function deleteChallenge(challengeId) {
@@ -201,6 +215,7 @@ export const useMimicStore = defineStore('mimic', () => {
     fetchSession,
     uploadComparison,
     pollSession,
+    forceCompare,
     deleteChallenge,
     userDeleteChallenge,
     fetchRecords,

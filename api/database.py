@@ -48,6 +48,7 @@ def init_db():
     _migrate_user_signup_code()
     _migrate_mimic_session_screenshots()
     _migrate_mimic_session_uploaded_video()
+    _migrate_mimic_session_audio_fields()
     seed_default_tuning_data()
     seed_challenge_defaults()
     seed_feature_access()
@@ -450,6 +451,31 @@ def _migrate_mimic_session_uploaded_video():
                 logger.info("Added column mimic_sessions.uploaded_video_path")
     except Exception as e:
         logger.debug(f"mimic_sessions uploaded_video_path migration skipped: {e}")
+
+
+def _migrate_mimic_session_audio_fields():
+    """Add audio_confidence and audio_offset columns to mimic_sessions if missing."""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    new_columns = {
+        "audio_confidence": "FLOAT",
+        "audio_offset": "FLOAT",
+    }
+
+    from sqlalchemy import text, inspect
+    try:
+        inspector = inspect(engine)
+        existing = {c["name"] for c in inspector.get_columns("mimic_sessions")}
+        with engine.begin() as conn:
+            for col_name, col_type in new_columns.items():
+                if col_name not in existing:
+                    conn.execute(text(
+                        f"ALTER TABLE mimic_sessions ADD COLUMN {col_name} {col_type}"
+                    ))
+                    logger.info(f"Added column mimic_sessions.{col_name}")
+    except Exception as e:
+        logger.debug(f"mimic_sessions audio fields migration skipped: {e}")
 
 
 def seed_challenge_defaults():
