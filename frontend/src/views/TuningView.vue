@@ -413,7 +413,8 @@ async function loadStreamSessionFrameData() {
     // Load annotated video
     try {
       const videoResponse = await api.get(`/api/v1/stream/${selectedStreamSessionId.value}/annotated-video`, {
-        responseType: 'blob'
+        responseType: 'blob',
+        timeout: 300000,
       })
       videoUrl.value = URL.createObjectURL(videoResponse.data)
     } catch (videoErr) {
@@ -599,7 +600,8 @@ async function loadJobFrameData() {
     // Load annotated video (with pose overlay) - backend re-encodes to H.264 if needed
     try {
       const videoResponse = await api.get(`/api/v1/tuning/jobs/${selectedJobId.value}/annotated-video`, {
-        responseType: 'blob'
+        responseType: 'blob',
+        timeout: 300000,
       })
       videoUrl.value = URL.createObjectURL(videoResponse.data)
       console.log('Loaded annotated video')

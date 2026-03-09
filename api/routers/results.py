@@ -1,6 +1,7 @@
 """Results router for retrieving analysis results."""
 
 import json
+import logging
 from pathlib import Path
 from typing import Optional
 
@@ -14,6 +15,8 @@ from ..models.analysis import AnalysisReport, RallyInfo, ShotInfo, AnalysisSumma
 from ..services.storage_service import get_storage_service
 from ..services.s3_service import get_s3_service
 from .auth import get_current_user
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/results", tags=["results"])
 
@@ -282,6 +285,7 @@ async def get_annotated_video(
                 }
             )
         except Exception as e:
+            logger.error(f"Failed to load annotated video from S3 for job {job_id}: {e}, key={job.annotated_video_path!r}")
             raise HTTPException(status_code=404, detail=f"Annotated video not found: {e}")
     else:
         # Serve from local filesystem

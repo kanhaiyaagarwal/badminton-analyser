@@ -158,7 +158,9 @@ class S3StorageBackend(StorageBackend):
     def get_url(self, file_path: str, expires: int = 3600) -> str:
         """Get pre-signed URL or CloudFront URL."""
         if self.cloudfront_domain:
-            return f"https://{self.cloudfront_domain}/{file_path}"
+            from urllib.parse import quote
+            encoded_path = quote(file_path, safe='/')
+            return f"https://{self.cloudfront_domain}/{encoded_path}"
 
         return self.s3_client.generate_presigned_url(
             'get_object',

@@ -1431,7 +1431,7 @@ async function downloadRefinedPoseData(sessionId) {
 
 async function downloadRecording(sessionId) {
   try {
-    const response = await api.get(`/api/v1/challenges/admin/sessions/${sessionId}/recording`, { responseType: 'blob' })
+    const response = await api.get(`/api/v1/challenges/admin/sessions/${sessionId}/recording`, { responseType: 'blob', timeout: 300000 })
     const url = URL.createObjectURL(response.data)
     const a = document.createElement('a')
     a.href = url
@@ -1507,7 +1507,7 @@ async function downloadAllScreenshots() {
   try {
     const res = await api.get(
       `/api/v1/challenges/admin/sessions/${sid}/screenshots/download`,
-      { responseType: 'blob' }
+      { responseType: 'blob', timeout: 300000 }
     )
     const url = URL.createObjectURL(res.data)
     const a = document.createElement('a')
@@ -1643,7 +1643,7 @@ async function downloadMimicScreenshots() {
   try {
     const res = await api.get(
       `/api/v1/mimic/admin/sessions/${sid}/screenshots/download`,
-      { responseType: 'blob' }
+      { responseType: 'blob', timeout: 300000 }
     )
     const url = URL.createObjectURL(res.data)
     const a = document.createElement('a')
@@ -1676,7 +1676,7 @@ async function downloadMimicUpload(session) {
   try {
     const res = await api.get(
       `/api/v1/mimic/admin/sessions/${session.id}/uploaded-video`,
-      { responseType: 'blob' }
+      { responseType: 'blob', timeout: 300000 }
     )
     const url = URL.createObjectURL(res.data)
     const a = document.createElement('a')
@@ -1694,7 +1694,7 @@ async function openMimicVideo(session) {
   try {
     const res = await api.get(
       `/api/v1/mimic/admin/sessions/${session.id}/comparison-video`,
-      { responseType: 'blob' }
+      { responseType: 'blob', timeout: 300000 }
     )
     mimicVideoModal.value.src = URL.createObjectURL(res.data)
   } catch (err) {

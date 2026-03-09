@@ -203,19 +203,16 @@ function formatTime(seconds) {
 async function downloadVideo() {
   downloading.value = true
   try {
-    const response = await api.get(`/api/v1/results/${jobId}/video`, {
-      responseType: 'blob'
-    })
+    // Get presigned URL for direct S3 download (avoids proxying large video through backend)
+    const urlResponse = await api.get(`/api/v1/results/${jobId}/video/url`)
+    const { url: videoUrl } = urlResponse.data
 
-    const blob = new Blob([response.data], { type: 'video/mp4' })
-    const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
-    link.href = url
+    link.href = videoUrl
     link.download = `analyzed_video_${jobId}.mp4`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
-    window.URL.revokeObjectURL(url)
   } catch (err) {
     error.value = err.response?.data?.detail || 'Failed to download video'
   } finally {

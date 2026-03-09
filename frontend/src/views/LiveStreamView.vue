@@ -1418,7 +1418,8 @@ async function downloadAnnotatedVideo() {
   downloading.value = true
   try {
     const response = await api.get(`/api/v1/stream/${sessionId.value}/annotated-video`, {
-      responseType: 'blob'
+      responseType: 'blob',
+      timeout: 300000,
     })
     const blob = new Blob([response.data], { type: 'video/mp4' })
     const url = window.URL.createObjectURL(blob)

@@ -413,7 +413,7 @@ async function downloadRecording() {
     const endpoint = isAdminView.value
       ? `/api/v1/admin/stream-sessions/${sessionId}/recording`
       : `/api/v1/stream/${sessionId}/recording`
-    const response = await api.get(endpoint, { responseType: 'blob' })
+    const response = await api.get(endpoint, { responseType: 'blob', timeout: 300000 })
 
     const blob = new Blob([response.data], { type: 'video/mp4' })
     const url = window.URL.createObjectURL(blob)
@@ -437,7 +437,7 @@ async function downloadAnnotatedVideo() {
     const endpoint = isAdminView.value
       ? `/api/v1/admin/stream-sessions/${sessionId}/annotated-video`
       : `/api/v1/stream/${sessionId}/annotated-video`
-    const response = await api.get(endpoint, { responseType: 'blob' })
+    const response = await api.get(endpoint, { responseType: 'blob', timeout: 300000 })
 
     const blob = new Blob([response.data], { type: 'video/mp4' })
     const url = window.URL.createObjectURL(blob)
