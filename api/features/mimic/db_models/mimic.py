@@ -65,7 +65,10 @@ class MimicSession(Base):
     challenge_id = Column(Integer, ForeignKey("mimic_challenges.id"), nullable=False)
 
     source = Column(String(10), default="live")  # "live" or "upload"
-    status = Column(Enum(MimicSessionStatus), default=MimicSessionStatus.READY)
+    status = Column(
+        Enum(MimicSessionStatus, values_callable=lambda e: [m.value for m in e]),
+        default=MimicSessionStatus.READY,
+    )
     overall_score = Column(Float, default=0.0)
     duration_seconds = Column(Float, default=0.0)
     frames_compared = Column(Integer, default=0)

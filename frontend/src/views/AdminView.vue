@@ -678,6 +678,13 @@
                   Details
                 </button>
                 <button
+                  v-if="s.frames_compared > 0"
+                  @click="downloadMimicFrameScores(s)"
+                  class="btn-small"
+                >
+                  Frame Data
+                </button>
+                <button
                   v-if="s.has_screenshots"
                   @click="viewMimicScreenshots(s.id, s.screenshot_count)"
                   class="btn-small"
@@ -1648,6 +1655,21 @@ async function downloadMimicScreenshots() {
     console.error('Failed to download mimic screenshots:', err)
   }
   mimicSsDownloading.value = false
+}
+
+async function downloadMimicFrameScores(session) {
+  try {
+    const res = await api.get(`/api/v1/mimic/admin/sessions/${session.id}/frame-scores`)
+    const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `mimic_frame_scores_${session.id}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch (err) {
+    console.error('Failed to download frame scores:', err)
+  }
 }
 
 async function downloadMimicUpload(session) {

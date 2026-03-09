@@ -87,19 +87,19 @@ def _compare(challenge_id: int, video_path: str, session_id: int):
             logger.info(f"Force-compare for session {session_id}: using offset=0")
         elif ref_video_path:
             audio_offset, audio_confidence = compute_audio_offset(ref_video_path, video_path)
-            session.audio_offset = audio_offset
-            session.audio_confidence = audio_confidence
+            session.audio_offset = float(audio_offset)
+            session.audio_confidence = float(audio_confidence)
             logger.info(
                 f"Audio offset for session {session_id}: {audio_offset:.3f}s, "
                 f"confidence={audio_confidence:.1f}"
             )
 
-            if audio_confidence < 5.0:
+            if audio_confidence < 10.0:
                 session.status = MimicSessionStatus.AUDIO_MISMATCH
                 db.commit()
                 logger.info(
                     f"Audio mismatch for session {session_id}: "
-                    f"confidence={audio_confidence:.1f} < 5.0, awaiting user decision"
+                    f"confidence={audio_confidence:.1f} < 10.0, awaiting user decision"
                 )
                 return
         else:

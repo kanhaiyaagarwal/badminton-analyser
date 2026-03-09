@@ -151,7 +151,7 @@
         <p>The audio in your video doesn't seem to match the reference video. The comparison may not be accurate.</p>
         <p class="mismatch-detail">
           Confidence: {{ audioMismatchSession.audio_confidence?.toFixed(1) || '0.0' }}
-          (minimum: 5.0)
+          (minimum: 10.0)
         </p>
         <div class="modal-actions">
           <button class="modal-btn cancel-btn" @click="cancelMismatch">Cancel</button>

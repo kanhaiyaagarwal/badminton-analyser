@@ -454,7 +454,7 @@ def _migrate_mimic_session_uploaded_video():
 
 
 def _migrate_mimic_session_audio_fields():
-    """Add audio_confidence and audio_offset columns to mimic_sessions if missing."""
+    """Add audio_confidence/audio_offset columns and expand status ENUM for audio_mismatch."""
     import logging
     logger = logging.getLogger(__name__)
 
@@ -474,6 +474,16 @@ def _migrate_mimic_session_audio_fields():
                         f"ALTER TABLE mimic_sessions ADD COLUMN {col_name} {col_type}"
                     ))
                     logger.info(f"Added column mimic_sessions.{col_name}")
+
+            # Expand status ENUM to include 'audio_mismatch' (MySQL only — SQLite ignores)
+            try:
+                conn.execute(text(
+                    "ALTER TABLE mimic_sessions MODIFY COLUMN status "
+                    "ENUM('ready','active','ended','audio_mismatch') DEFAULT 'ready'"
+                ))
+                logger.info("Expanded mimic_sessions.status ENUM to include 'audio_mismatch'")
+            except Exception:
+                pass  # SQLite doesn't support MODIFY COLUMN / ENUM
     except Exception as e:
         logger.debug(f"mimic_sessions audio fields migration skipped: {e}")
 
