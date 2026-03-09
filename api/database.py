@@ -49,6 +49,7 @@ def init_db():
     _migrate_mimic_session_screenshots()
     _migrate_mimic_session_uploaded_video()
     _migrate_mimic_session_audio_fields()
+    _migrate_fix_non_ascii_s3_keys()
     seed_default_tuning_data()
     seed_challenge_defaults()
     seed_feature_access()
@@ -486,6 +487,74 @@ def _migrate_mimic_session_audio_fields():
                 pass  # SQLite doesn't support MODIFY COLUMN / ENUM
     except Exception as e:
         logger.debug(f"mimic_sessions audio fields migration skipped: {e}")
+
+
+def _migrate_fix_non_ascii_s3_keys():
+    """Fix S3 keys containing non-ASCII characters that break boto3's HTTP layer."""
+    import logging
+    import re
+    logger = logging.getLogger(__name__)
+
+    from sqlalchemy import text
+    try:
+        with engine.begin() as conn:
+            rows = conn.execute(text(
+                "SELECT id, annotated_video_path FROM jobs "
+                "WHERE annotated_video_path IS NOT NULL"
+            )).fetchall()
+
+            for row in rows:
+                job_id, path = row[0], row[1]
+                if not path:
+                    continue
+                # Check if path has non-ASCII characters
+                try:
+                    path.encode('ascii')
+                    continue  # All ASCII, no fix needed
+                except UnicodeEncodeError:
+                    pass
+
+                # Sanitize: keep directory prefix, fix filename
+                parts = path.rsplit('/', 1)
+                if len(parts) == 2:
+                    prefix, filename = parts
+                    name, ext = filename.rsplit('.', 1) if '.' in filename else (filename, '')
+                    name = name.encode('ascii', 'replace').decode('ascii').replace('?', '_')
+                    name = re.sub(r'[^\w\-.]', '_', name)
+                    name = re.sub(r'_+', '_', name).strip('_')
+                    new_filename = f"{name}.{ext}" if ext else name
+                    new_path = f"{prefix}/{new_filename}"
+                else:
+                    continue
+
+                if new_path == path:
+                    continue
+
+                # Copy S3 object to sanitized key
+                try:
+                    from .services.storage_service import get_storage_service
+                    from urllib.parse import quote
+                    storage = get_storage_service()
+                    if storage.is_s3():
+                        bucket = storage.outputs.bucket
+                        # Use URL-encoded string CopySource to avoid latin-1 encoding issues
+                        encoded_source = f"{bucket}/{quote(path, safe='/')}"
+                        storage.outputs.s3_client.copy_object(
+                            Bucket=bucket,
+                            CopySource=encoded_source,
+                            Key=new_path,
+                        )
+                        logger.info(f"Copied S3 object for job {job_id}: {path!r} -> {new_path!r}")
+                except Exception as e:
+                    logger.warning(f"Could not copy S3 object for job {job_id}: {e}")
+
+                # Update DB regardless (even if S3 copy fails, the old key doesn't work anyway)
+                conn.execute(text(
+                    "UPDATE jobs SET annotated_video_path = :new_path WHERE id = :job_id"
+                ), {"new_path": new_path, "job_id": job_id})
+                logger.info(f"Updated annotated_video_path for job {job_id}: {new_path}")
+    except Exception as e:
+        logger.debug(f"Non-ASCII S3 key migration skipped: {e}")
 
 
 def seed_challenge_defaults():

@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import re
 import shutil
 import tempfile
 from concurrent.futures import ProcessPoolExecutor
@@ -21,6 +22,17 @@ from .s3_service import get_s3_service
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
+
+
+def _sanitize_filename(filename: str) -> str:
+    """Replace non-ASCII and problematic characters in a filename for safe S3 keys."""
+    name, ext = Path(filename).stem, Path(filename).suffix
+    # Replace non-ASCII characters with underscore
+    name = name.encode('ascii', 'replace').decode('ascii').replace('?', '_')
+    # Collapse whitespace and special chars to single underscores
+    name = re.sub(r'[^\w\-.]', '_', name)
+    name = re.sub(r'_+', '_', name).strip('_')
+    return f"{name}{ext}"
 
 
 def _run_analysis_process(
@@ -340,7 +352,7 @@ class JobManager:
         # Upload annotated video
         video_path = result.get("annotated_video_path")
         if video_path and Path(video_path).exists():
-            video_filename = Path(video_path).name
+            video_filename = _sanitize_filename(Path(video_path).name)
             s3_key = storage.get_output_path(job_id, video_filename)
             with open(video_path, 'rb') as f:
                 storage.outputs.save(s3_key, f, content_type="video/mp4")
@@ -368,7 +380,7 @@ class JobManager:
         # Upload frame data for tuning (if exists)
         frame_data_path = result.get("frame_data_path")
         if frame_data_path and Path(frame_data_path).exists():
-            frame_data_filename = Path(frame_data_path).name
+            frame_data_filename = _sanitize_filename(Path(frame_data_path).name)
             s3_key = storage.get_output_path(job_id, frame_data_filename)
             with open(frame_data_path, 'rb') as f:
                 storage.outputs.save(s3_key, f, content_type="application/json")
