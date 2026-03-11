@@ -46,14 +46,25 @@
           {{ saving ? 'Saving...' : 'Save Changes' }}
         </button>
       </form>
+
+      <button @click="handleLogout" class="btn-logout">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+          <polyline points="16 17 21 12 16 7"/>
+          <line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>
+        Log Out
+      </button>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 
+const router = useRouter()
 const authStore = useAuthStore()
 
 const displayName = ref('')
@@ -78,6 +89,11 @@ onMounted(() => {
     mobile.value = authStore.user.mobile || ''
   }
 })
+
+function handleLogout() {
+  authStore.logout()
+  router.push('/')
+}
 
 async function handleSave() {
   saving.value = true
@@ -235,6 +251,30 @@ input:focus {
   border-radius: var(--radius-md);
   margin-bottom: 1rem;
   font-size: 0.9rem;
+}
+
+.btn-logout {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.85rem;
+  margin-top: 2rem;
+  background: transparent;
+  border: 2px solid var(--color-destructive);
+  color: var(--color-destructive);
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.btn-logout:hover {
+  background: var(--color-destructive);
+  color: #fff;
 }
 
 @media (max-width: 640px) {

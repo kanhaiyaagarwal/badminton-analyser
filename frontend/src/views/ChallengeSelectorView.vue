@@ -11,11 +11,17 @@
         v-for="challenge in visibleChallenges"
         :key="challenge.type"
         class="challenge-card"
-        @click="startChallenge(challenge.type)"
       >
-        <div class="card-icon">{{ challenge.icon }}</div>
-        <h2>{{ challenge.name }}</h2>
-        <p>{{ challenge.description }}</p>
+        <div class="card-header-row" @click="goToDetails(challenge.type)">
+          <img :src="challenge.iconSrc" :alt="challenge.name" class="card-icon-img" />
+          <div class="card-header-text">
+            <h2>{{ challenge.name }}</h2>
+            <p>{{ challenge.description }}</p>
+          </div>
+          <span class="card-details-arrow">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </span>
+        </div>
 
         <!-- Squat group: per-variant stats table -->
         <div v-if="challenge.isGroup && variantRows(challenge).length" class="variant-table">
@@ -47,7 +53,13 @@
           </div>
         </div>
 
-        <button class="start-btn">Start &rarr;</button>
+        <!-- Direct start for non-group (pushup, plank), details for group (squat) -->
+        <button v-if="!challenge.isGroup" class="start-btn" @click="goToSession(challenge.type)">
+          Start {{ challenge.name }} &rarr;
+        </button>
+        <button v-else class="start-btn" @click="goToDetails(challenge.type)">
+          Choose Variant &rarr;
+        </button>
       </div>
     </div>
   </div>
@@ -80,7 +92,7 @@ const challenges = [
   {
     type: 'plank',
     name: 'Plank Hold',
-    icon: '\u{1F9D8}',
+    iconSrc: '/mascot/otter-plank-icon.png',
     description: 'Hold a plank position as long as you can. The timer only counts when your form is correct.',
     metric: 'Hold Time',
     unit: 's',
@@ -88,7 +100,7 @@ const challenges = [
   {
     type: 'squat',
     name: 'Squats',
-    icon: '\u{1F3CB}',
+    iconSrc: '/mascot/otter-squat-icon.png',
     isGroup: true,
     subtypes: SQUAT_SUBTYPES,
     description: 'Three squat challenges: hold, partial depth, and full depth.',
@@ -97,7 +109,7 @@ const challenges = [
   {
     type: 'pushup',
     name: 'Max Pushups',
-    icon: '\u{1F4AA}',
+    iconSrc: '/mascot/otter-pushup-icon.png',
     description: 'Crank out as many pushups as possible. Elbows must bend below 90 degrees each rep.',
     metric: 'Max Reps',
     unit: 'reps',
@@ -152,7 +164,11 @@ function getStat(type, key) {
   return store.stats[type]?.[key] || 0
 }
 
-function startChallenge(type) {
+function goToSession(type) {
+  router.push(`/challenges/${type}/session`)
+}
+
+function goToDetails(type) {
   router.push(`/challenges/${type}`)
 }
 
@@ -210,8 +226,7 @@ onMounted(async () => {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
-  padding: 2rem;
-  cursor: pointer;
+  padding: 1.25rem;
   transition: all 0.3s ease;
   display: flex;
   flex-direction: column;
@@ -219,26 +234,50 @@ onMounted(async () => {
 
 .challenge-card:hover {
   border-color: var(--color-primary);
-  transform: translateY(-4px);
   box-shadow: var(--shadow-lg);
 }
 
-.card-icon {
-  font-size: 2.5rem;
-  margin-bottom: 1rem;
+.card-header-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  cursor: pointer;
 }
 
-.challenge-card h2 {
-  color: var(--color-primary);
-  font-size: 1.2rem;
-  margin-bottom: 0.5rem;
+.card-icon-img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
-.challenge-card p {
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-  line-height: 1.5;
+.card-header-text {
   flex: 1;
+  min-width: 0;
+}
+
+.card-header-text h2 {
+  color: var(--color-primary);
+  font-size: 1.1rem;
+  margin: 0 0 0.25rem;
+}
+
+.card-header-text p {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.card-details-arrow {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  margin-top: 0.2rem;
+  transition: color 0.2s;
+}
+
+.card-header-row:hover .card-details-arrow {
+  color: var(--color-primary);
 }
 
 .card-stats {

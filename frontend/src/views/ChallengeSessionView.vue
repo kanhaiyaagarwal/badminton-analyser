@@ -63,70 +63,58 @@
       </div>
     </div>
 
-    <!-- Setup phase -->
+    <!-- Setup phase — fullscreen camera with overlay controls -->
     <div v-if="phase === 'setup'" class="setup-phase">
-      <router-link :to="`/challenges/${challengeType}`" class="back-link">&larr; Back</router-link>
-      <h1>{{ challengeTitle }}</h1>
-      <p class="hint">{{ challengeHint }} <span class="info-icon" @click="showPlacementGuide = true" title="How it works">&#9432;</span></p>
-
-      <div :class="['camera-preview-wrap', { maximized }]" @click="cameraReady && !starting && startSession()">
+      <div class="camera-preview-wrap maximized" @click="cameraReady && !starting && startSession()">
         <video ref="previewVideo" autoplay playsinline muted class="camera-preview"></video>
         <div v-if="!cameraReady" class="camera-placeholder">
           <p>{{ cameraError || 'Initialising camera...' }}</p>
         </div>
-        <div v-if="cameraReady && !starting && !maximized" class="camera-tap-hint">
-          <span>Tap here to start</span>
+
+        <!-- Top bar: back, title, info -->
+        <div class="setup-top-bar" @click.stop>
+          <router-link :to="`/challenges/${challengeType}`" class="setup-back-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="20" height="20" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          </router-link>
+          <span class="setup-title">{{ challengeTitle }}</span>
+          <button class="setup-info-btn" @click="showPlacementGuide = true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          </button>
         </div>
-        <button class="maximize-btn" @click.stop="maximized = !maximized">
-          <svg v-if="!maximized" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
-          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
-        </button>
-        <!-- Maximized overlay controls -->
-        <div v-if="maximized && cameraReady && !starting" class="max-overlay-controls">
-          <button class="max-start-btn" @click.stop="startSession">Tap to Start</button>
+
+        <!-- Toggle buttons overlaid on camera -->
+        <div class="camera-overlay-toggles" @click.stop>
+          <button :class="['cam-toggle', { active: recordOnStart }]" @click="toggleRecord" title="Record session">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><circle cx="12" cy="12" r="7"/></svg>
+          </button>
+          <button :class="['cam-toggle', { active: enableSound }]" @click="toggleSound" title="Sound cues">
+            <svg v-if="enableSound" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="18" height="18" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="18" height="18" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+          </button>
+          <select v-if="cameras.length > 1" v-model="selectedCamera" @change="switchCamera" class="cam-toggle-select" title="Switch camera">
+            <option v-for="cam in cameras" :key="cam.deviceId" :value="cam.deviceId">
+              {{ cam.label || 'Camera' }}
+            </option>
+          </select>
         </div>
-      </div>
 
-      <div class="setup-icon-toggles">
-        <button :class="['icon-toggle', { active: recordOnStart }]" @click="recordOnStart = !recordOnStart" title="Record session">
-          <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><circle cx="12" cy="12" r="7"/></svg>
-          <span class="icon-toggle-label">Record</span>
-        </button>
-        <button :class="['icon-toggle', { active: showAnnotations }]" @click="showAnnotations = !showAnnotations" title="Skeleton overlay">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2"/><line x1="12" y1="7" x2="12" y2="15"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="12" y1="15" x2="8" y2="21"/><line x1="12" y1="15" x2="16" y2="21"/></svg>
-          <span class="icon-toggle-label">Skeleton</span>
-        </button>
-        <button :class="['icon-toggle', { active: enableSound }]" @click="enableSound = !enableSound" title="Sound cues">
-          <svg v-if="enableSound" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
-          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
-          <span class="icon-toggle-label">Sound</span>
-        </button>
-      </div>
+        <!-- Toast notification -->
+        <transition name="toast-fade">
+          <div v-if="toastMessage" class="cam-toast">{{ toastMessage }}</div>
+        </transition>
 
-      <div class="controls">
-        <select v-model="selectedCamera" @change="switchCamera" class="camera-select">
-          <option value="">Select camera...</option>
-          <option v-for="cam in cameras" :key="cam.deviceId" :value="cam.deviceId">
-            {{ cam.label || 'Camera' }}
-          </option>
-        </select>
-
-        <button @click="startSession" :disabled="!cameraReady || starting" class="start-btn">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
-          {{ starting ? 'Starting...' : 'Start Challenge' }}
-        </button>
+        <!-- Tap to start hint -->
+        <div v-if="cameraReady && !starting" class="tap-start-hint">
+          Tap anywhere to start
+        </div>
       </div>
     </div>
 
     <!-- Active phase -->
     <div v-else-if="phase === 'active'" class="active-phase">
-      <div :class="['video-container', { maximized }]">
+      <div class="video-container maximized">
         <video ref="streamVideo" autoplay playsinline muted class="stream-video"></video>
         <canvas ref="overlayCanvas" class="overlay-canvas"></canvas>
-        <button class="maximize-btn" @click="maximized = !maximized">
-          <svg v-if="!maximized" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
-          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
-        </button>
 
         <!-- "Get in position" overlay (before ready) -->
         <div v-if="!playerReady" class="position-overlay">
@@ -138,7 +126,6 @@
             <p class="position-text" v-else>{{ formFeedback || 'Get into position' }}</p>
             <p class="position-subtext" v-if="!playerDetected">Full body must be visible</p>
             <div v-if="playerDetected" class="position-detected">Body detected</div>
-            <button class="end-early-btn" @click="endSession">End Challenge</button>
           </div>
         </div>
 
@@ -192,31 +179,33 @@
           <span class="recording-time">{{ formatRecordingTime(recordingDuration) }}</span>
         </div>
 
-        <!-- Maximized overlay actions -->
-        <div v-if="maximized" class="max-overlay-actions">
-          <button @click="toggleRecording" :class="['max-action-btn', { recording: isRecording }]">
-            <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
-              <circle v-if="!isRecording" cx="12" cy="12" r="8"/>
-              <rect v-else x="8" y="8" width="8" height="8" rx="1"/>
-            </svg>
-            {{ isRecording ? 'Stop Rec' : 'Record' }}
-          </button>
-          <button @click="endSession" class="max-action-btn end">End</button>
-        </div>
+        <!-- Toast notification -->
+        <transition name="toast-fade">
+          <div v-if="toastMessage" class="cam-toast">{{ toastMessage }}</div>
+        </transition>
       </div>
 
-      <div v-if="!maximized" class="session-actions">
+      <!-- Bottom action bar -->
+      <div class="session-bottom-bar">
+        <button :class="['bar-btn', { active: enableSound }]" @click="toggleSound">
+          <svg v-if="enableSound" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+          <span>Sound</span>
+        </button>
         <button
           @click="toggleRecording"
-          :class="['btn-record', { recording: isRecording }]"
+          :class="['bar-btn record-btn', { recording: isRecording }]"
         >
-          <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
             <circle v-if="!isRecording" cx="12" cy="12" r="8"/>
             <rect v-else x="8" y="8" width="8" height="8" rx="1"/>
           </svg>
-          {{ isRecording ? 'Stop Recording' : 'Record' }}
+          <span>{{ isRecording ? 'Stop' : 'Record' }}</span>
         </button>
-        <button @click="endSession" class="stop-btn">End Challenge</button>
+        <button @click="endSession" class="bar-btn end-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+          <span>End</span>
+        </button>
       </div>
     </div>
 
@@ -269,31 +258,21 @@ const scoreLabel = computed(() => meta.value.scoreLabel)
 // Annotations toggle
 const showAnnotations = ref(true)
 
-// Fullscreen / maximize
-const maximized = ref(false)
 
-// Placement guide — show until user has completed at least 1 challenge
+// Placement guide — show once per challenge type, then only via info button
 const showPlacementGuide = ref(false)
 
-async function checkPlacementGuide() {
-  try {
-    await challengesStore.fetchSessions()
-    // Sum scores for this challenge type across all completed sessions
-    const totalScore = challengesStore.sessions
-      .filter(s => s.challenge_type === challengeType.value && s.status === 'ended')
-      .reduce((sum, s) => sum + (s.score || 0), 0)
-    // Hold types use cumulative hold time (60s); rep types use rep count (5)
-    const threshold = isHoldType.value ? 60 : 5
-    if (totalScore < threshold) {
-      showPlacementGuide.value = true
-    }
-  } catch {
-    // If fetch fails, don't block the user
+function checkPlacementGuide() {
+  const key = `guide_seen_${challengeType.value}`
+  if (!localStorage.getItem(key)) {
+    showPlacementGuide.value = true
   }
 }
 
 function dismissPlacementGuide() {
   showPlacementGuide.value = false
+  const key = `guide_seen_${challengeType.value}`
+  localStorage.setItem(key, '1')
 }
 
 // Camera state
@@ -375,6 +354,26 @@ const isRecording = ref(false)
 const hasRecording = ref(false)
 const recordingDuration = ref(0)
 let recordingTimer = null
+
+// Toggle toast
+const toastMessage = ref('')
+let toastTimer = null
+
+function showToast(msg) {
+  toastMessage.value = msg
+  clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => { toastMessage.value = '' }, 1200)
+}
+
+function toggleRecord() {
+  recordOnStart.value = !recordOnStart.value
+  showToast(recordOnStart.value ? 'Recording On' : 'Recording Off')
+}
+
+function toggleSound() {
+  enableSound.value = !enableSound.value
+  showToast(enableSound.value ? 'Sound On' : 'Sound Off')
+}
 
 // Rep pop animation
 const showRepPop = ref(false)
@@ -477,7 +476,9 @@ async function enumerateCameras() {
     const devices = await navigator.mediaDevices.enumerateDevices()
     cameras.value = devices.filter(d => d.kind === 'videoinput')
     if (cameras.value.length > 0 && !selectedCamera.value) {
-      selectedCamera.value = cameras.value[0].deviceId
+      // Prefer front camera by default
+      const front = cameras.value.find(c => /front|user|facetime/i.test(c.label))
+      selectedCamera.value = front ? front.deviceId : cameras.value[0].deviceId
       await switchCamera()
     }
     if (window.DD_RUM) {
@@ -501,7 +502,12 @@ async function switchCamera() {
 
   try {
     mediaStream = await navigator.mediaDevices.getUserMedia({
-      video: { deviceId: { exact: selectedCamera.value }, width: { ideal: 640 }, height: { ideal: 480 } }
+      video: {
+        deviceId: { exact: selectedCamera.value },
+        width: { ideal: 640 }, height: { ideal: 480 },
+        zoom: { ideal: 1 },           // widest field of view
+        focusMode: { ideal: 'continuous' }
+      }
     })
     const videoEl = phase.value === 'setup' ? previewVideo.value : streamVideo.value
     if (videoEl) {
@@ -802,11 +808,13 @@ async function toggleRecording() {
       isRecording.value = false
       hasRecording.value = true
       stopRecordingTimer()
+      showToast('Recording Off')
     } else {
       await api.post(`/api/v1/challenges/sessions/${sessionId.value}/recording/start`)
       isRecording.value = true
       recordingDuration.value = 0
       startRecordingTimer()
+      showToast('Recording On')
     }
   } catch (e) {
     console.error('Recording error:', e)
@@ -974,49 +982,17 @@ onUnmounted(() => {
   max-width: 800px;
   margin: 0 auto;
   padding: 1rem;
+  overflow-x: hidden;
 }
 
-.back-link {
-  color: var(--text-muted);
-  text-decoration: none;
-  font-size: 0.9rem;
-}
-.back-link:hover { color: var(--color-primary); }
-
-.setup-phase h1 {
-  color: var(--color-primary);
-  margin: 0.5rem 0 0.25rem;
-  font-size: 1.8rem;
-}
-
-.hint {
-  color: var(--text-muted);
-  margin-bottom: 1.5rem;
-}
-
-.info-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.1rem;
-  color: var(--color-primary);
-  cursor: pointer;
-  opacity: 0.7;
-  transition: opacity 0.15s;
-  vertical-align: middle;
-  margin-left: 0.25rem;
-}
-.info-icon:hover {
-  opacity: 1;
+.setup-phase {
+  flex: 1;
 }
 
 .camera-preview-wrap {
   position: relative;
   background: #000;
-  border-radius: var(--radius-md);
   overflow: hidden;
-  aspect-ratio: 4/3;
-  margin-bottom: 1rem;
 }
 
 .camera-preview, .stream-video {
@@ -1024,6 +1000,7 @@ onUnmounted(() => {
   height: 100%;
   object-fit: cover;
   display: block;
+  transform: scaleX(-1);
 }
 
 .camera-placeholder {
@@ -1036,108 +1013,243 @@ onUnmounted(() => {
   background: rgba(0,0,0,0.7);
 }
 
-.controls {
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-}
 
-.camera-select {
-  flex: 1;
-  padding: 0.6rem;
-  background: var(--bg-input);
-  border: 1px solid var(--border-input);
-  color: var(--text-primary);
-  border-radius: var(--radius-sm);
-}
-
-.start-btn {
+/* Setup top bar (over fullscreen camera) */
+.setup-top-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: var(--gradient-primary);
-  color: var(--text-on-primary);
-  border: none;
-  padding: 0.9rem 2rem;
-  border-radius: var(--radius-md);
-  font-weight: 600;
-  font-size: 1.05rem;
-  cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
-  box-shadow: 0 4px 14px rgba(124, 58, 237, 0.3);
-}
-.start-btn:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
-.start-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(124, 58, 237, 0.4);
+  padding: 0.75rem;
+  padding-top: calc(0.75rem + env(safe-area-inset-top, 0px));
+  background: linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, transparent 100%);
+  z-index: 12;
 }
 
-.setup-icon-toggles {
+.setup-back-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
   display: flex;
-  justify-content: center;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-}
-
-.icon-toggle {
-  display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 0.3rem;
-  padding: 0.5rem 1rem;
-  background: transparent;
-  border: 1.5px solid var(--border-input);
-  border-radius: var(--radius-md);
-  color: var(--text-muted);
+  justify-content: center;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.setup-title {
+  flex: 1;
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+}
+
+.setup-info-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* Camera overlay toggle buttons — bottom row */
+.camera-overlay-toggles {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 0.75rem;
+  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 100%);
+  z-index: 12;
+}
+
+.cam-toggle {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   transition: all 0.2s;
-  min-width: 64px;
 }
 
-.icon-toggle:hover {
-  border-color: var(--color-primary);
+.cam-toggle:hover {
+  background: rgba(0, 0, 0, 0.85);
 }
 
-.icon-toggle.active {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-  background: rgba(124, 58, 237, 0.08);
+.cam-toggle.active {
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
 }
 
-.icon-toggle.active:first-child {
-  color: var(--color-destructive);
-  border-color: var(--color-destructive);
-  background: rgba(231, 76, 60, 0.08);
+/* Record button: subtle red ring */
+.cam-toggle:first-child {
+  border-color: rgba(231, 76, 60, 0.4);
 }
 
-.icon-toggle-label {
-  font-size: 0.7rem;
-  font-weight: 500;
-  line-height: 1;
+.cam-toggle.active:first-child {
+  background: rgba(231, 76, 60, 0.8);
+  border-color: rgba(231, 76, 60, 0.8);
+  color: #fff;
 }
 
-.camera-preview-wrap {
+.cam-toggle-select {
+  height: 44px;
+  width: 44px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  font-size: 0;
   cursor: pointer;
+  text-indent: -9999px;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z'/%3E%3Ccircle cx='12' cy='13' r='4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 18px;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
-.camera-tap-hint {
+.cam-toggle-select option {
+  background: #222;
+  color: #fff;
+  font-size: 0.85rem;
+  text-indent: 0;
+}
+
+/* Toast notification */
+.cam-toast {
   position: absolute;
-  bottom: 1rem;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  padding: 0.5rem 1.25rem;
+  border-radius: var(--radius-full, 9999px);
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.toast-fade-enter-active {
+  transition: opacity 0.15s ease;
+}
+.toast-fade-leave-active {
+  transition: opacity 0.4s ease;
+}
+.toast-fade-enter-from,
+.toast-fade-leave-to {
+  opacity: 0;
+}
+
+/* Tap to start hint */
+.tap-start-hint {
+  position: absolute;
+  bottom: 4.5rem;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.5);
-  color: rgba(255, 255, 255, 0.8);
-  padding: 0.4rem 1rem;
-  border-radius: var(--radius-full);
-  font-size: 0.8rem;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  padding: 0.5rem 1.25rem;
+  border-radius: var(--radius-full, 9999px);
+  font-size: 0.9rem;
+  font-weight: 500;
+  white-space: nowrap;
   pointer-events: none;
   animation: tap-pulse 2.5s ease-in-out infinite;
+  z-index: 11;
 }
 
 @keyframes tap-pulse {
   0%, 100% { opacity: 0.6; }
   50% { opacity: 1; }
 }
+
+/* Bottom action bar during active challenge */
+.session-bottom-bar {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 430px;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 0.5rem 1rem;
+  padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(12px);
+  z-index: 110;
+}
+
+.bar-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  padding: 0.4rem 0.75rem;
+  border-radius: var(--radius-md);
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.bar-btn span {
+  font-size: 0.65rem;
+  font-weight: 500;
+}
+
+.bar-btn:hover, .bar-btn.active {
+  color: #fff;
+}
+
+.bar-btn.record-btn {
+  color: var(--color-destructive);
+}
+
+.bar-btn.record-btn.recording {
+  color: #fff;
+  animation: pulse-record 1s infinite;
+}
+
+.bar-btn.end-btn {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.bar-btn.end-btn:hover {
+  color: var(--color-destructive);
+}
+
 
 /* Active phase */
 .video-container {
@@ -1146,6 +1258,7 @@ onUnmounted(() => {
   border-radius: var(--radius-md);
   overflow: hidden;
   aspect-ratio: 4/3;
+  width: 100%;
 }
 
 .overlay-canvas {
@@ -1225,58 +1338,9 @@ onUnmounted(() => {
   border: 1px solid rgba(231, 76, 60, 0.4);
 }
 
-/* Session actions row */
-.session-actions {
-  display: flex;
-  gap: 1rem;
-  margin-top: 1rem;
-}
-
-.btn-record {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.75rem;
-  background: var(--bg-card);
-  border: 2px solid var(--color-destructive);
-  border-radius: var(--radius-md);
-  color: var(--color-destructive);
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.btn-record:hover { background: var(--color-destructive-light); }
-.btn-record.recording {
-  background: var(--color-destructive);
-  color: white;
-  animation: pulse-record 1s infinite;
-}
-.btn-record .btn-icon {
-  width: 18px;
-  height: 18px;
-}
-
 @keyframes pulse-record {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.8; }
-}
-
-.stop-btn {
-  flex: 1;
-  background: transparent;
-  border: 1px solid var(--color-destructive);
-  color: var(--color-destructive);
-  padding: 0.75rem;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  font-size: 1rem;
-  transition: all 0.2s;
-}
-.stop-btn:hover {
-  background: var(--color-destructive);
-  color: #fff;
 }
 
 /* Recording indicator */
@@ -1410,21 +1474,6 @@ onUnmounted(() => {
   margin-top: 0.25rem;
 }
 
-.end-early-btn {
-  margin-top: 1.5rem;
-  background: transparent;
-  border: 1px solid rgba(231, 76, 60, 0.6);
-  color: #e74c3c;
-  padding: 0.5rem 1.5rem;
-  border-radius: var(--radius-md);
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-.end-early-btn:hover {
-  background: rgba(231, 76, 60, 0.15);
-}
-
 /* GO flash transition */
 .go-flash-enter-active {
   transition: all 0.3s ease-out;
@@ -1518,13 +1567,10 @@ onUnmounted(() => {
   inset: 0;
   background: rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(4px);
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
   z-index: 200;
-  padding: 1rem;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  padding: 1rem;
 }
 
 .placement-card {
@@ -1536,31 +1582,32 @@ onUnmounted(() => {
   max-width: 420px;
   width: 100%;
   text-align: center;
-  margin: auto 0;
-  flex-shrink: 0;
+  margin: 1rem auto;
 }
 
 .placement-close {
   position: absolute;
   top: 0.75rem;
   right: 0.75rem;
-  width: 48px;
-  height: 48px;
+  width: 44px;
+  height: 44px;
   border: none;
-  background: rgba(255, 255, 255, 0.15);
-  color: var(--text-muted);
-  font-size: 2.1rem;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: 1.75rem;
   line-height: 1;
-  border-radius: var(--radius-full);
+  border-radius: 50%;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  z-index: 210;
+  box-shadow: var(--shadow-md);
 }
 
 .placement-close:hover {
-  background: rgba(255, 255, 255, 0.2);
-  color: var(--text-primary);
+  background: var(--color-destructive-light);
+  color: var(--color-destructive);
 }
 
 .placement-img-wrap {
@@ -1651,28 +1698,7 @@ onUnmounted(() => {
   z-index: 100;
 }
 
-/* Maximize / fullscreen mode */
-.maximize-btn {
-  position: absolute;
-  bottom: 0.75rem;
-  right: 0.75rem;
-  background: rgba(0, 0, 0, 0.5);
-  border: none;
-  color: #fff;
-  width: 36px;
-  height: 36px;
-  border-radius: var(--radius-md);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  z-index: 15;
-  transition: background 0.2s;
-}
-.maximize-btn:hover {
-  background: rgba(0, 0, 0, 0.7);
-}
-
+/* Fullscreen mode */
 .camera-preview-wrap.maximized,
 .video-container.maximized {
   position: fixed;
@@ -1691,81 +1717,7 @@ onUnmounted(() => {
   object-fit: contain;
 }
 
-.max-overlay-controls {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 12;
-  pointer-events: none;
-}
-
-.max-start-btn {
-  pointer-events: auto;
-  background: var(--gradient-primary);
-  color: #fff;
-  border: none;
-  padding: 1rem 2.5rem;
-  border-radius: var(--radius-lg);
-  font-size: 1.2rem;
-  font-weight: 700;
-  cursor: pointer;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-  animation: tap-pulse 2.5s ease-in-out infinite;
-}
-
-.max-overlay-actions {
-  position: absolute;
-  bottom: 2rem;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 1rem;
-  z-index: 15;
-}
-
-.max-action-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  background: rgba(0, 0, 0, 0.6);
-  border: 1.5px solid rgba(255, 255, 255, 0.3);
-  color: #fff;
-  padding: 0.6rem 1.2rem;
-  border-radius: var(--radius-full);
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-  backdrop-filter: blur(4px);
-  transition: background 0.2s;
-}
-.max-action-btn:hover {
-  background: rgba(0, 0, 0, 0.8);
-}
-.max-action-btn.recording {
-  border-color: #e74c3c;
-  color: #e74c3c;
-}
-.max-action-btn.end {
-  border-color: rgba(231, 76, 60, 0.6);
-  color: #e74c3c;
-}
-.max-action-btn svg {
-  width: 18px;
-  height: 18px;
-}
-
 @media (max-width: 640px) {
-  .controls {
-    flex-direction: column;
-  }
-
-  .camera-select,
-  .start-btn {
-    width: 100%;
-  }
-
   .hud {
     gap: 0.75rem;
   }
@@ -1777,10 +1729,6 @@ onUnmounted(() => {
   .form-feedback {
     font-size: 0.8rem;
     padding: 0.4rem 1rem;
-  }
-
-  .session-actions {
-    flex-direction: column;
   }
 
   .status-circle {
@@ -1798,8 +1746,22 @@ onUnmounted(() => {
   }
 }
 
-/* Landscape orientation — tighten HUD & overlay when rotated */
+/* Landscape orientation — camera fills screen, controls compact */
 @media (orientation: landscape) and (max-height: 500px) {
+  .challenge-session {
+    padding: 0;
+  }
+
+  /* Fill screen edge-to-edge in landscape */
+  .camera-preview-wrap.maximized .camera-preview,
+  .video-container.maximized .stream-video {
+    object-fit: cover;
+  }
+
+  .session-bottom-bar {
+    padding: 0.3rem 0.75rem;
+  }
+
   .hud {
     top: 0.5rem;
     left: 0.5rem;
@@ -1816,10 +1778,6 @@ onUnmounted(() => {
 
   .metric-label {
     font-size: 0.65rem;
-  }
-
-  .max-overlay-actions {
-    bottom: 1rem;
   }
 
   .position-prompt {
@@ -1840,12 +1798,6 @@ onUnmounted(() => {
     font-size: 2rem;
   }
 
-  .end-early-btn {
-    margin-top: 0.75rem;
-    padding: 0.4rem 1.2rem;
-    font-size: 0.8rem;
-  }
-
   .leg-status {
     top: 0.5rem;
     right: 0.5rem;
@@ -1863,9 +1815,5 @@ onUnmounted(() => {
     font-size: 5rem;
   }
 
-  .maximize-btn {
-    bottom: 0.5rem;
-    right: 0.5rem;
-  }
 }
 </style>

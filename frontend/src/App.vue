@@ -1,271 +1,225 @@
 <template>
-  <div id="app">
-    <nav v-if="authStore.isAuthenticated && !isLandingPage" class="navbar">
-      <div class="nav-brand">
-        <router-link to="/hub">
-          <img src="/pwa-192x192.png" alt="PushUp Pro" class="brand-icon" />
-          PushUp Pro
+  <!-- Mobile-app shell: constrained width, centered, card-like on desktop -->
+  <div class="app-shell" :class="{ 'shell-wide': isAdminPage }">
+    <div class="app-frame" :class="{ 'frame-wide': isAdminPage }">
+
+      <!-- Top Header (authenticated, non-landing/auth pages) -->
+      <header v-if="authStore.isAuthenticated && !isLandingPage && !isAuthPage && !isFullscreenPage" class="app-header">
+        <router-link to="/hub" class="header-brand">
+          <img src="/mascot/otter-mascot.png" alt="PushUp Pro" class="header-logo" />
+          <span class="header-name">PushUp Pro</span>
         </router-link>
-      </div>
-      <div class="nav-links">
-        <router-link to="/hub">Home</router-link>
-        <router-link to="/features" class="nav-explore" title="Explore Features">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" stroke-linecap="round" stroke-linejoin="round">
+        <div class="header-actions">
+          <router-link v-if="isAdmin" to="/admin" class="admin-badge">Admin</router-link>
+        </div>
+      </header>
+
+      <!-- Main Content -->
+      <main class="app-main" :class="{ 'has-nav': authStore.isAuthenticated && !isLandingPage && !isAuthPage && !isAdminPage && !isFullscreenPage }">
+        <router-view v-slot="{ Component }">
+          <transition name="fade" mode="out-in">
+            <component :is="Component" />
+          </transition>
+        </router-view>
+      </main>
+
+      <!-- Bottom Navigation (authenticated, non-landing/auth/admin pages) -->
+      <nav v-if="authStore.isAuthenticated && !isLandingPage && !isAuthPage && !isAdminPage && !isFullscreenPage" class="bottom-nav">
+        <BottomNavItem to="/hub" label="Home" exact>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+            <polyline points="9 22 9 12 15 12 15 22"/>
+          </svg>
+        </BottomNavItem>
+        <BottomNavItem to="/challenges" label="Challenges">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+          </svg>
+        </BottomNavItem>
+        <BottomNavItem to="/features" label="Explore">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="10"/>
             <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>
           </svg>
-          <span class="explore-text">Explore</span>
-        </router-link>
-        <router-link v-if="isAdmin" to="/admin" class="nav-admin">Admin</router-link>
-        <router-link to="/profile" class="user-badge">
-          <span class="user-avatar">{{ userInitial }}</span>
-          <span class="user-name">{{ authStore.user?.username }}</span>
-        </router-link>
-        <button @click="logout" class="btn-logout">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-            <polyline points="16 17 21 12 16 7"/>
-            <line x1="21" y1="12" x2="9" y2="12"/>
+        </BottomNavItem>
+        <BottomNavItem to="/profile" label="Profile">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
           </svg>
-          <span class="logout-text">Logout</span>
-        </button>
-      </div>
-    </nav>
-    <main :class="['main-content', { 'full-width': isLandingPage || isAuthPage }]">
-      <router-view />
-    </main>
-    <footer v-if="!isLandingPage" class="app-footer">
-      <a href="mailto:connect@neymo.ai">connect@neymo.ai</a>
-    </footer>
+        </BottomNavItem>
+      </nav>
+
+      <!-- Footer (landing/auth pages only) -->
+      <footer v-if="isLandingPage || isAuthPage" class="app-footer">
+        <a href="mailto:connect@neymo.ai">connect@neymo.ai</a>
+      </footer>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { computed } from 'vue'
 import { useAuthStore } from './stores/auth'
-import { useRouter, useRoute } from 'vue-router'
+import { useRoute } from 'vue-router'
+import BottomNavItem from './components/BottomNavItem.vue'
 
 const authStore = useAuthStore()
-const router = useRouter()
 const route = useRoute()
 
 const isAdmin = computed(() => authStore.user?.is_admin)
 const isLandingPage = computed(() => route.name === 'Landing' || route.name === 'LandingFull')
-const isAuthPage = computed(() => ['Login', 'Signup'].includes(route.name))
-const userInitial = computed(() => (authStore.user?.username || authStore.user?.email || '?')[0].toUpperCase())
+const isAuthPage = computed(() => ['Login', 'Signup', 'ForgotPassword'].includes(route.name))
+const isAdminPage = computed(() => ['Admin', 'Tuning', 'StreamTuning'].includes(route.name))
+const isFullscreenPage = computed(() => ['ChallengeSession'].includes(route.name))
 
-const logout = () => {
-  authStore.logout()
-  router.push('/')
-}
 </script>
 
 <style>
-#app {
+/* ---- Mobile-app shell ---- */
+.app-shell {
   min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--bg-page);
+  display: flex;
+  justify-content: center;
+}
+
+/* Phone-width frame: full on mobile, constrained + elevated on desktop */
+.app-frame {
+  width: 100%;
+  max-width: 430px;
+  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   background: var(--bg-page);
   position: relative;
 }
 
-.navbar {
-  background: var(--bg-card);
-  position: relative;
-  z-index: 1;
-  padding: 1rem 2rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  box-shadow: var(--shadow-sm);
-  border-bottom: 1px solid var(--border-color);
+@media (min-width: 480px) {
+  .app-shell {
+    background: #E8E4DC;
+    padding: 1rem 0;
+    align-items: flex-start;
+  }
+  .app-frame {
+    min-height: calc(100vh - 2rem);
+    min-height: calc(100dvh - 2rem);
+    border-radius: 1.5rem;
+    box-shadow: 0 8px 40px rgba(45, 42, 38, 0.12), 0 0 0 1px rgba(45, 42, 38, 0.06);
+    overflow: hidden;
+  }
 }
 
-.nav-brand a {
+/* ---- Wide mode (admin pages) ---- */
+.shell-wide {
+  background: var(--bg-page) !important;
+  padding: 0 !important;
+}
+
+.frame-wide {
+  max-width: 100% !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+}
+
+/* ---- Top header ---- */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  background: rgba(253, 252, 249, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+
+.header-brand {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: var(--gradient-primary);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
   text-decoration: none;
-  font-size: 1.5rem;
+}
+
+.header-logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+}
+
+.header-name {
+  font-size: 1rem;
   font-weight: 700;
-}
-
-.brand-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
-  flex-shrink: 0;
-  -webkit-text-fill-color: initial;
-}
-
-.nav-links {
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-}
-
-.nav-links a {
-  color: var(--text-secondary);
-  text-decoration: none;
-  padding: 0.5rem 1rem;
-  border-radius: var(--radius-md);
-  transition: background 0.2s, color 0.2s;
-  font-weight: 500;
-}
-
-.nav-links a:hover,
-.nav-links a.router-link-active {
-  background: var(--color-primary-light);
   color: var(--color-primary);
 }
 
-.nav-explore {
-  display: flex !important;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.nav-explore svg {
-  flex-shrink: 0;
-}
-
-.nav-admin {
-  color: var(--color-secondary) !important;
-  border: 1px solid var(--color-secondary);
-}
-
-.nav-admin:hover,
-.nav-admin.router-link-active {
-  background: var(--color-secondary-light) !important;
-  color: var(--color-secondary) !important;
-}
-
-.user-badge {
+.header-actions {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+.admin-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+  background: var(--color-secondary-light);
+  color: var(--color-secondary);
   text-decoration: none;
-  cursor: pointer;
-  border-radius: var(--radius-md);
-  padding: 0.25rem 0.5rem;
-  transition: background 0.2s;
 }
 
-.user-badge:hover {
-  background: var(--color-primary-light);
-}
 
-.user-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: var(--gradient-primary);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 0.95rem;
-}
-
-.user-name {
-  color: var(--text-primary);
-  font-weight: 500;
-  font-size: 0.95rem;
-}
-
-.btn-logout {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  background: transparent;
-  border: 1px solid var(--border-color);
-  color: var(--text-secondary);
-  padding: 0.5rem 1rem;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: all 0.2s;
-  font-weight: 500;
-  font-size: 0.95rem;
-}
-
-.btn-logout:hover {
-  border-color: var(--text-muted);
-  color: var(--text-primary);
-}
-
-.main-content {
+/* ---- Main content ---- */
+.app-main {
   flex: 1;
-  padding: 2rem;
-  max-width: 1400px;
-  margin: 0 auto;
-  width: 100%;
+  display: flex;
+  flex-direction: column;
   position: relative;
-  z-index: 1;
 }
 
-.main-content.full-width {
-  padding: 0;
-  max-width: 100%;
+.app-main.has-nav {
+  padding-bottom: 4.5rem; /* space for bottom nav */
 }
 
-@media (max-width: 640px) {
-  .navbar {
-    padding: 0.75rem 1rem;
-  }
+/* ---- Bottom navigation ---- */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 430px;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 0.5rem 0.5rem;
+  padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
+  background: rgba(253, 252, 249, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid var(--border-color);
+  z-index: 40;
+}
 
-  .nav-brand a {
-    font-size: 1.1rem;
-  }
-
-  .nav-links {
-    gap: 0.5rem;
-  }
-
-  .nav-links a {
-    padding: 0.35rem 0.5rem;
-    font-size: 0.8rem;
-  }
-
-  .btn-logout {
-    padding: 0.35rem 0.5rem;
-    font-size: 0.8rem;
-  }
-
-  .btn-logout svg {
-    width: 16px;
-    height: 16px;
-  }
-
-  .logout-text,
-  .explore-text {
-    display: none;
-  }
-
-  .user-name {
-    display: none;
-  }
-
-  .user-avatar {
-    width: 30px;
-    height: 30px;
-    font-size: 0.8rem;
-  }
-
-  .main-content {
-    padding: 1rem;
+@media (min-width: 480px) {
+  .bottom-nav {
+    border-radius: 0 0 1.5rem 1.5rem;
   }
 }
 
+/* ---- Footer ---- */
 .app-footer {
   text-align: center;
-  padding: 1.5rem 1rem;
+  padding: 1.25rem 1rem;
+  font-size: 0.75rem;
   color: var(--text-muted);
-  font-size: 0.8rem;
 }
 
 .app-footer a {
@@ -276,5 +230,21 @@ const logout = () => {
 
 .app-footer a:hover {
   color: var(--color-primary);
+}
+
+/* ---- Page transitions ---- */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.fade-enter-from {
+  opacity: 0;
+  transform: translateY(4px);
+}
+
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 </style>

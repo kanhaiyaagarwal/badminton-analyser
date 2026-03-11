@@ -3,7 +3,7 @@
     <router-link v-if="isAdmin || store.enabledTypes.length > 1" to="/challenges" class="back-link">&larr; All Challenges</router-link>
 
     <div class="home-header">
-      <span class="header-icon">{{ meta.icon }}</span>
+      <img :src="meta.iconSrc" :alt="meta.name" class="header-icon-img" />
       <h1>{{ meta.name }}</h1>
     </div>
 
@@ -17,7 +17,7 @@
           @click="router.push(`/challenges/${variant.type}/session`)"
         >
           <div class="variant-header">
-            <span class="variant-icon">{{ variant.icon }}</span>
+            <img :src="variant.iconSrc" :alt="variant.name" class="variant-icon-img" />
             <div class="variant-info">
               <h3>{{ variant.name }}</h3>
               <p>{{ variant.desc }}</p>
@@ -242,18 +242,18 @@ const isAdmin = computed(() => authStore.user?.is_admin)
 const challengeType = computed(() => route.params.type)
 
 const CHALLENGE_META = {
-  plank: { name: 'Plank Hold', icon: '\u{1F9D8}', unit: 's' },
-  squat: { name: 'Squats', icon: '\u{1F3CB}', unit: 'reps' },
-  squat_hold: { name: 'Squat Hold', icon: '\u{1F3CB}', unit: 's' },
-  squat_half: { name: 'Half Squats', icon: '\u{1F3CB}', unit: 'reps' },
-  squat_full: { name: 'Full Squats', icon: '\u{1F3CB}', unit: 'reps' },
-  pushup: { name: 'Max Pushups', icon: '\u{1F4AA}', unit: 'reps' },
+  plank: { name: 'Plank Hold', iconSrc: '/mascot/otter-plank-icon.png', unit: 's' },
+  squat: { name: 'Squats', iconSrc: '/mascot/otter-squat-icon.png', unit: 'reps' },
+  squat_hold: { name: 'Squat Hold', iconSrc: '/mascot/otter-squat-icon.png', unit: 's' },
+  squat_half: { name: 'Half Squats', iconSrc: '/mascot/otter-squat-icon.png', unit: 'reps' },
+  squat_full: { name: 'Full Squats', iconSrc: '/mascot/otter-squat-icon.png', unit: 'reps' },
+  pushup: { name: 'Max Pushups', iconSrc: '/mascot/otter-pushup-icon.png', unit: 'reps' },
 }
 
 const SQUAT_VARIANTS = [
-  { type: 'squat_hold', name: 'Squat Hold', icon: '\u{23F1}\u{FE0F}', unit: 's', desc: 'Hold a squat position' },
-  { type: 'squat_half', name: 'Half Squats', icon: '\u{1F53B}', unit: 'reps', desc: 'Half-depth reps' },
-  { type: 'squat_full', name: 'Full Squats', icon: '\u{1F3CB}\u{FE0F}', unit: 'reps', desc: 'Full depth reps' },
+  { type: 'squat_hold', name: 'Squat Hold', iconSrc: '/mascot/otter-squat-icon.png', unit: 's', desc: 'Hold a squat position' },
+  { type: 'squat_half', name: 'Half Squats', iconSrc: '/mascot/otter-squat-icon.png', unit: 'reps', desc: 'Half-depth reps' },
+  { type: 'squat_full', name: 'Full Squats', iconSrc: '/mascot/otter-squat-icon.png', unit: 'reps', desc: 'Full depth reps' },
 ]
 
 const isSquatGroup = computed(() => challengeType.value === 'squat')
@@ -395,8 +395,10 @@ onUnmounted(() => {
   margin: 1rem 0 1.5rem;
 }
 
-.header-icon {
-  font-size: 2.5rem;
+.header-icon-img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
 }
 
 .home-header h1 {
@@ -784,8 +786,10 @@ onUnmounted(() => {
   margin-bottom: 0.75rem;
 }
 
-.variant-icon {
-  font-size: 1.8rem;
+.variant-icon-img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
   flex-shrink: 0;
 }
 

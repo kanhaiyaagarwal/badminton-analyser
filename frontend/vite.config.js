@@ -1,11 +1,13 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import basicSsl from '@vitejs/plugin-basic-ssl'
+import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
 
 export default defineConfig({
   plugins: [
+    tailwindcss(),
     vue(),
     basicSsl(),
     VitePWA({
@@ -32,8 +34,8 @@ export default defineConfig({
         name: 'PushUp Pro',
         short_name: 'PushUp Pro',
         description: 'AI-powered fitness challenges — pushups, planks, squats',
-        theme_color: '#7c3aed',
-        background_color: '#f0f4ff',
+        theme_color: '#7C8B6F',
+        background_color: '#F5F2EB',
         display: 'standalone',
         orientation: 'portrait',
         start_url: '/',

@@ -1,202 +1,232 @@
 <template>
-  <div class="auth-container">
-    <!-- Step 1: Signup Form -->
-    <div v-if="!showOtpStep" class="auth-card">
-      <!-- Default signup: Google first, then invite code, then manual form -->
-      <template v-if="!googleNeedsInvite && !googleWaitlisted">
-        <h1>Sign Up</h1>
-        <p class="subtitle">Create your PushUp Pro account</p>
+  <div class="auth-page">
+    <div class="auth-container">
 
-        <div v-if="googleAvailable" ref="googleBtnContainer" class="google-btn-wrapper"></div>
+      <!-- Step 1: Signup Form -->
+      <template v-if="!showOtpStep">
+        <template v-if="!googleNeedsInvite && !googleWaitlisted">
+          <div
+            v-motion
+            :initial="{ opacity: 0, scale: 0.85 }"
+            :enter="{ opacity: 1, scale: 1, transition: { duration: 400 } }"
+            class="auth-brand"
+          ><img src="/mascot/otter-mascot.png" alt="PushUp Pro" class="auth-logo" /></div>
 
-        <div v-if="googleAvailable" class="divider">
-          <span>or sign up with email</span>
-        </div>
+          <h1
+            v-motion
+            :initial="{ opacity: 0, y: 16 }"
+            :enter="{ opacity: 1, y: 0, transition: { delay: 100, duration: 400 } }"
+            class="auth-title"
+          >Sign Up</h1>
+          <p
+            v-motion
+            :initial="{ opacity: 0, y: 16 }"
+            :enter="{ opacity: 1, y: 0, transition: { delay: 200, duration: 400 } }"
+            class="auth-subtitle"
+          >Create your PushUp Pro account</p>
 
-        <div v-if="error" class="error-message">{{ error }}</div>
-        <div v-if="success" class="success-message">{{ success }}</div>
+          <div
+            v-motion
+            :initial="{ opacity: 0, y: 16 }"
+            :enter="{ opacity: 1, y: 0, transition: { delay: 300, duration: 400 } }"
+            class="auth-form-area"
+          >
+            <div v-if="googleAvailable" ref="googleBtnContainer" class="google-btn-wrapper"></div>
 
-        <form @submit.prevent="handleSignup">
-          <div class="form-group">
-            <label for="inviteCode">Invite Code <span class="optional">(optional)</span></label>
-            <input
-              id="inviteCode"
-              v-model="inviteCode"
-              type="text"
-              placeholder="Enter your invite code (or leave blank to join waitlist)"
-            />
+            <div v-if="googleAvailable" class="divider">
+              <span>or sign up with email</span>
+            </div>
+
+            <div v-if="error" class="msg-error">{{ error }}</div>
+            <div v-if="success" class="msg-success">{{ success }}</div>
+
+            <form @submit.prevent="handleSignup">
+              <div class="field-group">
+                <label for="inviteCode">Invite Code <span class="label-optional">(optional)</span></label>
+                <input
+                  id="inviteCode"
+                  v-model="inviteCode"
+                  type="text"
+                  placeholder="Enter invite code or leave blank"
+                />
+              </div>
+
+              <div class="field-group">
+                <label for="email">Email</label>
+                <input
+                  id="email"
+                  v-model="email"
+                  type="email"
+                  placeholder="your@email.com"
+                  required
+                />
+              </div>
+
+              <div class="field-group">
+                <label for="password">Password</label>
+                <input
+                  id="password"
+                  v-model="password"
+                  type="password"
+                  placeholder="Min 8 characters"
+                  minlength="8"
+                  required
+                />
+              </div>
+
+              <div class="field-group">
+                <label for="confirmPassword">Confirm Password</label>
+                <input
+                  id="confirmPassword"
+                  v-model="confirmPassword"
+                  type="password"
+                  placeholder="Confirm your password"
+                  required
+                />
+              </div>
+
+              <button type="submit" class="btn-primary" :disabled="loading">
+                {{ loading ? 'Creating account...' : 'Sign Up' }}
+              </button>
+            </form>
+
+            <p class="auth-switch">
+              Already have an account?
+              <router-link :to="{ path: '/login', query: $route.query }">Login</router-link>
+            </p>
+
+            <div class="waitlist-divider">
+              <p class="waitlist-text">Don't have an invite code?</p>
+              <button type="button" @click="showWaitlist = true" class="btn-outline-sm">
+                Join the Waitlist
+              </button>
+            </div>
           </div>
+        </template>
 
-          <div class="form-group">
-            <label for="email">Email</label>
-            <input
-              id="email"
-              v-model="email"
-              type="email"
-              placeholder="your@email.com"
-              required
-            />
+        <!-- Google invite code step -->
+        <template v-else-if="googleNeedsInvite && !googleWaitlisted">
+          <div class="auth-brand"><img src="/mascot/otter-mascot.png" alt="PushUp Pro" class="auth-logo" /></div>
+          <h1 class="auth-title" style="color: var(--color-primary)">Almost there!</h1>
+          <p class="auth-subtitle">Enter an invite code to complete sign-up, or join the waitlist.</p>
+
+          <div class="auth-form-area">
+            <form @submit.prevent="handleGoogleInviteSubmit">
+              <div class="field-group">
+                <label for="googleInviteCode">Invite Code</label>
+                <input
+                  id="googleInviteCode"
+                  v-model="googleInviteCode"
+                  type="text"
+                  placeholder="Enter your invite code"
+                  required
+                />
+              </div>
+
+              <div v-if="error" class="msg-error">{{ error }}</div>
+
+              <button type="submit" class="btn-primary" :disabled="loading">
+                {{ loading ? 'Signing in...' : 'Continue' }}
+              </button>
+            </form>
+
+            <button type="button" @click="handleGoogleWaitlist" :disabled="gwLoading" class="btn-outline">
+              {{ gwLoading ? 'Joining...' : 'Join the Waitlist' }}
+            </button>
+
+            <button type="button" @click="resetGoogleState" class="btn-link">Back to sign up</button>
           </div>
+        </template>
 
-          <div class="form-group">
-            <label for="password">Password</label>
-            <input
-              id="password"
-              v-model="password"
-              type="password"
-              placeholder="Min 8 characters"
-              minlength="8"
-              required
-            />
+        <!-- Waitlisted confirmation -->
+        <template v-else>
+          <div class="auth-brand"><img src="/mascot/otter-mascot.png" alt="PushUp Pro" class="auth-logo" /></div>
+          <div class="auth-form-area">
+            <div class="msg-success">You've been added to the waitlist! We'll notify you when access is available.</div>
+            <button type="button" @click="resetGoogleState" class="btn-link">Back to sign up</button>
           </div>
-
-          <div class="form-group">
-            <label for="confirmPassword">Confirm Password</label>
-            <input
-              id="confirmPassword"
-              v-model="confirmPassword"
-              type="password"
-              placeholder="Confirm your password"
-              required
-            />
-          </div>
-
-          <button type="submit" class="btn-primary" :disabled="loading">
-            {{ loading ? 'Creating account...' : 'Sign Up' }}
-          </button>
-        </form>
-
-        <p class="auth-switch">
-          Already have an account?
-          <router-link :to="{ path: '/login', query: $route.query }">Login</router-link>
-        </p>
-
-        <div class="waitlist-section">
-          <p class="waitlist-text">Don't have an invite code?</p>
-          <button type="button" @click="showWaitlist = true" class="btn-waitlist">
-            Join the Waitlist
-          </button>
-        </div>
+        </template>
       </template>
 
-      <!-- Google invite code step -->
-      <template v-else-if="googleNeedsInvite && !googleWaitlisted">
-        <h1>Almost there!</h1>
-        <p class="subtitle">Enter an invite code to complete sign-up, or join the waitlist.</p>
-
-        <form @submit.prevent="handleGoogleInviteSubmit">
-          <div class="form-group">
-            <label for="googleInviteCode">Invite Code</label>
-            <input
-              id="googleInviteCode"
-              v-model="googleInviteCode"
-              type="text"
-              placeholder="Enter your invite code"
-              required
-            />
-          </div>
-
-          <div v-if="error" class="error-message">{{ error }}</div>
-
-          <button type="submit" class="btn-primary" :disabled="loading">
-            {{ loading ? 'Signing in...' : 'Continue' }}
-          </button>
-        </form>
-
-        <button type="button" class="btn-waitlist" @click="handleGoogleWaitlist" :disabled="gwLoading" style="margin-top: 0.75rem;">
-          {{ gwLoading ? 'Joining...' : 'Join the Waitlist' }}
-        </button>
-
-        <button type="button" class="btn-link" @click="resetGoogleState">Back to sign up</button>
-      </template>
-
-      <!-- Waitlisted confirmation -->
+      <!-- Step 2: OTP Verification -->
       <template v-else>
-        <div class="success-message">You've been added to the waitlist! We'll notify you when access is available.</div>
-        <button type="button" class="btn-link" @click="resetGoogleState">Back to sign up</button>
-      </template>
-    </div>
+        <div
+          v-motion
+          :initial="{ opacity: 0, scale: 0.85 }"
+          :enter="{ opacity: 1, scale: 1, transition: { duration: 400 } }"
+          class="auth-brand"
+        ><img src="/mascot/otter-mascot.png" alt="PushUp Pro" class="auth-logo" /></div>
 
-    <!-- Step 2: OTP Verification -->
-    <div v-else class="auth-card">
-      <h1>Verify Email</h1>
-      <p class="subtitle">Enter the 6-digit code sent to {{ pendingEmail }}</p>
+        <h1 class="auth-title">Verify Email</h1>
+        <p class="auth-subtitle">Enter the 6-digit code sent to {{ pendingEmail }}</p>
 
-      <form @submit.prevent="handleVerifyOtp">
-        <div class="form-group">
-          <label for="otpCode">Verification Code</label>
-          <input
-            id="otpCode"
-            v-model="otpCode"
-            type="text"
-            inputmode="numeric"
-            pattern="[0-9]{6}"
-            maxlength="6"
-            placeholder="000000"
-            class="otp-input"
-            required
-            autocomplete="one-time-code"
-          />
+        <div class="auth-form-area">
+          <form @submit.prevent="handleVerifyOtp">
+            <div class="field-group">
+              <label for="otpCode">Verification Code</label>
+              <input
+                id="otpCode"
+                v-model="otpCode"
+                type="text"
+                inputmode="numeric"
+                pattern="[0-9]{6}"
+                maxlength="6"
+                placeholder="000000"
+                required
+                autocomplete="one-time-code"
+                class="otp-input"
+              />
+            </div>
+
+            <div v-if="otpError" class="msg-error">{{ otpError }}</div>
+            <div v-if="otpSuccess" class="msg-success">{{ otpSuccess }}</div>
+
+            <button type="submit" class="btn-primary" :disabled="otpLoading || otpCode.length !== 6">
+              {{ otpLoading ? 'Verifying...' : 'Verify Email' }}
+            </button>
+          </form>
+
+          <div class="resend-section">
+            <p v-if="resendCooldown > 0" class="resend-text">
+              Resend code in {{ resendCooldown }}s
+            </p>
+            <button
+              v-else
+              type="button"
+              @click="handleResendOtp"
+              class="btn-link"
+              :disabled="resendLoading"
+            >
+              {{ resendLoading ? 'Sending...' : "Didn't receive a code? Resend" }}
+            </button>
+          </div>
+
+          <button type="button" @click="goBackToSignup" class="btn-secondary">
+            Back to Sign Up
+          </button>
         </div>
-
-        <div v-if="otpError" class="error-message">{{ otpError }}</div>
-        <div v-if="otpSuccess" class="success-message">{{ otpSuccess }}</div>
-
-        <button type="submit" class="btn-primary" :disabled="otpLoading || otpCode.length !== 6">
-          {{ otpLoading ? 'Verifying...' : 'Verify Email' }}
-        </button>
-      </form>
-
-      <div class="resend-section">
-        <p v-if="resendCooldown > 0" class="cooldown-text">
-          Resend code in {{ resendCooldown }}s
-        </p>
-        <button
-          v-else
-          type="button"
-          @click="handleResendOtp"
-          class="btn-link"
-          :disabled="resendLoading"
-        >
-          {{ resendLoading ? 'Sending...' : "Didn't receive a code? Resend" }}
-        </button>
-      </div>
-
-      <button type="button" @click="goBackToSignup" class="btn-secondary">
-        Back to Sign Up
-      </button>
+      </template>
     </div>
 
     <!-- Waitlist Modal -->
     <div v-if="showWaitlist" class="modal-overlay" @click="showWaitlist = false">
-      <div class="modal-content" @click.stop>
-        <h2>Join the Waitlist</h2>
+      <div class="modal-card" @click.stop>
+        <h2 class="modal-title">Join the Waitlist</h2>
         <p class="modal-desc">Enter your email and we'll notify you when access is available.</p>
 
         <form @submit.prevent="handleWaitlist">
-          <div class="form-group">
+          <div class="field-group">
             <label for="waitlistEmail">Email</label>
-            <input
-              id="waitlistEmail"
-              v-model="waitlistEmail"
-              type="email"
-              placeholder="your@email.com"
-              required
-            />
+            <input id="waitlistEmail" v-model="waitlistEmail" type="email" placeholder="your@email.com" required />
           </div>
 
-          <div class="form-group">
+          <div class="field-group">
             <label for="waitlistName">Name (optional)</label>
-            <input
-              id="waitlistName"
-              v-model="waitlistName"
-              type="text"
-              placeholder="Your name"
-            />
+            <input id="waitlistName" v-model="waitlistName" type="text" placeholder="Your name" />
           </div>
 
-          <div v-if="waitlistError" class="error-message">{{ waitlistError }}</div>
-          <div v-if="waitlistSuccess" class="success-message">{{ waitlistSuccess }}</div>
+          <div v-if="waitlistError" class="msg-error">{{ waitlistError }}</div>
+          <div v-if="waitlistSuccess" class="msg-success">{{ waitlistSuccess }}</div>
 
           <button type="submit" class="btn-primary" :disabled="waitlistLoading">
             {{ waitlistLoading ? 'Joining...' : 'Join Waitlist' }}
@@ -265,7 +295,6 @@ const storedGoogleEmail = ref('')
 const storedGoogleName = ref('')
 const gwLoading = ref(false)
 
-// Check if returning to page with pending verification
 onMounted(async () => {
   if (authStore.pendingVerification) {
     pendingUserId.value = authStore.pendingVerification.userId
@@ -316,16 +345,13 @@ async function handleSignup() {
     const response = await authStore.signup(email.value, username, password.value, inviteCode.value)
 
     if (response.status === 'waitlisted') {
-      // User was auto-added to waitlist (no invite code)
       success.value = response.message
     } else if (response.requires_verification) {
-      // Show OTP verification step
       pendingUserId.value = response.user_id
       pendingEmail.value = response.email
       showOtpStep.value = true
-      startCooldownTimer(60) // Start initial cooldown
+      startCooldownTimer(60)
     } else {
-      // Email verification disabled - redirect to login
       success.value = response.message || 'Account created! Redirecting to login...'
       const loginQuery = route.query.redirect ? { redirect: route.query.redirect } : {}
       setTimeout(() => router.push({ path: '/login', query: loginQuery }), 1500)
@@ -374,7 +400,7 @@ async function handleResendOtp() {
     const response = await authStore.resendOTP(pendingUserId.value)
     if (response.success) {
       otpSuccess.value = response.message
-      otpCode.value = '' // Clear old code
+      otpCode.value = ''
       startCooldownTimer(60)
     } else {
       otpError.value = response.message
@@ -500,129 +526,270 @@ async function handleWaitlist() {
 </script>
 
 <style scoped>
-.auth-container {
+/* ---- Full-page mobile-first auth layout ---- */
+.auth-page {
+  flex: 1;
   display: flex;
-  justify-content: center;
   align-items: center;
-  min-height: 80vh;
+  justify-content: center;
+  background: var(--bg-page);
+  padding: 2rem 1.5rem 3rem;
 }
 
-.auth-card {
-  background: var(--bg-card);
-  padding: 3rem;
-  border-radius: var(--radius-lg);
+.auth-container {
   width: 100%;
   max-width: 400px;
-  box-shadow: var(--shadow-lg);
-  border: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
-h1 {
-  color: var(--color-primary);
-  margin-bottom: 0.5rem;
+/* ---- Brand logo ---- */
+.auth-brand {
+  margin-bottom: 1.25rem;
+}
+
+.auth-logo {
+  width: 56px;
+  height: 56px;
+  border-radius: 0.875rem;
+  box-shadow: var(--shadow-md);
+}
+
+/* ---- Typography ---- */
+.auth-title {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: var(--text-primary);
   text-align: center;
+  margin-bottom: 0.35rem;
 }
 
-.subtitle {
+.auth-subtitle {
+  font-size: 0.95rem;
   color: var(--text-muted);
   text-align: center;
   margin-bottom: 2rem;
 }
 
-.form-group {
+/* ---- Form area ---- */
+.auth-form-area {
+  width: 100%;
+  background: var(--bg-card);
+  border-radius: 1.25rem;
+  padding: 2rem 1.75rem;
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border-color);
+}
+
+/* ---- Form fields ---- */
+.field-group {
   margin-bottom: 1.25rem;
 }
 
-label {
+.field-group label {
   display: block;
-  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
   color: var(--text-secondary);
-  font-weight: 500;
+  margin-bottom: 0.5rem;
 }
 
-input {
+.label-optional {
+  font-weight: 400;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.field-group input {
   width: 100%;
-  padding: 0.75rem 1rem;
+  height: 52px;
+  padding: 0 1rem;
   border: 2px solid var(--border-input);
-  border-radius: var(--radius-md);
+  border-radius: 1rem;
   background: var(--bg-input);
   color: var(--text-primary);
   font-size: 1rem;
-  transition: border-color 0.2s;
-}
-
-input:focus {
+  font-family: inherit;
   outline: none;
-  border-color: var(--color-primary);
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
+.field-group input:focus {
+  border-color: var(--border-input-focus);
+  box-shadow: 0 0 0 3px rgba(124, 139, 111, 0.12);
+}
+
+.field-group input::placeholder {
+  color: var(--text-muted);
+}
+
+.otp-input {
+  text-align: center;
+  font-size: 1.5rem;
+  letter-spacing: 0.5rem;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* ---- Buttons ---- */
 .btn-primary {
   width: 100%;
-  padding: 1rem;
+  height: 52px;
   background: var(--gradient-primary);
-  color: var(--text-on-primary);
+  color: #fff;
   border: none;
-  border-radius: var(--radius-md);
-  font-size: 1rem;
+  border-radius: 1rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.15s;
+  margin-top: 0.5rem;
+}
+
+.btn-primary:hover:not(:disabled) {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-outline {
+  width: 100%;
+  height: 48px;
+  background: transparent;
+  border: 2px solid var(--color-primary);
+  color: var(--color-primary);
+  border-radius: 1rem;
+  font-size: 0.95rem;
   font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  margin-top: 0.75rem;
+  transition: background 0.2s;
+}
+
+.btn-outline:hover:not(:disabled) {
+  background: var(--color-primary-light);
+}
+
+.btn-outline:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-outline-sm {
+  background: transparent;
+  border: 2px solid var(--color-primary);
+  color: var(--color-primary);
+  border-radius: 1rem;
+  padding: 0.6rem 1.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-family: inherit;
   cursor: pointer;
   transition: background 0.2s;
 }
 
-.btn-primary:hover:not(:disabled) {
-  background: var(--gradient-primary-hover);
+.btn-outline-sm:hover {
+  background: var(--color-primary-light);
 }
 
-.btn-primary:disabled {
-  opacity: 0.6;
+.btn-secondary {
+  width: 100%;
+  height: 44px;
+  background: transparent;
+  border: 1px solid var(--border-input);
+  color: var(--text-muted);
+  border-radius: 1rem;
+  font-size: 0.875rem;
+  font-family: inherit;
+  cursor: pointer;
+  margin-top: 0.75rem;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.btn-secondary:hover {
+  border-color: var(--text-muted);
+  color: var(--text-primary);
+}
+
+.btn-link {
+  display: block;
+  width: 100%;
+  text-align: center;
+  margin-top: 1rem;
+  background: none;
+  border: none;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  text-decoration: underline;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.btn-link:hover {
+  color: var(--color-primary);
+}
+
+.btn-link:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
-.error-message {
-  background: var(--color-destructive-light);
-  color: var(--color-destructive);
-  padding: 0.75rem 1rem;
-  border-radius: var(--radius-md);
-  margin-bottom: 1rem;
-  font-size: 0.9rem;
-}
-
-.success-message {
-  background: var(--color-success-light);
-  color: var(--color-success);
-  padding: 0.75rem 1rem;
-  border-radius: var(--radius-md);
-  margin-bottom: 1rem;
-  font-size: 0.9rem;
-}
-
+/* ---- Auth switch ---- */
 .auth-switch {
   text-align: center;
   margin-top: 1.5rem;
+  font-size: 0.9rem;
   color: var(--text-muted);
 }
 
 .auth-switch a {
   color: var(--color-primary);
   text-decoration: none;
+  font-weight: 700;
 }
 
 .auth-switch a:hover {
   text-decoration: underline;
 }
 
-.optional {
-  color: var(--text-muted);
-  font-weight: 400;
-  font-size: 0.85rem;
+/* ---- Waitlist section ---- */
+.waitlist-divider {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-color);
+  text-align: center;
 }
 
+.waitlist-text {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  margin-bottom: 0.75rem;
+}
+
+/* ---- Resend section ---- */
+.resend-section {
+  text-align: center;
+  margin: 1.5rem 0;
+}
+
+.resend-text {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+/* ---- Divider ---- */
 .divider {
   display: flex;
   align-items: center;
-  margin: 1.5rem 0;
+  margin: 1.25rem 0;
   color: var(--text-muted);
-  font-size: 0.85rem;
+  font-size: 0.8rem;
 }
 
 .divider::before,
@@ -634,9 +801,10 @@ input:focus {
 }
 
 .divider span {
-  padding: 0 1rem;
+  padding: 0 0.75rem;
 }
 
+/* ---- Google ---- */
 .google-btn-wrapper {
   display: flex;
   justify-content: center;
@@ -651,32 +819,29 @@ input:focus {
   margin-right: auto !important;
 }
 
-.waitlist-section {
-  margin-top: 1.5rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--border-color);
+/* ---- Messages ---- */
+.msg-error {
+  background: var(--color-destructive-light);
+  color: var(--color-destructive);
+  padding: 0.85rem 1rem;
+  border-radius: 0.75rem;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.msg-success {
+  background: var(--color-success-light);
+  color: var(--color-success);
+  padding: 0.85rem 1rem;
+  border-radius: 0.75rem;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
   text-align: center;
+  line-height: 1.4;
 }
 
-.waitlist-text {
-  color: var(--text-muted);
-  margin-bottom: 0.75rem;
-}
-
-.btn-waitlist {
-  background: transparent;
-  border: 1px solid var(--color-primary);
-  color: var(--color-primary);
-  padding: 0.75rem 1.5rem;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-waitlist:hover {
-  background: var(--color-primary-light);
-}
-
+/* ---- Modal ---- */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -688,77 +853,34 @@ input:focus {
   padding: 1rem;
 }
 
-.modal-content {
+.modal-card {
   background: var(--bg-card);
-  padding: 2rem;
-  border-radius: var(--radius-lg);
+  padding: 2rem 1.75rem;
+  border-radius: 1.25rem;
   width: 100%;
   max-width: 400px;
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-xl);
   border: 1px solid var(--border-color);
 }
 
-.modal-content h2 {
+.modal-title {
+  font-size: 1.25rem;
+  font-weight: 700;
   color: var(--color-primary);
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.35rem;
 }
 
 .modal-desc {
+  font-size: 0.9rem;
   color: var(--text-muted);
   margin-bottom: 1.5rem;
 }
 
-.btn-secondary {
-  width: 100%;
-  padding: 0.75rem;
-  background: transparent;
-  border: 1px solid var(--border-input);
-  color: var(--text-muted);
-  border-radius: var(--radius-md);
-  margin-top: 0.75rem;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-secondary:hover {
-  border-color: var(--text-muted);
-  color: var(--text-primary);
-}
-
-/* OTP Step Styles */
-.otp-input {
-  text-align: center;
-  font-size: 1.5rem;
-  letter-spacing: 0.5rem;
-  font-family: monospace;
-}
-
-.resend-section {
-  text-align: center;
-  margin: 1.5rem 0;
-}
-
-.cooldown-text {
-  color: var(--text-muted);
-  font-size: 0.9rem;
-}
-
-.btn-link {
-  background: none;
-  border: none;
-  color: var(--color-primary);
-  cursor: pointer;
-  font-size: 0.9rem;
-  text-decoration: underline;
-  padding: 0;
-}
-
-.btn-link:hover:not(:disabled) {
-  color: var(--color-primary-hover);
-}
-
-.btn-link:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+/* ---- Responsive ---- */
+@media (min-width: 640px) {
+  .auth-form-area,
+  .modal-card {
+    padding: 2.5rem 2rem;
+  }
 }
 </style>

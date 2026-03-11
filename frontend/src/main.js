@@ -1,5 +1,7 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
+import { MotionPlugin } from '@vueuse/motion'
+import './assets/tailwind.css'
 import './assets/theme.css'
 import App from './App.vue'
 import router from './router'
@@ -25,6 +27,7 @@ const app = createApp(App)
 
 app.use(createPinia())
 app.use(router)
+app.use(MotionPlugin)
 
 // Catch unhandled Vue errors and forward to Datadog RUM
 app.config.errorHandler = (err, instance, info) => {

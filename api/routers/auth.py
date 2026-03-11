@@ -286,8 +286,8 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
             detail="This account uses Google sign-in. Please log in with Google."
         )
 
-    # Guard: Admin users must use Google sign-in
-    if user and user.is_admin:
+    # Guard: Admin users must use Google sign-in (skip when DEBUG=true)
+    if user and user.is_admin and not settings.debug:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Admin accounts must use Google sign-in."
@@ -333,8 +333,8 @@ async def login_json(credentials: UserLogin, db: Session = Depends(get_db)):
             detail="This account uses Google sign-in. Please log in with Google."
         )
 
-    # Guard: Admin users must use Google sign-in
-    if user and user.is_admin:
+    # Guard: Admin users must use Google sign-in (skip when DEBUG=true)
+    if user and user.is_admin and not settings.debug:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Admin accounts must use Google sign-in."
