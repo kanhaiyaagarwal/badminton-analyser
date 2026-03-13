@@ -47,6 +47,18 @@
         </button>
       </form>
 
+      <!-- Workout reset -->
+      <div v-if="authStore.hasFeature('workout')" class="reset-section">
+        <p class="reset-label">Workout Data</p>
+        <button @click="handleResetWorkout" class="btn-reset" :disabled="resetting">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+          </svg>
+          {{ resetting ? 'Resetting...' : 'Reset Onboarding' }}
+        </button>
+        <span class="field-hint">Clears your profile, plan, and workout history. You'll re-onboard from scratch.</span>
+      </div>
+
       <button @click="handleLogout" class="btn-logout">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" stroke-linecap="round" stroke-linejoin="round">
           <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
@@ -63,6 +75,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import api from '../api/client'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -70,6 +83,7 @@ const authStore = useAuthStore()
 const displayName = ref('')
 const mobile = ref('')
 const saving = ref(false)
+const resetting = ref(false)
 const error = ref('')
 const success = ref('')
 
@@ -89,6 +103,23 @@ onMounted(() => {
     mobile.value = authStore.user.mobile || ''
   }
 })
+
+async function handleResetWorkout() {
+  if (!confirm('Reset all workout data? This clears your profile, plan, and history. You will need to re-onboard.')) return
+  resetting.value = true
+  error.value = ''
+  try {
+    await api.delete('/api/v1/workout/profile/reset')
+    success.value = 'Workout data reset!'
+    setTimeout(() => {
+      router.push('/workout/onboarding')
+    }, 500)
+  } catch (err) {
+    error.value = err.response?.data?.detail || 'Failed to reset.'
+  } finally {
+    resetting.value = false
+  }
+}
 
 function handleLogout() {
   authStore.logout()
@@ -251,6 +282,47 @@ input:focus {
   border-radius: var(--radius-md);
   margin-bottom: 1rem;
   font-size: 0.9rem;
+}
+
+.reset-section {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.reset-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+.btn-reset {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.7rem;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.btn-reset:hover:not(:disabled) {
+  border-color: var(--color-destructive);
+  color: var(--color-destructive);
+}
+
+.btn-reset:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .btn-logout {

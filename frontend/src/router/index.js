@@ -249,8 +249,8 @@ router.beforeEach(async (to, from, next) => {
     return
   }
 
-  // 5. Hub page — skip if user only has challenges
-  if (to.path === '/hub' && home !== '/hub') {
+  // 5. Hub page — skip if user only has challenges (not workout)
+  if (to.path === '/hub' && home !== '/hub' && home !== '/workout') {
     next(home)
     return
   }

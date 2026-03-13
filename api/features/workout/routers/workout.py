@@ -48,6 +48,34 @@ async def get_profile(
     return WorkoutService.get_profile(db, current_user.id)
 
 
+@router.delete("/profile/reset")
+async def reset_onboarding(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Reset workout onboarding — clears profile, goals, preferences, plan, and progressions."""
+    from ..db_models.workout import (
+        UserProfile, UserGoal, CoachPreferences, WorkoutPlan,
+        ExerciseProgression, WorkoutSession, ExerciseSet,
+    )
+
+    uid = current_user.id
+    db.query(ExerciseSet).filter(
+        ExerciseSet.session_id.in_(
+            db.query(WorkoutSession.id).filter(WorkoutSession.user_id == uid)
+        )
+    ).delete(synchronize_session=False)
+    db.query(WorkoutSession).filter(WorkoutSession.user_id == uid).delete()
+    db.query(ExerciseProgression).filter(ExerciseProgression.user_id == uid).delete()
+    db.query(WorkoutPlan).filter(WorkoutPlan.user_id == uid).delete()
+    db.query(CoachPreferences).filter(CoachPreferences.user_id == uid).delete()
+    db.query(UserGoal).filter(UserGoal.user_id == uid).delete()
+    db.query(UserProfile).filter(UserProfile.user_id == uid).delete()
+    db.commit()
+
+    return {"status": "ok", "message": "Workout data reset. Please re-onboard."}
+
+
 # ---------------------------------------------------------------------------
 # Exercises
 # ---------------------------------------------------------------------------
