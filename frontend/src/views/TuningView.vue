@@ -6,11 +6,11 @@
       <p class="subtitle">Fine-tune shot detection thresholds with real-time preview</p>
     </div>
 
-    <div v-if="!isAdmin" class="not-admin">
-      <p>Admin access required for tuning.</p>
+    <div v-if="!canTune" class="not-admin">
+      <p>Tuning access required. Ask an admin to enable it for your account.</p>
     </div>
 
-    <template v-else>
+    <template v-else-if="canTune">
       <div class="tuning-layout">
         <!-- Row 1: Source Selection (full width) -->
         <div class="section source-section">
@@ -30,6 +30,7 @@
                 Stream Session
               </button>
               <button
+                v-if="isAdmin"
                 :class="['tab', { active: sourceMode === 'live' }]"
                 @click="sourceMode = 'live'"
               >
@@ -272,6 +273,7 @@ const props = defineProps({
 
 const authStore = useAuthStore()
 const isAdmin = computed(() => authStore.user?.is_admin)
+const canTune = computed(() => authStore.hasFeature('tuning'))
 
 // Source selection
 const sourceMode = ref('video')
@@ -337,7 +339,7 @@ const hitThresholds = computed(() => ({
 }))
 
 onMounted(async () => {
-  if (isAdmin.value) {
+  if (canTune.value) {
     const tasks = [loadJobs(), loadPresets(), loadSchema()]
 
     // If opened from stream results, auto-switch to stream tab and load

@@ -16,6 +16,7 @@
           </svg>
           <span class="explore-text">Explore</span>
         </router-link>
+        <router-link v-if="canTune && !isAdmin" to="/tuning" class="nav-admin">Tuning</router-link>
         <router-link v-if="isAdmin" to="/admin" class="nav-admin">Admin</router-link>
         <router-link to="/profile" class="user-badge">
           <span class="user-avatar">{{ userInitial }}</span>
@@ -50,6 +51,7 @@ const router = useRouter()
 const route = useRoute()
 
 const isAdmin = computed(() => authStore.user?.is_admin)
+const canTune = computed(() => !authStore.user?.is_admin && authStore.hasFeature('tuning'))
 const isLandingPage = computed(() => route.name === 'Landing' || route.name === 'LandingFull')
 const isAuthPage = computed(() => ['Login', 'Signup'].includes(route.name))
 const userInitial = computed(() => (authStore.user?.username || authStore.user?.email || '?')[0].toUpperCase())

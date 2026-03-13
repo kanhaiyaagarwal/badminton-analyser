@@ -190,7 +190,7 @@
             {{ downloading ? 'Downloading...' : 'Download Raw Recording' }}
           </button>
           <router-link
-            v-if="report.has_frame_data"
+            v-if="report.has_frame_data && authStore.hasFeature('tuning')"
             :to="`/stream/${sessionId}/tuning`"
             class="btn-download btn-download-secondary"
           >
