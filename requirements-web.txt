@@ -39,6 +39,10 @@ vosk>=0.3.45
 # Audio cross-correlation for video alignment (used by mimic upload-to-compare)
 scipy>=1.11.0
 
+# LLM providers (AI Fitness Coach)
+openai>=1.30.0
+anthropic>=0.42.0
+
 # Existing dependencies (from badminton analyzer)
 # opencv-python>=4.8.0
 # mediapipe>=0.10.0

@@ -50,9 +50,13 @@ def init_db():
     _migrate_mimic_session_uploaded_video()
     _migrate_mimic_session_audio_fields()
     _migrate_fix_non_ascii_s3_keys()
+    _migrate_add_workout_to_existing_users()
+    _migrate_workout_session_m1()
+    _migrate_exercise_progression()
     seed_default_tuning_data()
     seed_challenge_defaults()
     seed_feature_access()
+    seed_exercises()
 
 
 def _migrate_stream_session_post_analysis():
@@ -557,6 +561,57 @@ def _migrate_fix_non_ascii_s3_keys():
         logger.debug(f"Non-ASCII S3 key migration skipped: {e}")
 
 
+def _migrate_workout_session_m1():
+    """Add M1 workout session columns: planned_exercises, time_budget, set tracking."""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    from sqlalchemy import text, inspect
+    try:
+        inspector = inspect(engine)
+
+        # WorkoutSession columns
+        try:
+            existing = {c["name"] for c in inspector.get_columns("workout_sessions")}
+            with engine.begin() as conn:
+                if "planned_exercises" not in existing:
+                    conn.execute(text(
+                        "ALTER TABLE workout_sessions ADD COLUMN planned_exercises JSON"
+                    ))
+                    logger.info("Added column workout_sessions.planned_exercises")
+                if "time_budget_minutes" not in existing:
+                    conn.execute(text(
+                        "ALTER TABLE workout_sessions ADD COLUMN time_budget_minutes INTEGER"
+                    ))
+                    logger.info("Added column workout_sessions.time_budget_minutes")
+        except Exception as e:
+            logger.debug(f"workout_sessions M1 migration skipped: {e}")
+
+        # ExerciseSet columns
+        try:
+            existing = {c["name"] for c in inspector.get_columns("exercise_sets")}
+            with engine.begin() as conn:
+                if "completed_at" not in existing:
+                    conn.execute(text(
+                        "ALTER TABLE exercise_sets ADD COLUMN completed_at DATETIME"
+                    ))
+                    logger.info("Added column exercise_sets.completed_at")
+                if "exercise_order" not in existing:
+                    conn.execute(text(
+                        "ALTER TABLE exercise_sets ADD COLUMN exercise_order INTEGER"
+                    ))
+                    logger.info("Added column exercise_sets.exercise_order")
+                if "is_skipped" not in existing:
+                    conn.execute(text(
+                        "ALTER TABLE exercise_sets ADD COLUMN is_skipped BOOLEAN DEFAULT 0"
+                    ))
+                    logger.info("Added column exercise_sets.is_skipped")
+        except Exception as e:
+            logger.debug(f"exercise_sets M1 migration skipped: {e}")
+    except Exception as e:
+        logger.debug(f"Workout M1 migration skipped: {e}")
+
+
 def seed_challenge_defaults():
     """Ensure ChallengeConfig rows exist for all challenge types with defaults."""
     from .features.challenges.db_models.challenge import ChallengeConfig
@@ -619,6 +674,11 @@ def seed_feature_access():
             "display_name": "MoveMatch", "icon": "\U0001f57a",
             "description": "Mirror dance moves from reels and videos in real-time. Perfect for learning Zumba, choreography, and trending dances.",
         },
+        "workout": {
+            "access_mode": "per_user", "default_on_signup": True, "requestable": True,
+            "display_name": "AI Fitness Coach", "icon": "\U0001f3cb",
+            "description": "Personalized workout plans, exercise library, and AI coaching for your fitness journey.",
+        },
     }
 
     db = SessionLocal()
@@ -651,6 +711,67 @@ def seed_feature_access():
         logger.warning(f"Failed to seed feature_access: {e}")
     finally:
         db.close()
+
+
+def _migrate_add_workout_to_existing_users():
+    """Backfill: add 'workout' to enabled_features for all existing users."""
+    import logging
+    import json
+    logger = logging.getLogger(__name__)
+
+    from sqlalchemy import text
+    try:
+        with engine.begin() as conn:
+            rows = conn.execute(text(
+                "SELECT id, enabled_features FROM users WHERE enabled_features IS NOT NULL"
+            )).fetchall()
+
+            for row in rows:
+                user_id = row[0]
+                features = row[1]
+                if isinstance(features, str):
+                    features = json.loads(features)
+                if features is None:
+                    features = []
+                if "workout" not in features:
+                    features.append("workout")
+                    conn.execute(text(
+                        "UPDATE users SET enabled_features = :features WHERE id = :uid"
+                    ), {"features": json.dumps(features), "uid": user_id})
+
+            logger.info("Backfilled 'workout' feature to existing users")
+    except Exception as e:
+        logger.debug(f"Workout feature backfill skipped: {e}")
+
+
+def _migrate_exercise_progression():
+    """Create exercise_progressions table and add form_score to exercise_sets."""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    from sqlalchemy import text, inspect
+    try:
+        inspector = inspect(engine)
+        tables = inspector.get_table_names()
+
+        # The table is created by Base.metadata.create_all() above,
+        # but we need to add form_score column to exercise_sets
+        if "exercise_sets" in tables:
+            existing = {c["name"] for c in inspector.get_columns("exercise_sets")}
+            if "form_score" not in existing:
+                with engine.begin() as conn:
+                    conn.execute(text(
+                        "ALTER TABLE exercise_sets ADD COLUMN form_score INTEGER"
+                    ))
+                    logger.info("Added column exercise_sets.form_score")
+    except Exception as e:
+        logger.debug(f"exercise_progression migration skipped: {e}")
+
+
+def seed_exercises():
+    """Seed the exercises table from exercise_seed module."""
+    from .features.workout.services.exercise_seed import seed_exercises as _seed
+    _seed(engine)
 
 
 def seed_default_tuning_data():

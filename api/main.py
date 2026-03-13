@@ -860,6 +860,13 @@ async def websocket_mimic(
         logger.error(f"Mimic session {session_id}: cleanup error: {cleanup_err}")
 
 
+# ---------------------------------------------------------------------------
+# M2 note: Workout camera tracking now reuses /ws/challenge/ endpoint.
+# See POST /api/v1/workout/sessions/{id}/start-tracking which creates a
+# challenge session, and the frontend connects to /ws/challenge/{id}.
+# ---------------------------------------------------------------------------
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(

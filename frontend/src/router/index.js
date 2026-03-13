@@ -140,9 +140,45 @@ const routes = [
   },
   {
     path: '/workout',
-    name: 'Workout',
-    component: () => import('../views/WorkoutView.vue'),
-    meta: { requiresAuth: true, requiresAdmin: true }
+    name: 'WorkoutHome',
+    component: () => import('../views/workout/WorkoutHomeView.vue'),
+    meta: { requiresAuth: true, requiredFeature: 'workout' }
+  },
+  {
+    path: '/workout/onboarding',
+    name: 'WorkoutOnboarding',
+    component: () => import('../views/workout/WorkoutOnboardingView.vue'),
+    meta: { requiresAuth: true, requiredFeature: 'workout' }
+  },
+  {
+    path: '/workout/exercises',
+    name: 'ExerciseLibrary',
+    component: () => import('../views/workout/ExerciseLibraryView.vue'),
+    meta: { requiresAuth: true, requiredFeature: 'workout' }
+  },
+  {
+    path: '/workout/exercises/:slug',
+    name: 'ExerciseDetail',
+    component: () => import('../views/workout/ExerciseDetailView.vue'),
+    meta: { requiresAuth: true, requiredFeature: 'workout' }
+  },
+  {
+    path: '/workout/quick-start',
+    name: 'QuickStart',
+    component: () => import('../views/workout/QuickStartView.vue'),
+    meta: { requiresAuth: true, requiredFeature: 'workout' }
+  },
+  {
+    path: '/workout/session/:sessionId?',
+    name: 'WorkoutSession',
+    component: () => import('../views/workout/WorkoutSessionView.vue'),
+    meta: { requiresAuth: true, requiredFeature: 'workout' }
+  },
+  {
+    path: '/workout/results/:sessionId',
+    name: 'WorkoutResults',
+    component: () => import('../views/workout/WorkoutResultsView.vue'),
+    meta: { requiresAuth: true, requiredFeature: 'workout' }
   },
   {
     path: '/admin',
@@ -164,6 +200,8 @@ const router = createRouter({
 })
 
 function getHomePath(authStore) {
+  // If user has workout feature, default to workout home
+  if (authStore.hasFeature('workout')) return '/workout'
   // If user has badminton access, show hub (multiple features)
   if (authStore.hasFeature('badminton')) return '/hub'
   // If user has mimic access, show hub (it's a standalone feature like badminton)

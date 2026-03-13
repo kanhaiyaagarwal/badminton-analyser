@@ -52,6 +52,24 @@
       </router-link>
 
       <router-link
+        v-if="authStore.hasFeature('workout')"
+        to="/workout"
+        v-motion
+        :initial="{ opacity: 0, x: -12 }"
+        :enter="{ opacity: 1, x: 0, transition: { delay: 250, duration: 400 } }"
+        class="hub-card"
+      >
+        <span class="card-icon">&#127947;</span>
+        <div class="card-body">
+          <h2 class="card-title">AI Fitness Coach</h2>
+          <p class="card-desc">Personalized workout plans, exercise library, and AI coaching.</p>
+        </div>
+        <svg class="card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+      </router-link>
+
+      <router-link
         v-if="authStore.hasFeature('mimic')"
         to="/mimic"
         v-motion

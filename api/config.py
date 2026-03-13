@@ -77,6 +77,19 @@ class Settings(BaseSettings):
     otp_max_attempts: int = 5
     otp_resend_cooldown_seconds: int = 60
 
+    # LLM Configuration (multi-provider)
+    llm_provider: str = "openai"           # "openai" | "anthropic" | "ollama"
+    openai_api_key: str = ""               # for GPT-4o-mini (cheapest)
+    anthropic_api_key: str = ""            # for Claude (optional)
+    ollama_base_url: str = "http://localhost:11434"  # for free local models
+    llm_model: str = "gpt-4o-mini"        # default model
+    llm_enabled: bool = True               # False = template fallback only
+
+    # TTS / STT Configuration
+    tts_enabled: bool = True
+    tts_voice: str = "coral"               # OpenAI TTS voice
+    stt_enabled: bool = True
+
     @property
     def is_sqlite(self) -> bool:
         """Check if using SQLite database."""

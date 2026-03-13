@@ -31,9 +31,13 @@
             <polyline points="9 22 9 12 15 12 15 22"/>
           </svg>
         </BottomNavItem>
-        <BottomNavItem to="/challenges" label="Challenges">
+        <BottomNavItem to="/workout" label="Workout">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+            <path d="M6.5 6.5a3.5 3.5 0 1 0 0 7"/>
+            <path d="M17.5 6.5a3.5 3.5 0 1 1 0 7"/>
+            <path d="M6.5 10h11"/>
+            <path d="M4 10H2"/>
+            <path d="M22 10h-2"/>
           </svg>
         </BottomNavItem>
         <BottomNavItem to="/features" label="Explore">
@@ -71,7 +75,7 @@ const isAdmin = computed(() => authStore.user?.is_admin)
 const isLandingPage = computed(() => route.name === 'Landing' || route.name === 'LandingFull')
 const isAuthPage = computed(() => ['Login', 'Signup', 'ForgotPassword'].includes(route.name))
 const isAdminPage = computed(() => ['Admin', 'Tuning', 'StreamTuning'].includes(route.name))
-const isFullscreenPage = computed(() => ['ChallengeSession'].includes(route.name))
+const isFullscreenPage = computed(() => ['ChallengeSession', 'WorkoutSession'].includes(route.name))
 
 </script>
 
