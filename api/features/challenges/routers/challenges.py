@@ -446,10 +446,16 @@ def stop_recording(
 @router.get("/sessions/{session_id}/recording")
 def download_recording(
     session_id: int,
+    mode: Optional[str] = Query(None, description="Set to 'url' to get a presigned URL instead of binary data"),
     db: Session = Depends(get_db),
     user=Depends(get_current_user),
 ):
-    """Download the recorded video for a challenge session."""
+    """Download the recorded video for a challenge session.
+
+    Pass ?mode=url to get a JSON response with a presigned/CloudFront URL
+    instead of streaming the binary data (useful for iOS/in-app browsers
+    where blob downloads silently fail).
+    """
     storage = get_storage_service()
 
     session = db.query(ChallengeSession).filter(
@@ -461,6 +467,17 @@ def download_recording(
 
     filename = f"challenge_recording_{session_id}.mp4"
 
+    # URL mode: return a presigned/CloudFront URL for direct browser download
+    if mode == "url":
+        if session.recording_s3_key and storage.is_s3():
+            try:
+                url = storage.outputs.get_url(session.recording_s3_key, expires=3600)
+                return {"url": url, "filename": filename, "expires_in": 3600}
+            except Exception as e:
+                logger.error(f"Failed to generate presigned URL for challenge recording: {e}")
+        raise HTTPException(status_code=404, detail="No recording URL available (only S3 recordings support URL mode)")
+
+    # Binary mode (default): stream the video data
     # Check S3 first
     if session.recording_s3_key and storage.is_s3():
         try:
@@ -1002,6 +1019,7 @@ def admin_get_session_detail(
 @router.get("/admin/sessions/{session_id}/recording")
 def admin_download_recording(
     session_id: int,
+    mode: Optional[str] = Query(None, description="Set to 'url' for presigned URL"),
     db: Session = Depends(get_db),
     admin=Depends(require_admin),
 ):
@@ -1015,6 +1033,15 @@ def admin_download_recording(
         raise HTTPException(status_code=404, detail="Session not found")
 
     filename = f"challenge_recording_{session_id}.mp4"
+
+    if mode == "url":
+        if session.recording_s3_key and storage.is_s3():
+            try:
+                url = storage.outputs.get_url(session.recording_s3_key, expires=3600)
+                return {"url": url, "filename": filename, "expires_in": 3600}
+            except Exception as e:
+                logger.error(f"Failed to generate presigned URL for challenge recording: {e}")
+        raise HTTPException(status_code=404, detail="No recording URL available")
 
     if session.recording_s3_key and storage.is_s3():
         try:

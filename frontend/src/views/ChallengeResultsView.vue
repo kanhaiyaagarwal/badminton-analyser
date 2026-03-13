@@ -294,6 +294,22 @@ async function downloadRecording() {
     const endpoint = isAdminView.value
       ? `/api/v1/challenges/admin/sessions/${sessionId.value}/recording`
       : `/api/v1/challenges/sessions/${sessionId.value}/recording`
+
+    // iOS WebViews (Google app, Instagram, etc.) silently fail on blob downloads.
+    // Use presigned URL mode and open in new tab instead.
+    const needsUrlMode = /iPad|iPhone|iPod/.test(navigator.userAgent)
+      || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+
+    if (needsUrlMode) {
+      try {
+        const response = await api.get(`${endpoint}?mode=url`)
+        window.open(response.data.url, '_blank')
+        return
+      } catch {
+        // Fall through to blob download if URL mode unavailable (e.g. local storage)
+      }
+    }
+
     const response = await api.get(endpoint, { responseType: 'blob' })
     const blob = new Blob([response.data], { type: 'video/mp4' })
     const url = window.URL.createObjectURL(blob)
