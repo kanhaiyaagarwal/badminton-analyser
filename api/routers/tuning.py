@@ -132,13 +132,37 @@ async def get_admin_user(current_user: User = Depends(get_current_user)) -> User
     return current_user
 
 
+async def get_tuning_user(current_user: User = Depends(get_current_user)) -> User:
+    """Require admin or user with 'tuning' feature enabled."""
+    if current_user.is_admin:
+        return current_user
+    features = current_user.enabled_features or []
+    if "tuning" in features:
+        return current_user
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Tuning access required. Ask an admin to enable it for your account."
+    )
+
+
+def _check_job_access(job: "Job", user: User):
+    """Non-admin tuning users can only access their own jobs."""
+    if user.is_admin:
+        return
+    if job.user_id != user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only tune your own videos"
+        )
+
+
 # ============================================================================
 # Activity Schema Endpoints
 # ============================================================================
 
 @router.get("/schemas")
 async def list_activity_schemas(
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_tuning_user),
     db: Session = Depends(get_db)
 ):
     """List all available activity threshold schemas."""
@@ -162,7 +186,7 @@ async def list_activity_schemas(
 @router.get("/schemas/{activity_type}")
 async def get_activity_schema(
     activity_type: str,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_tuning_user),
     db: Session = Depends(get_db)
 ):
     """Get threshold schema for a specific activity type."""
@@ -191,7 +215,7 @@ async def get_activity_schema(
 @router.get("/presets", response_model=TuningPresetListResponse)
 async def list_presets(
     activity_type: str = "badminton",
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_tuning_user),
     db: Session = Depends(get_db)
 ):
     """List all tuning presets for an activity type."""
@@ -211,7 +235,7 @@ async def list_presets(
 @router.get("/presets/active", response_model=Optional[TuningPresetResponse])
 async def get_active_preset(
     activity_type: str = "badminton",
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_tuning_user),
     db: Session = Depends(get_db)
 ):
     """Get the currently active preset for an activity type."""
@@ -230,7 +254,7 @@ async def get_active_preset(
 @router.get("/presets/defaults")
 async def get_default_thresholds(
     activity_type: str = "badminton",
-    current_user: User = Depends(get_admin_user)
+    current_user: User = Depends(get_tuning_user)
 ):
     """Get default thresholds for an activity type."""
     if activity_type == "badminton":
@@ -241,7 +265,7 @@ async def get_default_thresholds(
 @router.get("/presets/{preset_id}", response_model=TuningPresetResponse)
 async def get_preset(
     preset_id: int,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_tuning_user),
     db: Session = Depends(get_db)
 ):
     """Get a specific preset by ID."""
@@ -254,7 +278,7 @@ async def get_preset(
 @router.post("/presets", response_model=TuningPresetResponse, status_code=status.HTTP_201_CREATED)
 async def create_preset(
     preset_data: TuningPresetCreate,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_tuning_user),
     db: Session = Depends(get_db)
 ):
     """Create a new tuning preset."""
@@ -291,7 +315,7 @@ async def create_preset(
 async def update_preset(
     preset_id: int,
     preset_data: TuningPresetUpdate,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_tuning_user),
     db: Session = Depends(get_db)
 ):
     """Update an existing preset."""
@@ -389,7 +413,7 @@ async def delete_preset(
 @router.post("/sessions", response_model=TuningSessionResponse, status_code=status.HTTP_201_CREATED)
 async def create_tuning_session(
     session_data: TuningSessionCreate,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_tuning_user),
     db: Session = Depends(get_db)
 ):
     """Create a new tuning session from an existing job."""
@@ -418,7 +442,7 @@ async def create_tuning_session(
 
 @router.get("/sessions", response_model=List[TuningSessionResponse])
 async def list_tuning_sessions(
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_tuning_user),
     db: Session = Depends(get_db)
 ):
     """List all tuning sessions for the current user."""
@@ -432,7 +456,7 @@ async def list_tuning_sessions(
 @router.get("/sessions/{session_id}", response_model=TuningSessionResponse)
 async def get_tuning_session(
     session_id: int,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_tuning_user),
     db: Session = Depends(get_db)
 ):
     """Get a specific tuning session."""
@@ -450,7 +474,7 @@ async def get_tuning_session(
 @router.post("/sessions/{session_id}/analyze")
 async def analyze_session(
     session_id: int,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_tuning_user),
     db: Session = Depends(get_db)
 ):
     """Run initial analysis for a tuning session (generates frame data)."""
@@ -489,7 +513,7 @@ async def get_session_frame_data(
     session_id: int,
     offset: int = Query(0, ge=0),
     limit: Optional[int] = Query(None, ge=0, description="Max frames to return. 0 or omit for all frames."),
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_tuning_user),
     db: Session = Depends(get_db)
 ):
     """Get frame data for a tuning session.
@@ -541,7 +565,7 @@ async def get_session_frame_data(
 async def reclassify_session(
     session_id: int,
     request: ReclassifyRequest,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_tuning_user),
     db: Session = Depends(get_db)
 ):
     """Re-classify shots in a session with new thresholds."""
@@ -586,7 +610,7 @@ async def reclassify_session(
 @router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_tuning_session(
     session_id: int,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_tuning_user),
     db: Session = Depends(get_db)
 ):
     """Delete a tuning session."""
@@ -613,7 +637,7 @@ async def get_job_frame_data(
     job_id: int,
     offset: int = Query(0, ge=0),
     limit: Optional[int] = Query(None, ge=0, description="Max frames to return. 0 or omit for all frames."),
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_tuning_user),
     db: Session = Depends(get_db)
 ):
     """Get frame data directly from a job's output directory.
@@ -625,6 +649,7 @@ async def get_job_frame_data(
     job = db.query(Job).filter(Job.id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+    _check_job_access(job, current_user)
 
     frame_data = _load_job_frame_data(job)
 
@@ -658,13 +683,14 @@ async def get_job_frame_data(
 async def reclassify_job(
     job_id: int,
     request: ReclassifyRequest,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_tuning_user),
     db: Session = Depends(get_db)
 ):
     """Re-classify shots for a job with new thresholds."""
     job = db.query(Job).filter(Job.id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+    _check_job_access(job, current_user)
 
     frame_data = _load_job_frame_data(job)
     if not frame_data:
@@ -687,7 +713,7 @@ async def reclassify_job(
 @router.get("/jobs/{job_id}/video/url")
 async def get_job_video_url(
     job_id: int,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_tuning_user),
     db: Session = Depends(get_db)
 ):
     """Get URL for the source video of a job (for tuning playback).
@@ -697,6 +723,7 @@ async def get_job_video_url(
     job = db.query(Job).filter(Job.id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+    _check_job_access(job, current_user)
 
     from ..services.storage_service import get_storage_service
     storage = get_storage_service()
@@ -724,7 +751,7 @@ async def get_job_video_url(
 @router.get("/jobs/{job_id}/video")
 async def get_job_video(
     job_id: int,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_tuning_user),
     db: Session = Depends(get_db)
 ):
     """Stream the source video for a job (for tuning playback)."""
@@ -733,6 +760,7 @@ async def get_job_video(
     job = db.query(Job).filter(Job.id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+    _check_job_access(job, current_user)
 
     from ..services.storage_service import get_storage_service
     storage = get_storage_service()
@@ -777,7 +805,7 @@ async def get_job_video(
 @router.get("/jobs/{job_id}/annotated-video/url")
 async def get_job_annotated_video_url(
     job_id: int,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_tuning_user),
     db: Session = Depends(get_db)
 ):
     """Get URL for the annotated video of a job (with pose overlay).
@@ -787,6 +815,7 @@ async def get_job_annotated_video_url(
     job = db.query(Job).filter(Job.id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+    _check_job_access(job, current_user)
 
     if not job.annotated_video_path:
         raise HTTPException(status_code=404, detail="Annotated video not available for this job")
@@ -814,7 +843,7 @@ async def get_job_annotated_video_url(
 @router.get("/jobs/{job_id}/annotated-video")
 async def get_job_annotated_video(
     job_id: int,
-    current_user: User = Depends(get_admin_user),
+    current_user: User = Depends(get_tuning_user),
     db: Session = Depends(get_db)
 ):
     """Stream the annotated video for a job (with pose overlay and shot detection).
@@ -827,6 +856,7 @@ async def get_job_annotated_video(
     job = db.query(Job).filter(Job.id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+    _check_job_access(job, current_user)
 
     if not job.annotated_video_path:
         raise HTTPException(status_code=404, detail="Annotated video not available for this job")

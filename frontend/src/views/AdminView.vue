@@ -950,7 +950,7 @@ const authStore = useAuthStore()
 const currentUser = computed(() => authStore.user)
 const isAdmin = computed(() => authStore.user?.is_admin)
 
-const allFeatures = ['badminton', 'pushup', 'squat', 'plank']
+const allFeatures = ['badminton', 'pushup', 'squat', 'plank', 'tuning']
 
 const tabs = [
   { id: 'codes', label: 'Invite Codes' },

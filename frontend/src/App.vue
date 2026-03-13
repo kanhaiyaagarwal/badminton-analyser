@@ -72,6 +72,7 @@ const authStore = useAuthStore()
 const route = useRoute()
 
 const isAdmin = computed(() => authStore.user?.is_admin)
+const canTune = computed(() => !authStore.user?.is_admin && authStore.hasFeature('tuning'))
 const isLandingPage = computed(() => route.name === 'Landing' || route.name === 'LandingFull')
 const isAuthPage = computed(() => ['Login', 'Signup', 'ForgotPassword'].includes(route.name))
 const isAdminPage = computed(() => ['Admin', 'Tuning', 'StreamTuning'].includes(route.name))

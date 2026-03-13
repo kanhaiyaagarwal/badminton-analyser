@@ -74,7 +74,7 @@
           </p>
         </div>
 
-        <div v-if="authStore.user?.is_admin" class="tuning-option">
+        <div v-if="authStore.hasFeature('tuning')" class="tuning-option">
           <label class="toggle-label">
             <input
               type="checkbox"
@@ -82,7 +82,7 @@
             />
             <span class="toggle-text">Enable tuning data</span>
           </label>
-          <p class="toggle-hint">Save per-frame data for threshold tuning (admin)</p>
+          <p class="toggle-hint">Save per-frame data for threshold tuning</p>
         </div>
 
         <div v-if="boundary && !useEntireFrame" class="boundary-preview">

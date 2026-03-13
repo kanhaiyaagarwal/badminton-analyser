@@ -93,7 +93,7 @@ const routes = [
     path: '/stream/:sessionId/tuning',
     name: 'StreamTuning',
     component: () => import('../views/TuningView.vue'),
-    meta: { requiresAuth: true, requiredFeature: 'badminton' },
+    meta: { requiresAuth: true, requiredFeature: 'tuning' },
     props: route => ({ streamSessionId: parseInt(route.params.sessionId) })
   },
   {
@@ -190,7 +190,7 @@ const routes = [
     path: '/tuning',
     name: 'Tuning',
     component: () => import('../views/TuningView.vue'),
-    meta: { requiresAuth: true, requiresAdmin: true }
+    meta: { requiresAuth: true, requiredFeature: 'tuning' }
   }
 ]
 
