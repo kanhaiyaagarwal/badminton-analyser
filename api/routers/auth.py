@@ -196,6 +196,14 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
                 detail="Invite code has reached maximum uses"
             )
 
+    # Validate invite code scope against app_context
+    if invite_code_record and invite_code_record.scope:
+        if invite_code_record.scope != user_data.app_context:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This invite code is not valid for this app"
+            )
+
     # Check if email already exists
     if UserService.get_user_by_email(db, user_data.email):
         raise HTTPException(
@@ -456,6 +464,14 @@ async def google_auth(request: GoogleAuthRequest, db: Session = Depends(get_db))
                 detail="Invite code has reached maximum uses"
             )
 
+    # Validate invite code scope against app_context
+    if invite_code_record and invite_code_record.scope:
+        if invite_code_record.scope != request.app_context:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This invite code is not valid for this app"
+            )
+
     # Auto-generate username from email prefix
     username = email.split("@")[0]
     if UserService.get_user_by_username(db, username):
@@ -465,7 +481,7 @@ async def google_auth(request: GoogleAuthRequest, db: Session = Depends(get_db))
                 username = candidate
                 break
 
-    user = UserService.create_google_user(db, email, username)
+    user = UserService.create_google_user(db, email, username, app_context=request.app_context)
 
     # Track which invite code was used and increment usage
     if invite_code_record:

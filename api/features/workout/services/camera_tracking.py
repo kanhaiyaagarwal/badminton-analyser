@@ -16,6 +16,9 @@ TRACKABLE_EXERCISES = {
     "squat-hold": "squat_hold",
     "jump-squat": "squat_full",
     "burpee": "pushup",
+    "bicep-curl": "bicep_curl",
+    "lateral-raise": "lateral_raise",
+    "calf-raise": "calf_raise",
     # Not yet supported — analyzer doesn't exist
     "lunges": None,
     "mountain-climber": None,
@@ -54,6 +57,15 @@ def create_workout_analyzer(exercise_slug: str, config: dict = None):
         elif analyzer_type == "plank":
             from ...challenges.services.plank_analyzer import PlankAnalyzer
             return PlankAnalyzer(config=config)
+        elif analyzer_type == "bicep_curl":
+            from ...challenges.services.bicep_curl_analyzer import BicepCurlAnalyzer
+            return BicepCurlAnalyzer(config=config)
+        elif analyzer_type == "lateral_raise":
+            from ...challenges.services.lateral_raise_analyzer import LateralRaiseAnalyzer
+            return LateralRaiseAnalyzer(config=config)
+        elif analyzer_type == "calf_raise":
+            from ...challenges.services.calf_raise_analyzer import CalfRaiseAnalyzer
+            return CalfRaiseAnalyzer(config=config)
         else:
             logger.warning(f"No analyzer for type: {analyzer_type}")
             return None

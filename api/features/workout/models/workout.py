@@ -1,7 +1,7 @@
 """Pydantic schemas for the Workout / AI Fitness Coach feature."""
 
 from datetime import date, datetime
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -120,7 +120,7 @@ class ProgressStatsResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 class SessionActionRequest(BaseModel):
-    action: str = Field(..., pattern="^(start|adjust_time|begin_workout|complete_set|skip_exercise|skip_rest|end_workout)$")
+    action: str = Field(..., pattern="^(start|adjust_time|begin_workout|complete_set|skip_exercise|skip_rest|end_workout|modify_exercise)$")
     params: dict = Field(default_factory=dict)
 
 
@@ -148,3 +148,39 @@ class ExerciseHistoryResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ---------------------------------------------------------------------------
+# Chat (Voice-First AI Coach Companion)
+# ---------------------------------------------------------------------------
+
+class ChatRequest(BaseModel):
+    message: str = ""
+    context: str = Field("onboarding", pattern="^(onboarding|pre_workout|post_set|rest|post_workout)$")
+    session_id: Optional[Union[str, int]] = None
+    conversation_id: Optional[str] = None
+
+
+class SuggestedOption(BaseModel):
+    label: str
+    value: str
+
+
+class ChatAction(BaseModel):
+    type: str
+    params: dict = Field(default_factory=dict)
+
+
+class PlanUpdate(BaseModel):
+    exercises: Optional[List[dict]] = None
+
+
+class ChatResponse(BaseModel):
+    response: str
+    audio_url: Optional[str] = None
+    actions: List[ChatAction] = []
+    suggested_options: List[SuggestedOption] = []
+    data_collected: Optional[dict] = None
+    plan_update: Optional[PlanUpdate] = None
+    onboarding_complete: bool = False
+    conversation_id: Optional[str] = None

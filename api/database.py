@@ -50,6 +50,7 @@ def init_db():
     _migrate_mimic_session_uploaded_video()
     _migrate_mimic_session_audio_fields()
     _migrate_fix_non_ascii_s3_keys()
+    _migrate_invite_code_scope()
     _migrate_add_workout_to_existing_users()
     _migrate_workout_session_m1()
     _migrate_exercise_progression()
@@ -559,6 +560,24 @@ def _migrate_fix_non_ascii_s3_keys():
                 logger.info(f"Updated annotated_video_path for job {job_id}: {new_path}")
     except Exception as e:
         logger.debug(f"Non-ASCII S3 key migration skipped: {e}")
+
+
+def _migrate_invite_code_scope():
+    """Add scope column to invite_codes table for domain-scoped codes."""
+    import logging
+    logger = logging.getLogger(__name__)
+    from sqlalchemy import text, inspect
+    try:
+        inspector = inspect(engine)
+        existing = {c["name"] for c in inspector.get_columns("invite_codes")}
+        if "scope" not in existing:
+            with engine.begin() as conn:
+                conn.execute(text(
+                    "ALTER TABLE invite_codes ADD COLUMN scope VARCHAR(20)"
+                ))
+                logger.info("Added column invite_codes.scope")
+    except Exception as e:
+        logger.debug(f"invite_codes scope migration skipped: {e}")
 
 
 def _migrate_workout_session_m1():

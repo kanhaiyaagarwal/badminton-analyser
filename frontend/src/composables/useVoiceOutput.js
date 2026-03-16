@@ -9,6 +9,7 @@
 import { ref, watch } from 'vue'
 
 const muted = ref(localStorage.getItem('coach_muted') === 'true')
+const isSpeaking = ref(false)
 
 // Audio queue to prevent overlapping
 let audioQueue = []
@@ -34,12 +35,35 @@ export function useVoiceOutput() {
   }
 
   /**
+   * Speak and wait until done. Returns a Promise that resolves when speech ends.
+   * Useful for speak-then-listen sequencing.
+   * @param {string} text
+   * @param {string|null} audioUrl
+   * @returns {Promise<void>}
+   */
+  function speakAndWait(text, audioUrl = null) {
+    return new Promise((resolve) => {
+      if (muted.value || !text) {
+        resolve()
+        return
+      }
+      audioQueue.push({ text, audioUrl, onDone: resolve })
+      _processQueue()
+    })
+  }
+
+  /**
    * Stop any currently playing audio and clear the queue.
    * Called on view transitions to prevent audio bleeding into next screen.
    */
   function stop() {
+    // Resolve any pending speakAndWait promises
+    for (const item of audioQueue) {
+      if (item.onDone) item.onDone()
+    }
     audioQueue = []
     isPlaying = false
+    isSpeaking.value = false
 
     // Stop HTML5 Audio
     if (currentAudio) {
@@ -63,8 +87,10 @@ export function useVoiceOutput() {
 
   return {
     speak,
+    speakAndWait,
     stop,
     muted,
+    isSpeaking,
     toggleMute,
   }
 }
@@ -73,7 +99,8 @@ async function _processQueue() {
   if (isPlaying || audioQueue.length === 0) return
 
   isPlaying = true
-  const { text, audioUrl } = audioQueue.shift()
+  isSpeaking.value = true
+  const { text, audioUrl, onDone } = audioQueue.shift()
 
   try {
     if (audioUrl) {
@@ -90,11 +117,14 @@ async function _processQueue() {
     }
   }
 
+  if (onDone) onDone()
   isPlaying = false
   currentAudio = null
-  // Process next in queue
+  // Update isSpeaking based on remaining queue
   if (audioQueue.length > 0) {
     _processQueue()
+  } else {
+    isSpeaking.value = false
   }
 }
 

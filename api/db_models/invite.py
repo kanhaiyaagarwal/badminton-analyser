@@ -37,6 +37,7 @@ class InviteCode(Base):
     expires_at = Column(DateTime(timezone=True), nullable=True)
 
     note = Column(String(255), nullable=True)  # Optional description
+    scope = Column(String(20), nullable=True)  # 'badminton', 'fitness', or NULL (universal)
 
 
 class Waitlist(Base):

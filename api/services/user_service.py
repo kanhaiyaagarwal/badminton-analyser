@@ -36,6 +36,9 @@ class UserService:
             r.feature_name for r in
             db.query(FeatureAccess).filter(FeatureAccess.default_on_signup == True).all()
         ]
+        app_context = getattr(user_data, 'app_context', 'fitness')
+        if app_context == 'badminton' and 'badminton' not in default_features:
+            default_features.append('badminton')
         hashed_password = UserService.hash_password(user_data.password)
         db_user = User(
             email=user_data.email,
@@ -64,13 +67,15 @@ class UserService:
         return db.query(User).filter(User.username == username).first()
 
     @staticmethod
-    def create_google_user(db: Session, email: str, username: str) -> User:
+    def create_google_user(db: Session, email: str, username: str, app_context: str = "fitness") -> User:
         """Create a new user from Google OAuth (no password)."""
         from ..db_models.feature_access import FeatureAccess
         default_features = [
             r.feature_name for r in
             db.query(FeatureAccess).filter(FeatureAccess.default_on_signup == True).all()
         ]
+        if app_context == 'badminton' and 'badminton' not in default_features:
+            default_features.append('badminton')
         db_user = User(
             email=email,
             username=username,

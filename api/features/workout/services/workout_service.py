@@ -195,6 +195,9 @@ class WorkoutService:
             "onboarding_completed": profile.onboarding_completed,
             "fitness_level": profile.fitness_level,
             "age": profile.age,
+            "height_cm": profile.height_cm,
+            "weight_kg": profile.weight_kg,
+            "injuries": profile.injuries,
             "goals": [g.goal_type for g in goals],
             "preferred_days": prefs.preferred_days if prefs else [],
             "session_duration_minutes": prefs.session_duration_minutes if prefs else 45,
@@ -428,6 +431,86 @@ class WorkoutService:
             "session_id": session.id,
             "exercises": summary["exercises"],
             "status": "planned",
+        }
+
+    @staticmethod
+    def get_personalized_greeting(db: Session, user_id: int, user_name: str = "") -> dict:
+        """Generate personalized greeting + coach insight for the home screen.
+
+        Returns: {"greeting": str, "insight": str, "insight_type": str}
+        """
+        import hashlib
+        import random
+
+        name = user_name or "champ"
+        now = datetime.utcnow()
+        hour = now.hour
+        time_of_day = "morning" if hour < 12 else "afternoon" if hour < 17 else "evening"
+        today = date.today()
+        day_of_week = today.weekday()
+
+        streak = WorkoutService._compute_streak(db, user_id)
+        total_workouts = db.query(WorkoutSession).filter(
+            WorkoutSession.user_id == user_id,
+            WorkoutSession.status == SessionStatus.COMPLETED,
+        ).count()
+
+        goals = [g.goal_type for g in db.query(UserGoal).filter(UserGoal.user_id == user_id).all()]
+
+        # Greeting rotation
+        greeting_templates = [
+            f"Welcome back, {name}!",
+            "Ready to crush it today?",
+            f"Let's get after it, {name}!",
+            f"Good {time_of_day}, {name}!",
+            f"Back at it, {name}!",
+        ]
+        if streak > 1:
+            greeting_templates.append(f"Day {streak} — keep it going!")
+
+        # Deterministic but rotating selection based on date
+        day_hash = int(hashlib.md5(str(today).encode()).hexdigest(), 16)
+        greeting = greeting_templates[day_hash % len(greeting_templates)]
+
+        # Insight rotation by day of week
+        insight_types = ["progress", "performance", "streak", "goals", "recovery", "motivational", "progress"]
+        insight_type = insight_types[day_of_week]
+
+        insight_map = {
+            "progress": [
+                f"You've completed {total_workouts} workouts total. That's real consistency.",
+                "Every session builds on the last. Keep stacking.",
+            ],
+            "performance": [
+                "Your training volume is trending up. The work is paying off.",
+                "Focus on form today. Quality reps beat junk volume.",
+            ],
+            "streak": [
+                f"{streak} day streak — you're on fire." if streak > 0 else "Start a new streak today.",
+                "Consistency is the real superpower. Keep showing up.",
+            ],
+            "goals": [
+                f"Stay focused on {', '.join(goals[:2]) if goals else 'your goals'}. Every session counts.",
+                "Building takes time, but you're putting in the work.",
+            ],
+            "recovery": [
+                "Recovery is when gains happen. Listen to your body today.",
+                "Your body grows during rest. Make today count.",
+            ],
+            "motivational": [
+                "Consistency beats intensity. You're proving that.",
+                "The hardest part is showing up. You've already done that.",
+                "Every rep counts. Let's make today's count.",
+            ],
+        }
+
+        insights = insight_map.get(insight_type, insight_map["motivational"])
+        insight = insights[day_hash % len(insights)]
+
+        return {
+            "greeting": greeting,
+            "insight": insight,
+            "insight_type": insight_type,
         }
 
     @staticmethod

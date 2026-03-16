@@ -23,6 +23,7 @@ class InviteCodeCreate(BaseModel):
     code: Optional[str] = None  # Auto-generate if not provided
     max_uses: int = 0  # 0 = unlimited
     note: Optional[str] = None
+    scope: Optional[str] = None  # 'badminton', 'fitness', or None (universal)
 
 
 class InviteCodeResponse(BaseModel):
@@ -32,6 +33,7 @@ class InviteCodeResponse(BaseModel):
     times_used: int
     is_active: bool
     note: Optional[str]
+    scope: Optional[str] = None
     created_at: datetime
 
     class Config:
@@ -119,6 +121,7 @@ async def create_invite_code(
         code=code.upper(),
         max_uses=data.max_uses,
         note=data.note,
+        scope=data.scope,
         created_by=admin.id
     )
     db.add(invite_code)

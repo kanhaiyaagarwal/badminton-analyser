@@ -43,6 +43,7 @@
               <th>Code</th>
               <th>Uses</th>
               <th>Note</th>
+              <th>Scope</th>
               <th>Status</th>
               <th>Actions</th>
             </tr>
@@ -52,6 +53,10 @@
               <td class="code-cell">{{ code.code }}</td>
               <td>{{ code.times_used }} / {{ code.max_uses || '∞' }}</td>
               <td>{{ code.note || '-' }}</td>
+              <td>
+                <span v-if="code.scope" :class="['scope-badge', code.scope]">{{ code.scope }}</span>
+                <span v-else class="scope-badge universal">universal</span>
+              </td>
               <td>
                 <span :class="['status', code.is_active ? 'active' : 'inactive']">
                   {{ code.is_active ? 'Active' : 'Inactive' }}
@@ -67,7 +72,7 @@
               </td>
             </tr>
             <tr v-if="inviteCodes.length === 0">
-              <td colspan="5" class="empty">No invite codes yet</td>
+              <td colspan="6" class="empty">No invite codes yet</td>
             </tr>
           </tbody>
         </table>
@@ -728,6 +733,15 @@
               <input v-model="newCode.note" type="text" placeholder="Who is this for?" />
             </div>
 
+            <div class="form-group">
+              <label>Scope</label>
+              <select v-model="newCode.scope">
+                <option :value="null">Universal (both apps)</option>
+                <option value="fitness">Fitness only</option>
+                <option value="badminton">Badminton only</option>
+              </select>
+            </div>
+
             <div v-if="createError" class="error-message">{{ createError }}</div>
 
             <button type="submit" class="btn-primary" :disabled="creating">
@@ -971,7 +985,7 @@ const activeTab = ref('codes')
 const inviteCodes = ref([])
 const loadingCodes = ref(false)
 const showCreateCode = ref(false)
-const newCode = ref({ code: '', max_uses: 1, note: '' })
+const newCode = ref({ code: '', max_uses: 1, note: '', scope: null })
 const creating = ref(false)
 const createError = ref('')
 
@@ -1161,7 +1175,7 @@ async function createCode() {
   try {
     await api.post('/api/v1/admin/invite-codes', newCode.value)
     showCreateCode.value = false
-    newCode.value = { code: '', max_uses: 1, note: '' }
+    newCode.value = { code: '', max_uses: 1, note: '', scope: null }
     await loadCodes()
   } catch (err) {
     createError.value = err.response?.data?.detail || 'Failed to create code'
@@ -1917,6 +1931,30 @@ h1 {
 .status.registered {
   background: var(--color-info-light);
   color: var(--color-info);
+}
+
+.scope-badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.scope-badge.universal {
+  background: var(--color-secondary-light, rgba(124,139,111,0.15));
+  color: var(--text-muted);
+}
+
+.scope-badge.fitness {
+  background: var(--color-success-light, rgba(76,175,80,0.15));
+  color: var(--color-success, #4caf50);
+}
+
+.scope-badge.badminton {
+  background: var(--color-info-light, rgba(33,150,243,0.15));
+  color: var(--color-info, #2196f3);
 }
 
 .actions {

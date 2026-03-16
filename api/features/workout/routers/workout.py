@@ -3,7 +3,7 @@
 import asyncio
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
@@ -16,10 +16,12 @@ from ..models.workout import (
     ExerciseResponse,
     SessionActionRequest, AgentResponse,
     SessionStartRequest, ExerciseHistoryResponse,
+    ChatRequest, ChatResponse, SuggestedOption, ChatAction,
 )
 from ..services.workout_service import WorkoutService
 from ..services.session_agent import SessionAgent
 from ..services.coach_feedback import get_exercise_history
+from ..services import onboarding_agent, chat_agent
 
 router = APIRouter(prefix="/api/v1/workout", tags=["workout"])
 
@@ -77,6 +79,73 @@ async def reset_onboarding(
 
 
 # ---------------------------------------------------------------------------
+# Chat (Voice-First AI Coach Companion)
+# ---------------------------------------------------------------------------
+
+@router.post("/chat", response_model=ChatResponse)
+async def workout_chat(
+    body: ChatRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Unified chat endpoint. Routes to OnboardingAgent or WorkoutChatAgent based on context."""
+    if body.context == "onboarding":
+        result = onboarding_agent.process_turn(
+            conversation_id=body.conversation_id,
+            user_message=body.message,
+        )
+        return ChatResponse(
+            response=result["response"],
+            suggested_options=[SuggestedOption(**o) for o in result.get("suggested_options", [])],
+            data_collected=result.get("data_collected"),
+            onboarding_complete=result.get("onboarding_complete", False),
+            conversation_id=result.get("conversation_id"),
+        )
+
+    # All other contexts: pre_workout, post_set, rest, post_workout
+    session_data = _build_chat_session_data(db, body.session_id, current_user)
+    user_context = {"name": current_user.username or ""}
+
+    result = chat_agent.process_chat(
+        user_message=body.message,
+        context=body.context,
+        session_data=session_data,
+        user_context=user_context,
+    )
+
+    return ChatResponse(
+        response=result.get("response", ""),
+        actions=[ChatAction(**a) for a in result.get("actions", [])],
+        suggested_options=[SuggestedOption(**o) for o in result.get("suggested_options", [])],
+        conversation_id=body.conversation_id,
+    )
+
+
+def _build_chat_session_data(db: Session, session_id: Optional[str], user) -> dict:
+    """Build session context for chat agent from a real session if available."""
+    if not session_id:
+        return {"exercises": [], "day_label": "Today's workout", "estimated_minutes": 45}
+
+    try:
+        from ..db_models.workout import WorkoutSession
+        sid = int(session_id)
+        session = db.query(WorkoutSession).filter(
+            WorkoutSession.id == sid,
+            WorkoutSession.user_id == user.id,
+        ).first()
+        if session and session.planned_exercises:
+            return {
+                "exercises": session.planned_exercises,
+                "day_label": "Today's workout",
+                "estimated_minutes": len(session.planned_exercises) * 5,
+            }
+    except (ValueError, TypeError):
+        pass
+
+    return {"exercises": [], "day_label": "Today's workout", "estimated_minutes": 45}
+
+
+# ---------------------------------------------------------------------------
 # Exercises
 # ---------------------------------------------------------------------------
 
@@ -121,8 +190,19 @@ async def get_today_workout(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Get today's planned workout."""
-    return WorkoutService.get_today_workout(db, current_user.id)
+    """Get today's planned workout with personalized greeting and coach insight."""
+    result = WorkoutService.get_today_workout(db, current_user.id)
+
+    # Layer on personalized greeting + insight
+    username = current_user.username or (current_user.email or "").split("@")[0]
+    greeting_data = WorkoutService.get_personalized_greeting(
+        db, current_user.id, username,
+    )
+    result["greeting"] = greeting_data["greeting"]
+    result["insight"] = greeting_data["insight"]
+    result["insight_type"] = greeting_data["insight_type"]
+
+    return result
 
 
 @router.get("/week")
@@ -326,3 +406,29 @@ async def get_tts_audio(
         media_type="audio/mpeg",
         headers={"Cache-Control": "public, max-age=86400"},
     )
+
+
+# ---------------------------------------------------------------------------
+# STT endpoint (Whisper fallback for browsers without Web Speech API)
+# ---------------------------------------------------------------------------
+
+@router.post("/stt")
+async def speech_to_text(
+    audio: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
+    """Transcribe uploaded audio using OpenAI Whisper API."""
+    from ..services.stt_service import transcribe_audio
+
+    audio_bytes = await audio.read()
+    if not audio_bytes or len(audio_bytes) < 100:
+        raise HTTPException(status_code=400, detail="No audio data")
+
+    if len(audio_bytes) > 5 * 1024 * 1024:  # 5MB limit
+        raise HTTPException(status_code=400, detail="Audio too large (max 5MB)")
+
+    text = await transcribe_audio(audio_bytes, audio.content_type or "audio/webm")
+    if text is None:
+        raise HTTPException(status_code=503, detail="STT unavailable")
+
+    return {"text": text}

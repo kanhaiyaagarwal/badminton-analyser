@@ -79,6 +79,7 @@ class SessionAgent:
         "skip_exercise",
         "skip_rest",
         "end_workout",
+        "modify_exercise",
     }
 
     @staticmethod
@@ -100,6 +101,7 @@ class SessionAgent:
             "skip_exercise": _handle_skip_exercise,
             "skip_rest": _handle_skip_rest,
             "end_workout": _handle_end_workout,
+            "modify_exercise": _handle_modify_exercise,
         }[action]
 
         return handler(db, user_id, session_id, params)
@@ -483,6 +485,52 @@ def _handle_skip_rest(db: Session, user_id: int, session_id: Optional[int], para
     )
 
 
+def _handle_modify_exercise(db: Session, user_id: int, session_id: Optional[int], params: dict) -> dict:
+    """Modify sets/reps for an exercise in the current plan."""
+    session = _get_session(db, user_id, session_id)
+    planned = session.planned_exercises or []
+
+    exercise_id = params.get("exercise_id")
+    new_sets = params.get("sets")
+    new_reps = params.get("reps")
+
+    updated = []
+    target_ex = None
+    for ex in planned:
+        if ex.get("exercise_id") == exercise_id or ex.get("slug") == str(exercise_id):
+            new_ex = {**ex}
+            if new_sets is not None:
+                new_ex["sets"] = int(new_sets)
+            if new_reps is not None:
+                new_ex["reps"] = str(new_reps)
+            updated.append(new_ex)
+            target_ex = new_ex
+        else:
+            updated.append(ex)
+
+    if not target_ex:
+        raise ValueError(f"Exercise {exercise_id} not in session plan")
+
+    session.planned_exercises = updated
+    db.commit()
+
+    exercise = db.query(Exercise).filter(Exercise.id == exercise_id).first()
+    history = get_exercise_history(db, user_id, exercise_id) if exercise else {}
+
+    return _agent_response(
+        view="exercise_intro",
+        data={
+            "session_id": session.id,
+            "exercise": target_ex,
+            "form_cues": (exercise.form_cues or [])[:3] if exercise else [],
+            "history": history,
+        },
+        coach_says=f"Updated to {target_ex.get('sets', 3)} sets x {target_ex.get('reps', '10')}.",
+        available_actions=["complete_set", "skip_exercise", "end_workout"],
+        progress=_build_progress(updated, updated.index(target_ex), 1),
+    )
+
+
 def _handle_end_workout(db: Session, user_id: int, session_id: Optional[int], params: dict) -> dict:
     """Finalize the session — compute summary stats."""
     session = _get_session(db, user_id, session_id)
@@ -695,3 +743,83 @@ def _brief_coach_message(planned: list) -> str:
         return "No exercises loaded. Try a quick start!"
     minutes = _estimate_total_minutes(planned)
     return f"{count} exercises, ~{minutes} minutes. Ready when you are."
+
+
+# ---------------------------------------------------------------------------
+# Plan Modification Helpers (called by chat_agent)
+# ---------------------------------------------------------------------------
+
+def swap_exercise_in_plan(
+    planned_exercises: list[dict],
+    old_slug: str,
+    new_slug: str,
+    new_name: Optional[str] = None,
+) -> list[dict]:
+    """Swap an exercise in the plan. Returns updated exercise list."""
+    updated = []
+    swapped = False
+    for ex in planned_exercises:
+        if ex.get("slug") == old_slug and not swapped:
+            new_ex = {**ex, "slug": new_slug, "name": new_name or new_slug.replace("-", " ").title()}
+            updated.append(new_ex)
+            swapped = True
+            logger.info("Swapped exercise %s -> %s", old_slug, new_slug)
+        else:
+            updated.append(ex)
+    return updated
+
+
+def adjust_exercise_targets(
+    planned_exercises: list[dict],
+    exercise_id,
+    weight_kg: Optional[float] = None,
+    reps: Optional[int] = None,
+) -> list[dict]:
+    """Adjust weight/reps for an exercise. Returns updated list."""
+    updated = []
+    for ex in planned_exercises:
+        if ex.get("exercise_id") == exercise_id or ex.get("slug") == str(exercise_id):
+            new_ex = {**ex}
+            if weight_kg is not None:
+                new_ex["weight_kg"] = weight_kg
+            if reps is not None:
+                new_ex["reps"] = str(reps)
+            updated.append(new_ex)
+        else:
+            updated.append(ex)
+    return updated
+
+
+def add_exercise_to_plan(
+    planned_exercises: list[dict],
+    slug: str,
+    position: Optional[int] = None,
+    name: Optional[str] = None,
+    sets: int = 3,
+    reps: str = "10",
+) -> list[dict]:
+    """Insert an exercise into the plan. Returns updated list."""
+    new_ex = {
+        "slug": slug,
+        "name": name or slug.replace("-", " ").title(),
+        "sets": sets,
+        "reps": reps,
+        "order": position if position is not None else len(planned_exercises),
+    }
+    updated = list(planned_exercises)
+    if position is not None and 0 <= position <= len(updated):
+        updated.insert(position, new_ex)
+    else:
+        updated.append(new_ex)
+    return updated
+
+
+def remove_exercise_from_plan(
+    planned_exercises: list[dict],
+    exercise_id,
+) -> list[dict]:
+    """Remove an exercise from the plan. Returns updated list."""
+    return [
+        ex for ex in planned_exercises
+        if ex.get("exercise_id") != exercise_id and ex.get("slug") != str(exercise_id)
+    ]

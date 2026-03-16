@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import api, { _setAuthStoreRef } from '../api/client'
+import { appMode } from '../composables/useAppMode'
 
 // Helper to decode JWT and get expiration
 function getTokenExpiration(token) {
@@ -56,7 +57,8 @@ export const useAuthStore = defineStore('auth', () => {
       email,
       username,
       password,
-      invite_code: inviteCode
+      invite_code: inviteCode,
+      app_context: appMode
     })
     // If user was waitlisted (no invite code), don't set pending verification
     if (response.data.status === 'waitlisted') {
@@ -100,7 +102,8 @@ export const useAuthStore = defineStore('auth', () => {
   async function loginWithGoogle(credential, inviteCode = '') {
     const response = await api.post('/api/v1/auth/google', {
       credential,
-      invite_code: inviteCode
+      invite_code: inviteCode,
+      app_context: appMode
     })
     if (response.data.access_token) {
       setTokens(response.data.access_token, response.data.refresh_token)

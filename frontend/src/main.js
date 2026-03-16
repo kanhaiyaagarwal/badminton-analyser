@@ -5,6 +5,9 @@ import './assets/tailwind.css'
 import './assets/theme.css'
 import App from './App.vue'
 import router from './router'
+import { isBadmintonMode } from './composables/useAppMode'
+
+document.title = isBadmintonMode ? 'Baddy' : 'PushUp Pro'
 
 // Initialize Datadog RUM (CDN script loaded in index.html)
 if (window.DD_RUM && import.meta.env.VITE_DD_RUM_CLIENT_TOKEN) {

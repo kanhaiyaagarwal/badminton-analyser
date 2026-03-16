@@ -1,6 +1,6 @@
 <template>
   <div class="dashboard">
-    <router-link to="/hub" class="back-link">&larr; Back to Hub</router-link>
+    <router-link v-if="!isBadminton" to="/hub" class="back-link">&larr; Back to Hub</router-link>
 
     <div class="home-header">
       <span class="header-icon">&#127992;</span>
@@ -129,6 +129,9 @@ import { ref, onMounted, computed } from 'vue'
 import { useJobsStore } from '../stores/jobs'
 import api from '../api/client'
 import ProgressTracker from '../components/ProgressTracker.vue'
+import { useAppMode } from '../composables/useAppMode'
+
+const { isBadminton } = useAppMode()
 
 const jobsStore = useJobsStore()
 

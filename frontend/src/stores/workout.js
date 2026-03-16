@@ -20,6 +20,10 @@ export const useWorkoutStore = defineStore('workout', () => {
   const sessionId = ref(null)
   const sessionSummary = ref(null)
 
+  // Chat state (for coach companion)
+  const chatConversationId = ref(null)
+  const chatContext = ref(null)  // current chat context: onboarding | pre_workout | rest | post_workout
+
   // Computed
   const isOnboarded = computed(() => profile.value?.onboarding_completed === true)
 
@@ -166,6 +170,27 @@ export const useWorkoutStore = defineStore('workout', () => {
     activeSession.value = null
     sessionId.value = null
     sessionSummary.value = null
+    chatConversationId.value = null
+    chatContext.value = null
+  }
+
+  async function sendChatMessage(message, context, sid = null) {
+    try {
+      const res = await api.post('/api/v1/workout/chat', {
+        message,
+        context,
+        session_id: sid || sessionId.value,
+        conversation_id: chatConversationId.value,
+      })
+      if (res.data.conversation_id) {
+        chatConversationId.value = res.data.conversation_id
+      }
+      chatContext.value = context
+      return res.data
+    } catch (err) {
+      error.value = err.response?.data?.detail || 'Chat failed'
+      throw err
+    }
   }
 
   return {
@@ -183,6 +208,8 @@ export const useWorkoutStore = defineStore('workout', () => {
     activeSession,
     sessionId,
     sessionSummary,
+    chatConversationId,
+    chatContext,
     fetchProfile,
     submitOnboarding,
     fetchTodayWorkout,
@@ -194,5 +221,6 @@ export const useWorkoutStore = defineStore('workout', () => {
     startSession,
     sendAction,
     clearSession,
+    sendChatMessage,
   }
 })

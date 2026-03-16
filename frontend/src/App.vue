@@ -5,9 +5,9 @@
 
       <!-- Top Header (authenticated, non-landing/auth pages) -->
       <header v-if="authStore.isAuthenticated && !isLandingPage && !isAuthPage && !isFullscreenPage" class="app-header">
-        <router-link to="/hub" class="header-brand">
-          <img src="/mascot/otter-mascot.png" alt="PushUp Pro" class="header-logo" />
-          <span class="header-name">PushUp Pro</span>
+        <router-link :to="isBadminton ? '/dashboard' : '/challenges'" class="header-brand">
+          <img v-if="!isBadminton" src="/mascot/otter-mascot.png" alt="PushUp Pro" class="header-logo" />
+          <span class="header-name">{{ appName }}</span>
         </router-link>
         <div class="header-actions">
           <router-link v-if="isAdmin" to="/admin" class="admin-badge">Admin</router-link>
@@ -25,27 +25,52 @@
 
       <!-- Bottom Navigation (authenticated, non-landing/auth/admin pages) -->
       <nav v-if="authStore.isAuthenticated && !isLandingPage && !isAuthPage && !isAdminPage && !isFullscreenPage" class="bottom-nav">
-        <BottomNavItem to="/hub" label="Home" exact>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-            <polyline points="9 22 9 12 15 12 15 22"/>
-          </svg>
-        </BottomNavItem>
-        <BottomNavItem to="/workout" label="Workout">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M6.5 6.5a3.5 3.5 0 1 0 0 7"/>
-            <path d="M17.5 6.5a3.5 3.5 0 1 1 0 7"/>
-            <path d="M6.5 10h11"/>
-            <path d="M4 10H2"/>
-            <path d="M22 10h-2"/>
-          </svg>
-        </BottomNavItem>
-        <BottomNavItem to="/explore" label="Explore">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"/>
-            <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>
-          </svg>
-        </BottomNavItem>
+        <!-- Fitness nav -->
+        <template v-if="!isBadminton">
+          <BottomNavItem to="/challenges" label="Home" exact>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+              <polyline points="9 22 9 12 15 12 15 22"/>
+            </svg>
+          </BottomNavItem>
+          <BottomNavItem to="/workout" label="Workout">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6.5 6.5a3.5 3.5 0 1 0 0 7"/>
+              <path d="M17.5 6.5a3.5 3.5 0 1 1 0 7"/>
+              <path d="M6.5 10h11"/>
+              <path d="M4 10H2"/>
+              <path d="M22 10h-2"/>
+            </svg>
+          </BottomNavItem>
+          <BottomNavItem to="/explore" label="Explore">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>
+            </svg>
+          </BottomNavItem>
+        </template>
+        <!-- Badminton nav -->
+        <template v-else>
+          <BottomNavItem to="/dashboard" label="Home" exact>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+              <polyline points="9 22 9 12 15 12 15 22"/>
+            </svg>
+          </BottomNavItem>
+          <BottomNavItem to="/live" label="Live">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <circle cx="12" cy="12" r="3" fill="currentColor"/>
+            </svg>
+          </BottomNavItem>
+          <BottomNavItem to="/upload" label="Upload">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+          </BottomNavItem>
+        </template>
         <BottomNavItem to="/profile" label="Me">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
@@ -67,9 +92,11 @@ import { computed } from 'vue'
 import { useAuthStore } from './stores/auth'
 import { useRoute } from 'vue-router'
 import BottomNavItem from './components/BottomNavItem.vue'
+import { useAppMode } from './composables/useAppMode'
 
 const authStore = useAuthStore()
 const route = useRoute()
+const { isBadminton, appName } = useAppMode()
 
 const isAdmin = computed(() => authStore.user?.is_admin)
 const canTune = computed(() => !authStore.user?.is_admin && authStore.hasFeature('tuning'))

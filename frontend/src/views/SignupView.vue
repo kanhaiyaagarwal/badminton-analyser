@@ -10,7 +10,7 @@
             :initial="{ opacity: 0, scale: 0.85 }"
             :enter="{ opacity: 1, scale: 1, transition: { duration: 400 } }"
             class="auth-brand"
-          ><img src="/mascot/otter-mascot.png" alt="PushUp Pro" class="auth-logo" /></div>
+          ><img v-if="!isBadminton" src="/mascot/otter-mascot.png" :alt="appName" class="auth-logo" /><span v-else class="auth-logo-text">{{ appName }}</span></div>
 
           <h1
             v-motion
@@ -23,7 +23,7 @@
             :initial="{ opacity: 0, y: 16 }"
             :enter="{ opacity: 1, y: 0, transition: { delay: 200, duration: 400 } }"
             class="auth-subtitle"
-          >Create your PushUp Pro account</p>
+          >Create your {{ appName }} account</p>
 
           <div
             v-motion
@@ -106,7 +106,7 @@
 
         <!-- Google invite code step -->
         <template v-else-if="googleNeedsInvite && !googleWaitlisted">
-          <div class="auth-brand"><img src="/mascot/otter-mascot.png" alt="PushUp Pro" class="auth-logo" /></div>
+          <div class="auth-brand"><img v-if="!isBadminton" src="/mascot/otter-mascot.png" :alt="appName" class="auth-logo" /><span v-else class="auth-logo-text">{{ appName }}</span></div>
           <h1 class="auth-title" style="color: var(--color-primary)">Almost there!</h1>
           <p class="auth-subtitle">Enter an invite code to complete sign-up, or join the waitlist.</p>
 
@@ -140,7 +140,7 @@
 
         <!-- Waitlisted confirmation -->
         <template v-else>
-          <div class="auth-brand"><img src="/mascot/otter-mascot.png" alt="PushUp Pro" class="auth-logo" /></div>
+          <div class="auth-brand"><img v-if="!isBadminton" src="/mascot/otter-mascot.png" :alt="appName" class="auth-logo" /><span v-else class="auth-logo-text">{{ appName }}</span></div>
           <div class="auth-form-area">
             <div class="msg-success">You've been added to the waitlist! We'll notify you when access is available.</div>
             <button type="button" @click="resetGoogleState" class="btn-link">Back to sign up</button>
@@ -155,7 +155,7 @@
           :initial="{ opacity: 0, scale: 0.85 }"
           :enter="{ opacity: 1, scale: 1, transition: { duration: 400 } }"
           class="auth-brand"
-        ><img src="/mascot/otter-mascot.png" alt="PushUp Pro" class="auth-logo" /></div>
+        ><img v-if="!isBadminton" src="/mascot/otter-mascot.png" :alt="appName" class="auth-logo" /><span v-else class="auth-logo-text">{{ appName }}</span></div>
 
         <h1 class="auth-title">Verify Email</h1>
         <p class="auth-subtitle">Enter the 6-digit code sent to {{ pendingEmail }}</p>
@@ -247,7 +247,11 @@ import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useGoogleAuth } from '../composables/useGoogleAuth'
 import { useAnalytics } from '../composables/useAnalytics'
+import { useAppMode } from '../composables/useAppMode'
 import api from '../api/client'
+
+const { isBadminton, appName } = useAppMode()
+const defaultHome = isBadminton.value ? '/dashboard' : '/challenges'
 
 const router = useRouter()
 const route = useRoute()
@@ -378,7 +382,7 @@ async function handleVerifyOtp() {
         if (redirect) {
           router.push(redirect)
         } else {
-          router.push('/challenges/pushup/session')
+          router.push(defaultHome)
         }
       }, 1000)
     } else {
@@ -440,7 +444,7 @@ async function handleGoogleCallback(credential) {
 
     if (data.access_token) {
       analytics.signupCompleted('google')
-      router.push(route.query.redirect || '/hub')
+      router.push(route.query.redirect || defaultHome)
     } else if (data.status === 'needs_invite') {
       storedCredential.value = credential
       storedGoogleEmail.value = data.email
@@ -461,7 +465,7 @@ async function handleGoogleInviteSubmit() {
   try {
     const data = await authStore.loginWithGoogle(storedCredential.value, googleInviteCode.value)
     if (data.access_token) {
-      router.push(route.query.redirect || '/hub')
+      router.push(route.query.redirect || defaultHome)
     }
   } catch (err) {
     error.value = err.response?.data?.detail || 'Invalid invite code.'
@@ -874,6 +878,12 @@ async function handleWaitlist() {
   font-size: 0.9rem;
   color: var(--text-muted);
   margin-bottom: 1.5rem;
+}
+
+.auth-logo-text {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--color-primary);
 }
 
 /* ---- Responsive ---- */
