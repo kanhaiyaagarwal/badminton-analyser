@@ -306,7 +306,7 @@ function triggerDownload(data, mimeType, filename) {
 }
 
 .cta-sub {
-  color: rgba(191, 219, 254, 0.9);
+  color: rgba(255, 255, 255, 0.75);
   font-size: 1.05rem;
   margin: 0 0 1.5rem;
 }
@@ -315,9 +315,9 @@ function triggerDownload(data, mimeType, filename) {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  background: #fff;
+  background: var(--bg-card);
   color: var(--color-primary);
-  border: none;
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   padding: 0.85rem 1.5rem;
   font-size: 1.05rem;
@@ -327,7 +327,7 @@ function triggerDownload(data, mimeType, filename) {
 }
 
 .cta-btn:hover {
-  background: #eff6ff;
+  background: var(--color-primary-light);
 }
 
 /* Upload card */

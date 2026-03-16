@@ -1,56 +1,62 @@
 /* ============================================
-   Design Tokens — Sage & Cream Cozy Theme
+   Design Tokens — Dark Athletic Theme
    ============================================ */
 :root {
   /* ---- Page & Surface ---- */
-  --bg-page: #F5F2EB;
-  --bg-card: #FDFCF9;
-  --bg-input: #FAF8F3;
-  --bg-overlay: rgba(45, 42, 38, 0.5);
+  --bg-page: hsl(220 20% 8%);
+  --bg-card: hsl(220 18% 13%);
+  --bg-input: hsl(220 18% 13%);
+  --bg-overlay: rgba(0, 0, 0, 0.6);
 
   /* ---- Borders ---- */
-  --border-color: rgba(45, 42, 38, 0.08);
-  --border-input: #E0DDD7;
-  --border-input-focus: #7C8B6F;
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-input: hsl(220 15% 22%);
+  --border-input-focus: hsl(18 95% 55%);
 
-  /* ---- Primary (Sage) ---- */
-  --color-primary: #7C8B6F;
-  --color-primary-hover: #667358;
-  --color-primary-light: rgba(124, 139, 111, 0.1);
+  /* ---- Primary (Electric Orange) ---- */
+  --color-primary: hsl(18 95% 55%);
+  --color-primary-hover: hsl(18 95% 45%);
+  --color-primary-light: rgba(242, 101, 34, 0.12);
   --color-primary-text: #ffffff;
 
   /* ---- Gradient ---- */
-  --gradient-primary: linear-gradient(135deg, #7C8B6F, #A5B08D);
-  --gradient-primary-hover: linear-gradient(135deg, #667358, #8E9C78);
+  --gradient-primary: linear-gradient(135deg, hsl(18 95% 55%), hsl(18 95% 65%));
+  --gradient-primary-hover: linear-gradient(135deg, hsl(18 95% 45%), hsl(18 95% 55%));
 
-  /* ---- Destructive (Warm Red) ---- */
-  --color-destructive: #C44B3D;
-  --color-destructive-light: rgba(196, 75, 61, 0.1);
+  /* ---- Destructive (Red) ---- */
+  --color-destructive: hsl(0 75% 60%);
+  --color-destructive-light: rgba(239, 68, 68, 0.12);
 
-  /* ---- Success (Deep Sage) ---- */
-  --color-success: #6B7A5E;
-  --color-success-light: rgba(107, 122, 94, 0.1);
+  /* ---- Success (Green) ---- */
+  --color-success: hsl(160 60% 45%);
+  --color-success-light: rgba(16, 185, 129, 0.12);
 
   /* ---- Warning (Gold) ---- */
-  --color-warning: #D4A843;
-  --color-warning-light: rgba(212, 168, 67, 0.1);
+  --color-warning: hsl(45 85% 55%);
+  --color-warning-light: rgba(245, 158, 11, 0.12);
 
-  /* ---- Secondary (Terracotta) ---- */
-  --color-secondary: #C4613D;
-  --color-secondary-light: rgba(196, 97, 61, 0.1);
+  /* ---- Secondary (Teal) ---- */
+  --color-secondary: hsl(175 70% 45%);
+  --color-secondary-light: rgba(20, 184, 166, 0.12);
 
-  /* ---- Info (Muted Sage) ---- */
-  --color-info: #8E9C78;
-  --color-info-light: rgba(142, 156, 120, 0.1);
+  /* ---- Info (Teal) ---- */
+  --color-info: hsl(175 70% 45%);
+  --color-info-light: rgba(20, 184, 166, 0.12);
+
+  /* ---- Accent (Teal) ---- */
+  --color-accent: hsl(175 70% 45%);
+  --gradient-secondary: linear-gradient(135deg, hsl(175 70% 45%), hsl(175 70% 55%));
 
   /* ---- Text ---- */
-  --text-primary: #2D2A26;
-  --text-secondary: #706860;
-  --text-muted: #B0A99F;
-  --text-on-primary: #ffffff;
+  --text-primary: hsl(220 15% 95%);
+  --text-secondary: hsl(220 10% 70%);
+  --text-muted: hsl(220 10% 45%);
+  --text-on-primary: hsl(220 20% 8%);
 
   /* ---- Typography ---- */
   --font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: 'Outfit', system-ui, -apple-system, sans-serif;
+  --font-body: 'DM Sans', system-ui, -apple-system, sans-serif;
 
   /* ---- Radius ---- */
   --radius-sm: 0.5rem;
@@ -59,9 +65,28 @@
   --radius-xl: 1.25rem;
   --radius-full: 9999px;
 
-  /* ---- Shadows (warm-toned) ---- */
-  --shadow-sm: 0 1px 3px rgba(45, 42, 38, 0.06), 0 1px 2px rgba(45, 42, 38, 0.04);
-  --shadow-md: 0 4px 12px rgba(45, 42, 38, 0.08);
-  --shadow-lg: 0 10px 25px rgba(45, 42, 38, 0.10);
-  --shadow-xl: 0 20px 40px rgba(45, 42, 38, 0.14);
+  /* ---- Shadows (dark) ---- */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.6);
+
+  /* ---- Glow effects ---- */
+  --glow-primary: 0 0 30px -5px rgba(242, 101, 34, 0.3);
+  --glow-secondary: 0 0 30px -5px rgba(20, 184, 166, 0.3);
 }
+
+/* ---- Glass morphism ---- */
+.glass {
+  background: hsla(220, 18%, 13%, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ---- Glow effects ---- */
+.glow-primary { box-shadow: var(--glow-primary); }
+.glow-secondary { box-shadow: var(--glow-secondary); }
+
+/* ---- Display font utility ---- */
+.font-display { font-family: var(--font-display); }

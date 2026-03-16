@@ -31,8 +31,31 @@
         <span class="next-info">{{ nextSet.name }} — Set {{ nextSet.set_number }}/{{ nextSet.sets_total }}</span>
       </div>
 
-      <!-- Coach tip -->
-      <div v-if="coachSays" class="coach-bubble">
+      <!-- Post-set quick feedback -->
+      <div class="feedback-cards">
+        <button
+          v-for="opt in feedbackOptions"
+          :key="opt.value"
+          class="feedback-card"
+          :class="{ selected: selectedFeedback === opt.value }"
+          @click="handleFeedback(opt)"
+        >
+          {{ opt.label }}
+        </button>
+      </div>
+
+      <!-- Mini coach chat (for conversational rest) -->
+      <div v-if="showChat" class="rest-chat">
+        <CoachChat
+          context="rest"
+          :session-id="sessionId"
+          compact
+          @action="handleChatAction"
+        />
+      </div>
+
+      <!-- Coach tip (fallback when chat not shown) -->
+      <div v-else-if="coachSays" class="coach-bubble">
         <img src="/mascot/otter-mascot.png" alt="Coach" class="coach-avatar" />
         <div class="coach-text">{{ coachSays }}</div>
       </div>
@@ -50,7 +73,10 @@
       <button class="btn-primary full-width" @click="skipRest">
         Skip Rest
       </button>
-      <button class="btn-outline full-width mic-btn" @click="toggleVoice" v-if="voiceSupported">
+      <button class="btn-outline full-width chat-toggle-btn" @click="showChat = !showChat">
+        {{ showChat ? 'Hide Chat' : 'Talk to Coach' }}
+      </button>
+      <button class="btn-outline full-width mic-btn" @click="toggleVoice" v-if="voiceSupported && !showChat">
         {{ voiceInput.isListening.value ? 'Stop Listening' : 'Voice Command' }}
       </button>
     </div>
@@ -60,11 +86,13 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useVoiceInput } from '@/composables/useVoiceInput'
+import CoachChat from '../../../components/workout/CoachChat.vue'
 
 const props = defineProps({
   data: { type: Object, required: true },
   coachSays: { type: String, default: '' },
   progress: { type: Object, default: null },
+  sessionId: { type: String, default: null },
 })
 
 const emit = defineEmits(['action'])
@@ -72,6 +100,23 @@ const emit = defineEmits(['action'])
 // Voice input
 const voiceInput = useVoiceInput()
 const voiceSupported = ref(false)
+const showChat = ref(false)
+const selectedFeedback = ref(null)
+
+const feedbackOptions = [
+  { label: 'Felt easy', value: 'easy' },
+  { label: 'Just right', value: 'just_right' },
+  { label: 'Really hard', value: 'hard' },
+]
+
+function handleFeedback(opt) {
+  selectedFeedback.value = opt.value
+  emit('action', 'report_feedback', { feeling: opt.value })
+}
+
+function handleChatAction(type, params) {
+  emit('action', type, params)
+}
 
 onMounted(() => {
   voiceSupported.value = !!(window.SpeechRecognition || window.webkitSpeechRecognition)
@@ -322,6 +367,53 @@ function handleVoiceCommand(text) {
   font-size: 0.8rem;
   color: var(--text-primary);
   font-style: italic;
+}
+
+/* Feedback cards */
+.feedback-cards {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.feedback-card {
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-full);
+  border: 1.5px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.feedback-card:hover, .feedback-card:active {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.feedback-card.selected {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: white;
+}
+
+/* Rest chat */
+.rest-chat {
+  width: 100%;
+  max-width: 350px;
+  max-height: 200px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin-top: 0.5rem;
+}
+
+.chat-toggle-btn {
+  margin-top: 0.5rem;
 }
 
 .mic-btn {

@@ -10,32 +10,72 @@
     <div v-else-if="error" class="error-msg">{{ error }}</div>
 
     <div v-else-if="summary" class="results-content">
-      <h1 class="results-title">Workout Summary</h1>
-      <p class="results-date">{{ formattedDate }}</p>
+      <!-- Check icon + title -->
+      <div
+        v-motion
+        :initial="{ opacity: 0, scale: 0.8 }"
+        :enter="{ opacity: 1, scale: 1, transition: { type: 'spring', stiffness: 200, damping: 15 } }"
+        class="results-hero"
+      >
+        <div class="check-circle">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="32" height="32">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </div>
+        <h1 class="results-title">Great workout!</h1>
+        <p class="results-date">{{ formattedDate }}</p>
+      </div>
 
       <!-- Stat cards -->
       <div class="stat-cards">
-        <div class="stat-card">
+        <div
+          v-motion
+          :initial="{ opacity: 0, y: 20 }"
+          :enter="{ opacity: 1, y: 0, transition: { delay: 200 } }"
+          class="stat-card glass"
+        >
           <span class="stat-value">{{ summary.duration_minutes || 0 }}</span>
           <span class="stat-label">Minutes</span>
         </div>
-        <div class="stat-card">
-          <span class="stat-value">{{ summary.exercises_completed || 0 }}</span>
+        <div
+          v-motion
+          :initial="{ opacity: 0, y: 20 }"
+          :enter="{ opacity: 1, y: 0, transition: { delay: 300 } }"
+          class="stat-card glass"
+        >
+          <span class="stat-value accent">{{ summary.exercises_completed || 0 }}</span>
           <span class="stat-label">Exercises</span>
         </div>
-        <div class="stat-card">
+        <div
+          v-motion
+          :initial="{ opacity: 0, y: 20 }"
+          :enter="{ opacity: 1, y: 0, transition: { delay: 400 } }"
+          class="stat-card glass"
+        >
           <span class="stat-value">{{ summary.total_sets || 0 }}</span>
           <span class="stat-label">Sets</span>
         </div>
       </div>
 
-      <div v-if="summary.total_volume_kg > 0" class="volume-card">
+      <div
+        v-if="summary.total_volume_kg > 0"
+        v-motion
+        :initial="{ opacity: 0, y: 20 }"
+        :enter="{ opacity: 1, y: 0, transition: { delay: 500 } }"
+        class="volume-card glass"
+      >
         <span class="volume-value">{{ summary.total_volume_kg }}kg</span>
         <span class="volume-label">Total Volume</span>
       </div>
 
       <!-- PRs -->
-      <div v-if="summary.prs?.length > 0" class="prs-section">
+      <div
+        v-if="summary.prs?.length > 0"
+        v-motion
+        :initial="{ opacity: 0, y: 20 }"
+        :enter="{ opacity: 1, y: 0, transition: { delay: 600 } }"
+        class="prs-section"
+      >
         <h3 class="section-title">Personal Records</h3>
         <div v-for="(pr, i) in summary.prs" :key="i" class="pr-row">
           <span class="pr-badge">PR</span>
@@ -46,9 +86,17 @@
       </div>
 
       <!-- Coach summary -->
-      <div v-if="summary.coach_summary" class="coach-bubble">
-        <img src="/mascot/otter-mascot.png" alt="Coach" class="coach-avatar" />
-        <div class="coach-text">{{ summary.coach_summary }}</div>
+      <div
+        v-if="summary.coach_summary"
+        v-motion
+        :initial="{ opacity: 0, y: 20 }"
+        :enter="{ opacity: 1, y: 0, transition: { delay: 700 } }"
+        class="coach-bubble"
+      >
+        <div class="coach-avatar-ring">
+          <img src="/mascot/otter-mascot.png" alt="Coach" class="coach-avatar" />
+        </div>
+        <div class="coach-text glass">{{ summary.coach_summary }}</div>
       </div>
     </div>
   </div>
@@ -130,18 +178,37 @@ onMounted(async () => {
   color: var(--color-destructive);
 }
 
+/* Hero */
+.results-hero {
+  text-align: center;
+  margin-top: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.check-circle {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--color-success);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 0.75rem;
+  box-shadow: var(--glow-secondary);
+}
+
 .results-title {
-  font-size: 1.35rem;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
   font-weight: 800;
   color: var(--text-primary);
-  margin-top: 0.75rem;
-  margin-bottom: 0.15rem;
 }
 
 .results-date {
   font-size: 0.85rem;
   color: var(--text-muted);
-  margin-bottom: 1.25rem;
+  margin-top: 0.25rem;
 }
 
 .stat-cards {
@@ -153,17 +220,20 @@ onMounted(async () => {
 .stat-card {
   flex: 1;
   padding: 0.85rem 0.5rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   text-align: center;
 }
 
 .stat-value {
   display: block;
+  font-family: var(--font-display);
   font-size: 1.35rem;
   font-weight: 800;
   color: var(--color-primary);
+}
+
+.stat-value.accent {
+  color: var(--color-secondary);
 }
 
 .stat-label {
@@ -175,14 +245,13 @@ onMounted(async () => {
 .volume-card {
   text-align: center;
   padding: 0.85rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   margin-bottom: 1.25rem;
 }
 
 .volume-value {
   display: block;
+  font-family: var(--font-display);
   font-size: 1.25rem;
   font-weight: 800;
   color: var(--color-primary);
@@ -216,7 +285,7 @@ onMounted(async () => {
   padding: 0.15rem 0.45rem;
   border-radius: var(--radius-full);
   background: var(--color-warning);
-  color: white;
+  color: var(--text-on-primary);
   font-size: 0.65rem;
   font-weight: 700;
 }
@@ -233,21 +302,31 @@ onMounted(async () => {
   gap: 0.65rem;
 }
 
+.coach-avatar-ring {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--gradient-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 2px;
+}
+
 .coach-avatar {
-  width: 32px;
-  height: 32px;
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
   object-fit: cover;
-  flex-shrink: 0;
 }
 
 .coach-text {
   padding: 0.65rem 0.85rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
   border-radius: 0 var(--radius-md) var(--radius-md) var(--radius-md);
   font-size: 0.85rem;
   color: var(--text-secondary);
   line-height: 1.4;
+  font-style: italic;
 }
 </style>

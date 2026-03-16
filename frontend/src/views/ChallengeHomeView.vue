@@ -458,7 +458,7 @@ onUnmounted(() => {
 }
 
 .cta-sub {
-  color: rgba(191, 219, 254, 0.9);
+  color: rgba(255, 255, 255, 0.75);
   font-size: 1.05rem;
   margin: 0 0 1.5rem;
 }
@@ -479,7 +479,7 @@ onUnmounted(() => {
 }
 
 .cta-btn:hover {
-  background: #eff6ff;
+  background: rgba(255, 255, 255, 0.85);
 }
 
 .cta-btn svg {
@@ -554,18 +554,18 @@ onUnmounted(() => {
 }
 
 .icon-blue {
-  background: rgba(59, 130, 246, 0.12);
-  color: #3b82f6;
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
 }
 
 .icon-orange {
-  background: rgba(249, 115, 22, 0.12);
-  color: #f97316;
+  background: var(--color-primary-light);
+  color: var(--color-primary);
 }
 
 .icon-green {
-  background: rgba(22, 163, 74, 0.12);
-  color: #16a34a;
+  background: var(--color-success-light);
+  color: var(--color-success);
 }
 
 .stat-info {

@@ -1,7 +1,7 @@
 <template>
   <div class="active-set">
     <!-- Camera Mode -->
-    <template v-if="cameraMode">
+    <template v-if="cameraActive">
       <div class="camera-container">
         <video ref="videoEl" class="camera-feed" autoplay playsinline muted></video>
         <canvas ref="overlayCanvas" class="pose-overlay"></canvas>
@@ -30,6 +30,7 @@
         <!-- Set info bar -->
         <div class="camera-info-bar">
           <span>Set {{ data.set_number }}/{{ data.sets_total }}</span>
+          <button class="mode-switch-btn" @click="switchToManual">Manual</button>
           <span>{{ setTimerFormatted }}</span>
         </div>
       </div>
@@ -48,6 +49,7 @@
         <div class="set-header">
           <span class="set-label">Set {{ data.set_number }} of {{ data.sets_total }}</span>
           <span class="exercise-name">{{ exercise.name }}</span>
+          <button v-if="isTrackable" class="mode-switch-link" @click="switchToCamera">Switch to Camera</button>
         </div>
 
         <!-- Target display -->
@@ -139,6 +141,7 @@ const props = defineProps({
   data: { type: Object, required: true },
   coachSays: { type: String, default: '' },
   progress: { type: Object, default: null },
+  useCamera: { type: Boolean, default: true },
 })
 
 const emit = defineEmits(['action'])
@@ -170,9 +173,34 @@ const setTimerFormatted = computed(() => {
 })
 
 // --- Camera tracking (reuses challenge WebSocket infrastructure) ---
-const TRACKABLE_SLUGS = ['push-up', 'bodyweight-squat', 'plank', 'squat-hold', 'jump-squat', 'burpee']
+const TRACKABLE_SLUGS = [
+  'push-up', 'bodyweight-squat', 'plank', 'squat-hold', 'jump-squat', 'burpee',
+  'bicep-curl', 'lateral-raise', 'calf-raise',
+]
 const isHoldExercise = computed(() => ['plank', 'squat-hold'].includes(exercise.value.slug))
-const cameraMode = computed(() => TRACKABLE_SLUGS.includes(exercise.value.slug))
+const isTrackable = computed(() => TRACKABLE_SLUGS.includes(exercise.value.slug))
+const cameraMode = computed(() => props.useCamera && isTrackable.value)
+const cameraActive = ref(cameraMode.value)
+
+async function switchToManual() {
+  const report = await camera.stop()
+  cameraActive.value = false
+  // Pre-fill reps from camera count
+  reps.value = isHoldExercise.value
+    ? Math.floor(report.holdSeconds || 0)
+    : (report.reps || 0)
+}
+
+async function switchToCamera() {
+  cameraActive.value = true
+  await nextTick()
+  if (videoEl.value) {
+    await camera.initCamera(videoEl.value, overlayCanvas.value)
+    if (camera.isReady.value) {
+      camera.start(props.data.session_id, exercise.value.slug)
+    }
+  }
+}
 
 const videoEl = ref(null)
 const overlayCanvas = ref(null)
@@ -192,8 +220,8 @@ onMounted(async () => {
     setSeconds.value++
   }, 1000)
 
-  // Init camera if trackable
-  if (cameraMode.value) {
+  // Init camera if trackable and camera mode enabled
+  if (cameraActive.value) {
     await nextTick()
     if (videoEl.value) {
       await camera.initCamera(videoEl.value, overlayCanvas.value)
@@ -569,4 +597,27 @@ function saveSet() {
 }
 
 .full-width { width: 100%; }
+
+.mode-switch-btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #fff;
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-md);
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mode-switch-link {
+  display: block;
+  margin-top: 0.35rem;
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
 </style>

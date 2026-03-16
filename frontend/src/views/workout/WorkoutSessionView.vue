@@ -6,11 +6,12 @@
       <p>Loading workout...</p>
     </div>
 
-    <!-- Brief Phase -->
-    <BriefPhase
+    <!-- Brief / Pre-Workout Phase (with conversational chat) -->
+    <PreWorkoutChat
       v-else-if="view === 'brief'"
       :data="data"
       :coach-says="coachSays"
+      :session-id="sid"
       @action="handleAction"
     />
 
@@ -29,15 +30,17 @@
       :data="data"
       :coach-says="coachSays"
       :progress="progress"
+      :use-camera="useCameraForCurrentExercise"
       @action="handleAction"
     />
 
-    <!-- Rest Timer -->
+    <!-- Rest Timer (with post-set conversation) -->
     <RestTimer
       v-else-if="view === 'rest_timer'"
       :data="data"
       :coach-says="coachSays"
       :progress="progress"
+      :session-id="sid"
       @action="handleAction"
     />
 
@@ -60,7 +63,7 @@
 
     <!-- Pause Overlay -->
     <div v-if="isPaused && view !== 'summary' && view !== 'brief'" class="pause-overlay" @click.self="isPaused = false">
-      <div class="pause-card">
+      <div class="pause-card glass">
         <h2>Paused</h2>
         <p>{{ elapsedFormatted }}</p>
         <button class="btn-primary" @click="isPaused = false">Resume</button>
@@ -93,6 +96,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useWorkoutStore } from '../../stores/workout'
 import { useVoiceOutput } from '../../composables/useVoiceOutput'
 import BriefPhase from './session/BriefPhase.vue'
+import PreWorkoutChat from './session/PreWorkoutChat.vue'
 import ExerciseIntro from './session/ExerciseIntro.vue'
 import ActiveSet from './session/ActiveSet.vue'
 import RestTimer from './session/RestTimer.vue'
@@ -107,6 +111,7 @@ const voiceOutput = useVoiceOutput()
 
 const isPaused = ref(false)
 const elapsedSeconds = ref(0)
+const useCameraForCurrentExercise = ref(true)
 let timerInterval = null
 
 const loading = computed(() => workoutStore.loading)
@@ -162,6 +167,10 @@ watch(activeSession, (session, oldSession) => {
 
 async function handleAction(action, params = {}) {
   if (!sid.value) return
+  // Capture camera preference from exercise intro
+  if (action === 'skip_rest' && params.use_camera !== undefined) {
+    useCameraForCurrentExercise.value = params.use_camera
+  }
   try {
     await workoutStore.sendAction(sid.value, action, params)
   } catch (err) {
@@ -241,7 +250,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 0.65rem 1rem;
-  background: rgba(253, 252, 249, 0.92);
+  background: hsla(220, 18%, 13%, 0.92);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border-color);

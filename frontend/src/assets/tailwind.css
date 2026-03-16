@@ -1,58 +1,45 @@
 @import "tailwindcss";
 
 @theme inline {
-  /* ---- Sage & Cream Palette ---- */
-  --color-cream-50: #FDFCF9;
-  --color-cream-100: #FAF8F3;
-  --color-cream-200: #F5F2EB;
-  --color-cream-300: #EDE8DD;
-  --color-cream-400: #E0D9CC;
-  --color-cream-500: #D4CBBB;
+  /* ---- Dark Athletic Palette ---- */
+  --color-dark-50: hsl(220 15% 95%);
+  --color-dark-100: hsl(220 10% 85%);
+  --color-dark-200: hsl(220 10% 70%);
+  --color-dark-300: hsl(220 10% 55%);
+  --color-dark-400: hsl(220 10% 45%);
+  --color-dark-500: hsl(220 15% 30%);
+  --color-dark-600: hsl(220 15% 22%);
+  --color-dark-700: hsl(220 18% 16%);
+  --color-dark-800: hsl(220 18% 13%);
+  --color-dark-900: hsl(220 20% 8%);
 
-  --color-sage-50: #F2F4EF;
-  --color-sage-100: #E4E8DE;
-  --color-sage-200: #C9D1BD;
-  --color-sage-300: #A5B08D;
-  --color-sage-400: #8E9C78;
-  --color-sage-500: #7C8B6F;
-  --color-sage-600: #667358;
-  --color-sage-700: #525D47;
-  --color-sage-800: #3E4736;
-  --color-sage-900: #2A3025;
+  --color-orange-50: rgba(242, 101, 34, 0.06);
+  --color-orange-100: rgba(242, 101, 34, 0.12);
+  --color-orange-200: hsl(18 95% 75%);
+  --color-orange-300: hsl(18 95% 65%);
+  --color-orange-400: hsl(18 95% 55%);
+  --color-orange-500: hsl(18 95% 50%);
+  --color-orange-600: hsl(18 95% 45%);
 
-  --color-terracotta-50: #FDF5F1;
-  --color-terracotta-100: #FAEAE1;
-  --color-terracotta-200: #F2CDB9;
-  --color-terracotta-300: #E5A98A;
-  --color-terracotta-400: #D4845E;
-  --color-terracotta-500: #C4613D;
-  --color-terracotta-600: #A84E31;
-
-  --color-warm-gray-50: #FAF9F7;
-  --color-warm-gray-100: #F0EEEA;
-  --color-warm-gray-200: #E0DDD7;
-  --color-warm-gray-300: #C8C3BA;
-  --color-warm-gray-400: #B0A99F;
-  --color-warm-gray-500: #8A827A;
-  --color-warm-gray-600: #706860;
-  --color-warm-gray-700: #5A534C;
-  --color-warm-gray-800: #3D3832;
-  --color-warm-gray-900: #2D2A26;
-
-  --color-gold-400: #D4A843;
-  --color-gold-500: #C49A30;
+  --color-teal-50: rgba(20, 184, 166, 0.06);
+  --color-teal-100: rgba(20, 184, 166, 0.12);
+  --color-teal-200: hsl(175 70% 70%);
+  --color-teal-300: hsl(175 70% 55%);
+  --color-teal-400: hsl(175 70% 45%);
+  --color-teal-500: hsl(175 70% 40%);
+  --color-teal-600: hsl(175 70% 35%);
 
   /* ---- Semantic Colors ---- */
-  --color-primary: #7C8B6F;
-  --color-accent: #C4613D;
-  --color-background: #F5F2EB;
-  --color-surface: #FDFCF9;
+  --color-primary: hsl(18 95% 55%);
+  --color-accent: hsl(175 70% 45%);
+  --color-background: hsl(220 20% 8%);
+  --color-surface: hsl(220 18% 13%);
 
-  /* ---- Custom Shadows (warm-toned) ---- */
-  --shadow-soft: 0 1px 3px rgba(45, 42, 38, 0.06), 0 1px 2px rgba(45, 42, 38, 0.04);
-  --shadow-card: 0 4px 12px rgba(45, 42, 38, 0.08);
-  --shadow-elevated: 0 10px 25px rgba(45, 42, 38, 0.10);
-  --shadow-float: 0 20px 40px rgba(45, 42, 38, 0.14);
+  /* ---- Custom Shadows (dark) ---- */
+  --shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-elevated: 0 10px 25px rgba(0, 0, 0, 0.5);
+  --shadow-float: 0 20px 40px rgba(0, 0, 0, 0.6);
 
   /* ---- Custom Radii ---- */
   --radius-cozy: 1rem;
@@ -61,6 +48,7 @@
 
   /* ---- Fonts ---- */
   --font-sans: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: 'Outfit', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 }
 

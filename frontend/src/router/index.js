@@ -37,7 +37,13 @@ const routes = [
   },
   {
     path: '/hub',
-    name: 'FeatureHub',
+    name: 'Home',
+    component: () => import('../views/workout/WorkoutHomeView.vue'),
+    meta: { requiresAuth: true, requiredFeature: 'workout' }
+  },
+  {
+    path: '/explore',
+    name: 'Explore',
     component: () => import('../views/FeatureHubView.vue'),
     meta: { requiresAuth: true }
   },
@@ -140,13 +146,19 @@ const routes = [
   },
   {
     path: '/workout',
-    name: 'WorkoutHome',
-    component: () => import('../views/workout/WorkoutHomeView.vue'),
+    name: 'WorkoutPlan',
+    component: () => import('../views/workout/WorkoutPlanView.vue'),
     meta: { requiresAuth: true, requiredFeature: 'workout' }
   },
   {
     path: '/workout/onboarding',
     name: 'WorkoutOnboarding',
+    component: () => import('../views/workout/ConversationalOnboardingView.vue'),
+    meta: { requiresAuth: true, requiredFeature: 'workout' }
+  },
+  {
+    path: '/workout/onboarding/classic',
+    name: 'WorkoutOnboardingClassic',
     component: () => import('../views/workout/WorkoutOnboardingView.vue'),
     meta: { requiresAuth: true, requiredFeature: 'workout' }
   },
@@ -200,17 +212,13 @@ const router = createRouter({
 })
 
 function getHomePath(authStore) {
-  // If user has workout feature, default to workout home
-  if (authStore.hasFeature('workout')) return '/workout'
-  // If user has badminton access, show hub (multiple features)
-  if (authStore.hasFeature('badminton')) return '/hub'
-  // If user has mimic access, show hub (it's a standalone feature like badminton)
-  if (authStore.hasFeature('mimic')) return '/hub'
+  // Primary home is the workout dashboard
+  if (authStore.hasFeature('workout')) return '/hub'
   // If user only has challenge features, go straight to challenges
   const challengeFeatures = ['pushup', 'squat', 'plank']
   if (challengeFeatures.some(f => authStore.hasFeature(f))) return '/challenges'
-  // Fallback
-  return '/hub'
+  // Fallback to explore
+  return '/explore'
 }
 
 router.beforeEach(async (to, from, next) => {
@@ -249,8 +257,8 @@ router.beforeEach(async (to, from, next) => {
     return
   }
 
-  // 5. Hub page — skip if user only has challenges (not workout)
-  if (to.path === '/hub' && home !== '/hub' && home !== '/workout') {
+  // 5. Hub page requires workout feature
+  if (to.path === '/hub' && !authStore.hasFeature('workout')) {
     next(home)
     return
   }

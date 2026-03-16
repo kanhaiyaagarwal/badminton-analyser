@@ -1729,10 +1729,10 @@ async function openMimicDetails(session) {
 }
 
 function scoreColor(score) {
-  if (score >= 80) return '#22c55e'
-  if (score >= 60) return '#eab308'
-  if (score >= 40) return '#f97316'
-  return '#ef4444'
+  if (score >= 80) return '#34d399'
+  if (score >= 60) return '#fbbf24'
+  if (score >= 40) return '#fb923c'
+  return '#f87171'
 }
 
 function formatThresholdLabel(key) {
@@ -2498,18 +2498,18 @@ select {
 }
 
 .feedback-good {
-  background: rgba(34, 197, 94, 0.1);
-  border-left: 3px solid #22c55e;
+  background: var(--color-success-light);
+  border-left: 3px solid var(--color-success);
 }
 
 .feedback-needs_work {
-  background: rgba(234, 179, 8, 0.1);
-  border-left: 3px solid #eab308;
+  background: var(--color-warning-light);
+  border-left: 3px solid var(--color-warning);
 }
 
 .feedback-poor {
-  background: rgba(239, 68, 68, 0.1);
-  border-left: 3px solid #ef4444;
+  background: var(--color-destructive-light);
+  border-left: 3px solid var(--color-destructive);
 }
 
 .detail-meta {

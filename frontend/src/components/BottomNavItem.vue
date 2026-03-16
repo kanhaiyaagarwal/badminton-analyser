@@ -39,13 +39,18 @@ const isActive = computed(() =>
   border-radius: 0.75rem;
   text-decoration: none;
   color: var(--text-muted);
-  transition: color 0.2s, background 0.2s;
+  transition: color 0.2s, background 0.2s, transform 0.15s;
   -webkit-tap-highlight-color: transparent;
+}
+
+.bottom-nav-item:active {
+  transform: scale(0.92);
 }
 
 .bottom-nav-item.active {
   color: var(--color-primary);
   background: var(--color-primary-light);
+  box-shadow: var(--glow-primary);
 }
 
 .bottom-nav-item:not(.active):hover {

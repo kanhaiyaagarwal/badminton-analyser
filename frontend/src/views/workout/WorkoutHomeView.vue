@@ -1,111 +1,183 @@
 <template>
   <div class="workout-home">
-    <!-- Greeting -->
-    <div class="greeting-section">
-      <h1 class="greeting">{{ greeting }}<span v-if="authStore.user">, {{ authStore.user.username }}</span></h1>
-      <div v-if="todayWorkout?.streak > 0" class="streak-badge">
-        {{ todayWorkout.streak }} day streak
+    <!-- Header with greeting and streak -->
+    <header
+      v-motion
+      :initial="{ opacity: 0, y: -10 }"
+      :enter="{ opacity: 1, y: 0, transition: { duration: 600 } }"
+      class="home-header"
+    >
+      <h1 class="greeting font-display">{{ dynamicGreeting }} 👋</h1>
+      <div v-if="todayWorkout?.streak > 0" class="streak-row">
+        <svg class="streak-icon" viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+          <path d="M12 23c-3.6 0-7-2.5-7-7 0-3.2 2-5.5 3.8-7.5C10.5 6.5 12 4.6 12 2c0 4 4.5 6 6.2 9.2C19.7 13.8 20 16 20 16c0 4.5-3.9 7-8 7z"/>
+        </svg>
+        <span class="streak-text">{{ todayWorkout.streak }} day streak</span>
       </div>
-    </div>
+    </header>
+
+    <!-- Stats Section - 3 Progress Rings -->
+    <section v-if="progressStats" class="stats-section">
+      <div
+        v-motion
+        :initial="{ opacity: 0 }"
+        :enter="{ opacity: 1, transition: { delay: 300, duration: 400 } }"
+        class="stats-grid glass"
+      >
+        <ProgressRing
+          :progress="workoutsProgress"
+          :value="workoutsValue"
+          label="Workouts"
+          color="primary"
+          :size="100"
+          :stroke-width="6"
+        />
+        <ProgressRing
+          :progress="volumeProgress"
+          :value="formatVolume(progressStats.total_volume_kg || 0)"
+          label="Volume"
+          color="secondary"
+          :size="100"
+          :stroke-width="6"
+        />
+        <ProgressRing
+          :progress="streakProgress"
+          :value="(todayWorkout?.streak || 0) + 'd'"
+          label="Streak"
+          color="accent"
+          :size="100"
+          :stroke-width="6"
+        />
+      </div>
+    </section>
+
+    <!-- Coach insight bubble -->
+    <section v-if="coachInsight" class="coach-section">
+      <div
+        v-motion
+        :initial="{ opacity: 0, y: 10 }"
+        :enter="{ opacity: 1, y: 0, transition: { delay: 400, duration: 300 } }"
+        class="coach-preview glass"
+      >
+        <div class="coach-preview-inner">
+          <div class="coach-avatar-ring">
+            <span class="coach-emoji">✨</span>
+          </div>
+          <p class="coach-message">"{{ coachInsight }}"</p>
+        </div>
+      </div>
+    </section>
 
     <!-- Onboarding nudge (if not onboarded and no sessions) -->
-    <div v-if="!workoutStore.isOnboarded && !loading" class="nudge-card">
-      <img src="/mascot/otter-mascot.png" alt="Coach" class="nudge-mascot" />
+    <div v-if="!workoutStore.isOnboarded && !loading" class="nudge-card glass">
+      <div class="nudge-avatar-ring">
+        <img src="/mascot/otter-mascot.png" alt="Coach" class="nudge-mascot" />
+      </div>
       <div class="nudge-body">
         <h3>Ready to start your fitness journey?</h3>
-        <p>Set up your personalized plan in 2 minutes.</p>
-        <router-link to="/workout/onboarding" class="btn-primary">Set Up My Plan</router-link>
+        <p>Let's chat and build your personalized plan.</p>
+        <router-link to="/workout/onboarding" class="btn-primary">Talk to Coach</router-link>
       </div>
     </div>
 
     <!-- Today's Workout Card -->
-    <div v-if="todayWorkout?.has_plan" class="today-card">
-      <div class="today-header">
-        <h2 class="today-label">{{ todayWorkout.day_label }}</h2>
-        <span class="today-duration">~{{ todayWorkout.estimated_minutes }} min</span>
-      </div>
+    <section v-if="todayWorkout?.has_plan" class="today-section">
+      <h2
+        v-motion
+        :initial="{ opacity: 0 }"
+        :enter="{ opacity: 1, transition: { delay: 500 } }"
+        class="section-label"
+      >Today's Plan</h2>
+      <div
+        v-motion
+        :initial="{ opacity: 0, y: 20 }"
+        :enter="{ opacity: 1, y: 0, transition: { delay: 550, duration: 400 } }"
+        class="workout-card glass"
+      >
+        <!-- Orange gradient header -->
+        <div class="workout-card-header">
+          <h3 class="workout-card-title font-display">{{ todayWorkout.day_label }}</h3>
+          <span class="workout-card-duration">{{ todayWorkout.estimated_minutes }}m</span>
+        </div>
 
-      <!-- Time picker pills -->
-      <div v-if="todayWorkout.exercises?.length > 0" class="time-pills">
-        <button
-          v-for="t in timePills"
-          :key="t"
-          class="time-pill"
-          :class="{ active: selectedTime === t }"
-          @click="selectedTime = t"
-        >
-          {{ t === 0 ? 'Full Plan' : t + ' min' }}
-        </button>
-      </div>
+        <div class="workout-card-body">
+          <!-- Exercise pills -->
+          <div class="exercise-pills">
+            <span
+              v-for="(ex, i) in displayedExercises"
+              :key="ex.slug"
+              v-motion
+              :initial="{ opacity: 0, scale: 0.9 }"
+              :enter="{ opacity: 1, scale: 1, transition: { delay: 600 + i * 100, duration: 300 } }"
+              class="ex-pill"
+            >
+              {{ ex.name }}
+            </span>
+          </div>
 
-      <div class="exercise-pills">
-        <span v-for="ex in displayedExercises" :key="ex.slug" class="ex-pill">
-          {{ ex.name }}
-        </span>
+          <!-- Start button -->
+          <button class="btn-start" @click="handleStartWorkout">
+            Start Workout
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
       </div>
-
-      <button class="btn-primary full-width start-btn" @click="handleStartWorkout">
-        Start Workout
-      </button>
-    </div>
+    </section>
 
     <!-- Week strip -->
-    <div v-if="weekView" class="week-strip">
-      <div
-        v-for="d in weekView.days"
-        :key="d.day"
-        class="week-dot-wrap"
-      >
-        <span
-          class="week-dot"
-          :class="d.status"
-          :title="d.label || d.day"
+    <section v-if="weekView" class="week-section">
+      <h2
+        v-motion
+        :initial="{ opacity: 0 }"
+        :enter="{ opacity: 1, transition: { delay: 600 } }"
+        class="section-label"
+      >This Week</h2>
+      <div class="week-strip glass">
+        <div
+          v-for="(d, index) in weekView.days"
+          :key="d.day"
+          class="week-dot-wrap"
         >
-          <template v-if="d.status === 'completed'">&#10003;</template>
-          <template v-else-if="d.status === 'today'">&bull;</template>
-        </span>
-        <span class="week-day-label">{{ d.day.charAt(0).toUpperCase() }}</span>
+          <span
+            class="week-dot"
+            :class="d.status"
+          >
+            <template v-if="d.status === 'completed'">&#10003;</template>
+            <template v-else-if="d.status === 'today'">&bull;</template>
+            <template v-else-if="d.status === 'planned'">&#9675;</template>
+          </span>
+          <span class="week-day-label">{{ d.day.charAt(0).toUpperCase() }}</span>
+        </div>
       </div>
-    </div>
+    </section>
 
-    <!-- Coach message -->
-    <div v-if="todayWorkout?.coach_message" class="coach-bubble">
-      <img src="/mascot/otter-mascot.png" alt="Coach" class="coach-avatar" />
-      <div class="coach-text">{{ todayWorkout.coach_message }}</div>
-    </div>
-
-    <!-- Quick Start section (always visible) -->
-    <div class="quick-start-section">
-      <h3 class="section-title">Quick Start</h3>
-      <p class="section-desc">Pick exercises and jump straight in.</p>
-      <div class="quick-chips">
-        <router-link to="/workout/quick-start" class="quick-chip">
-          Build Your Own
+    <!-- Quick Start -->
+    <section class="quick-section">
+      <div class="quick-grid">
+        <router-link
+          to="/workout/quick-start"
+          v-motion
+          :initial="{ opacity: 0, y: 20 }"
+          :enter="{ opacity: 1, y: 0, transition: { delay: 700 } }"
+          class="quick-card glass"
+        >
+          <span class="quick-emoji">🏋️</span>
+          <h3 class="quick-title font-display">Build Your Own</h3>
+          <p class="quick-desc">Custom workout</p>
         </router-link>
-        <router-link to="/workout/exercises" class="quick-chip">
-          Browse Library
+        <router-link
+          to="/workout/exercises"
+          v-motion
+          :initial="{ opacity: 0, y: 20 }"
+          :enter="{ opacity: 1, y: 0, transition: { delay: 800 } }"
+          class="quick-card glass"
+        >
+          <span class="quick-emoji">📚</span>
+          <h3 class="quick-title font-display">Browse Library</h3>
+          <p class="quick-desc">Exercise guides</p>
         </router-link>
       </div>
-    </div>
-
-    <!-- Recent Wins (placeholder) -->
-    <div v-if="progressStats && progressStats.total_workouts > 0" class="wins-section">
-      <h3 class="section-title">Recent Wins</h3>
-      <div class="win-cards">
-        <div class="win-card">
-          <span class="win-value">{{ progressStats.total_workouts }}</span>
-          <span class="win-label">Workouts</span>
-        </div>
-        <div class="win-card">
-          <span class="win-value">{{ progressStats.workouts_this_week }}</span>
-          <span class="win-label">This Week</span>
-        </div>
-        <div v-if="progressStats.total_volume_kg > 0" class="win-card">
-          <span class="win-value">{{ formatVolume(progressStats.total_volume_kg) }}</span>
-          <span class="win-label">Total Volume</span>
-        </div>
-      </div>
-    </div>
+    </section>
 
     <!-- Toast -->
     <div v-if="toast" class="toast" @click="toast = null">{{ toast }}</div>
@@ -117,39 +189,62 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { useWorkoutStore } from '../../stores/workout'
+import { useVoiceOutput } from '../../composables/useVoiceOutput'
+import ProgressRing from '../../components/ProgressRing.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const workoutStore = useWorkoutStore()
+const voiceOutput = useVoiceOutput()
 
 const loading = ref(true)
 const todayWorkout = ref(null)
 const weekView = ref(null)
 const progressStats = ref(null)
-const selectedTime = ref(0) // 0 = full plan
+const selectedTime = ref(0)
 const toast = ref(null)
+const coachInsight = ref('')
+const insightType = ref('')
 
-const timePills = [0, 20, 30, 45, 60]
-
-const greeting = computed(() => {
+const fallbackGreeting = computed(() => {
   const hour = new Date().getHours()
-  if (hour < 12) return 'Good morning'
-  if (hour < 17) return 'Good afternoon'
-  return 'Good evening'
+  const name = authStore.user?.username || ''
+  const timeGreet = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+  return name ? `${timeGreet}, ${name}` : timeGreet
+})
+
+const dynamicGreeting = computed(() => {
+  return todayWorkout.value?.greeting || fallbackGreeting.value
 })
 
 const displayedExercises = computed(() => {
   const exercises = todayWorkout.value?.exercises || []
   if (selectedTime.value === 0) return exercises
-
-  // Rough filter: ~5 min per exercise
   const maxExercises = Math.floor(selectedTime.value / 5)
   return exercises.slice(0, Math.max(1, maxExercises))
 })
 
+// Progress computations
+const workoutsProgress = computed(() => {
+  if (!progressStats.value) return 0
+  const target = 4 // weekly target
+  return Math.min((progressStats.value.workouts_this_week || 0) / target, 1)
+})
+const workoutsValue = computed(() => {
+  if (!progressStats.value) return '0'
+  return `${progressStats.value.workouts_this_week || 0}/4`
+})
+const volumeProgress = computed(() => {
+  if (!progressStats.value?.total_volume_kg) return 0
+  return Math.min(progressStats.value.total_volume_kg / 20000, 1)
+})
+const streakProgress = computed(() => {
+  return Math.min((todayWorkout.value?.streak || 0) / 7, 1)
+})
+
 function formatVolume(kg) {
-  if (kg >= 1000) return Math.round(kg / 100) / 10 + 't'
-  return Math.round(kg) + 'kg'
+  if (kg >= 1000) return Math.round(kg / 100) / 10 + 'k'
+  return Math.round(kg) + ''
 }
 
 async function handleStartWorkout() {
@@ -173,13 +268,25 @@ onMounted(async () => {
     await workoutStore.fetchProfile()
 
     const promises = [
-      workoutStore.fetchTodayWorkout().then(r => { todayWorkout.value = r }),
+      workoutStore.fetchTodayWorkout().then(r => {
+        todayWorkout.value = r
+        if (r?.insight) {
+          coachInsight.value = r.insight
+          insightType.value = r.insight_type || ''
+        }
+        const todayKey = `coach_greeted_${new Date().toDateString()}`
+        if (!sessionStorage.getItem(todayKey) && r?.greeting) {
+          const spokenText = r.greeting + (r.insight ? '. ' + r.insight : '')
+          voiceOutput.speak(spokenText)
+          sessionStorage.setItem(todayKey, '1')
+        }
+      }),
       workoutStore.fetchWeekView().then(r => { weekView.value = r }),
       workoutStore.fetchProgressStats().then(r => { progressStats.value = r }),
     ]
     await Promise.allSettled(promises)
   } catch {
-    // Profile fetch might fail for new users — that's ok
+    // Profile fetch might fail for new users
   } finally {
     loading.value = false
   }
@@ -188,32 +295,100 @@ onMounted(async () => {
 
 <style scoped>
 .workout-home {
-  padding: 1.25rem;
+  padding-bottom: 2rem;
 }
 
-/* Greeting */
-.greeting-section {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 1.25rem;
+/* Header */
+.home-header {
+  padding: 2.5rem 1.5rem 1rem;
 }
 
 .greeting {
-  font-size: 1.35rem;
-  font-weight: 800;
+  font-size: 1.75rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
   color: var(--text-primary);
-  flex: 1;
+  margin-bottom: 0.5rem;
 }
 
-.streak-badge {
-  padding: 0.3rem 0.75rem;
-  border-radius: var(--radius-full);
-  background: var(--color-warning-light);
-  color: var(--color-warning);
-  font-size: 0.75rem;
-  font-weight: 600;
-  white-space: nowrap;
+.streak-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.streak-icon {
+  color: var(--color-primary);
+  width: 20px;
+  height: 20px;
+}
+
+.streak-text {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+/* Stats */
+.stats-section {
+  padding: 0 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  padding: 1.5rem;
+  border-radius: 1rem;
+}
+
+/* Coach preview */
+.coach-section {
+  padding: 0 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.coach-preview {
+  padding: 1rem;
+  border-radius: 1rem;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.coach-preview:hover {
+  border-color: var(--color-secondary);
+}
+
+.coach-preview-inner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.coach-avatar-ring {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--gradient-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.coach-emoji {
+  font-size: 1.15rem;
+}
+
+.coach-message {
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  opacity: 0.9;
+  font-style: italic;
+  line-height: 1.6;
+  flex: 1;
 }
 
 /* Nudge */
@@ -222,22 +397,31 @@ onMounted(async () => {
   align-items: center;
   gap: 1rem;
   padding: 1.25rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  margin-bottom: 1.25rem;
+  margin: 0 1.5rem 1.5rem;
+  border-radius: 1rem;
 }
 
-.nudge-mascot {
+.nudge-avatar-ring {
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  object-fit: cover;
+  background: var(--gradient-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+  padding: 3px;
+}
+
+.nudge-mascot {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
 }
 
 .nudge-body h3 {
+  font-family: var(--font-display);
   font-size: 0.95rem;
   font-weight: 700;
   color: var(--text-primary);
@@ -250,236 +434,192 @@ onMounted(async () => {
   margin-bottom: 0.6rem;
 }
 
-/* Today card */
-.today-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  padding: 1.25rem;
-  box-shadow: var(--shadow-sm);
-  margin-bottom: 1rem;
-}
-
-.today-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.75rem;
-}
-
-.today-label {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-.today-duration {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-}
-
-.time-pills {
-  display: flex;
-  gap: 0.35rem;
-  margin-bottom: 0.75rem;
-  overflow-x: auto;
-}
-
-.time-pill {
-  padding: 0.3rem 0.7rem;
-  border-radius: var(--radius-full);
-  border: 1px solid var(--border-color);
-  background: var(--bg-input);
+/* Section label */
+.section-label {
   font-size: 0.7rem;
-  font-weight: 500;
-  color: var(--text-secondary);
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.2s;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
 }
 
-.time-pill.active {
-  border-color: var(--color-primary);
-  background: var(--color-primary);
-  color: white;
+/* Today card */
+.today-section {
+  padding: 0 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.workout-card {
+  border-radius: 1rem;
+  overflow: hidden;
+}
+
+.workout-card-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 1.5rem 1rem 1rem;
+  background: var(--gradient-primary);
+  min-height: 5rem;
+}
+
+.workout-card-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-on-primary);
+}
+
+.workout-card-duration {
+  font-size: 0.875rem;
+  color: var(--text-on-primary);
+  opacity: 0.8;
+}
+
+.workout-card-body {
+  padding: 1rem;
 }
 
 .exercise-pills {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.35rem;
+  gap: 0.4rem;
   margin-bottom: 1rem;
 }
 
 .ex-pill {
-  padding: 0.3rem 0.65rem;
+  padding: 0.35rem 0.75rem;
   border-radius: var(--radius-full);
   background: var(--color-primary-light);
-  color: var(--color-primary);
-  font-size: 0.75rem;
+  color: var(--text-primary);
+  font-size: 0.8rem;
   font-weight: 500;
 }
 
-.start-btn {
-  margin-top: 0.25rem;
+.btn-start {
+  width: 100%;
+  padding: 0.85rem;
+  border: none;
+  border-radius: 0.75rem;
+  background: var(--gradient-primary);
+  color: var(--text-on-primary);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  box-shadow: var(--glow-primary);
+  transition: transform 0.15s;
+}
+
+.btn-start:active {
+  transform: scale(0.98);
 }
 
 /* Week strip */
+.week-section {
+  padding: 0 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
 .week-strip {
   display: flex;
-  justify-content: space-between;
-  padding: 0.75rem 0;
-  margin-bottom: 1rem;
+  align-items: center;
+  justify-content: space-around;
+  padding: 1rem;
+  border-radius: 1rem;
 }
 
 .week-dot-wrap {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.4rem;
 }
 
 .week-dot {
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.7rem;
-  font-weight: 600;
-  border: 2px solid var(--border-color);
-  background: var(--bg-card);
-  color: var(--text-muted);
-}
-
-.week-dot.completed {
-  border-color: var(--color-success);
-  background: var(--color-success);
-  color: white;
-}
-
-.week-dot.today {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-  font-size: 1.25rem;
-}
-
-.week-dot.planned {
-  border-color: var(--color-primary);
-  border-style: dashed;
-}
-
-.week-dot.rest {
-  border-color: var(--border-color);
-  background: var(--bg-input);
-}
-
-.week-day-label {
-  font-size: 0.65rem;
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
-/* Coach bubble */
-.coach-bubble {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.65rem;
-  margin-bottom: 1.25rem;
-}
-
-.coach-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  object-fit: cover;
-  flex-shrink: 0;
-}
-
-.coach-text {
-  padding: 0.65rem 0.85rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: 0 var(--radius-md) var(--radius-md) var(--radius-md);
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  line-height: 1.45;
-}
-
-/* Quick Start */
-.quick-start-section {
-  margin-bottom: 1.25rem;
-}
-
-.section-title {
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: 0.2rem;
-}
-
-.section-desc {
   font-size: 0.8rem;
-  color: var(--text-muted);
-  margin-bottom: 0.75rem;
-}
-
-.quick-chips {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.quick-chip {
-  flex: 1;
-  padding: 0.75rem;
-  text-align: center;
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--color-primary);
-  text-decoration: none;
+  font-weight: 700;
   transition: all 0.2s;
 }
 
-.quick-chip:hover {
-  border-color: var(--color-primary);
-  box-shadow: var(--shadow-sm);
+.week-dot.completed {
+  background: var(--color-primary);
+  color: var(--text-on-primary);
 }
 
-/* Wins */
-.wins-section {
-  margin-bottom: 1rem;
-}
-
-.win-cards {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.win-card {
-  flex: 1;
-  padding: 0.85rem 0.5rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  text-align: center;
-}
-
-.win-value {
-  display: block;
-  font-size: 1.25rem;
-  font-weight: 800;
+.week-dot.today {
+  border: 2px solid var(--color-primary);
   color: var(--color-primary);
+  font-size: 1.5rem;
 }
 
-.win-label {
-  font-size: 0.65rem;
+.week-dot.planned {
+  border: 2px dashed var(--text-muted);
   color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+}
+
+.week-dot.rest {
+  color: var(--text-muted);
+}
+
+.week-day-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+/* Quick start */
+.quick-section {
+  padding: 0 1.5rem;
+}
+
+.quick-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.quick-card {
+  padding: 1.5rem;
+  border-radius: 1rem;
+  text-decoration: none;
+  text-align: left;
+  transition: border-color 0.2s, transform 0.15s;
+}
+
+.quick-card:hover {
+  border-color: var(--color-secondary);
+}
+
+.quick-card:active {
+  transform: scale(0.98);
+}
+
+.quick-emoji {
+  font-size: 1.75rem;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.quick-title {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  margin-bottom: 0.15rem;
+}
+
+.quick-desc {
+  font-size: 0.75rem;
+  color: var(--text-muted);
 }
 
 /* Buttons */
@@ -487,7 +627,7 @@ onMounted(async () => {
   display: inline-block;
   padding: 0.65rem 1.25rem;
   background: var(--gradient-primary);
-  color: white;
+  color: var(--text-on-primary);
   border: none;
   border-radius: var(--radius-md);
   font-weight: 600;
@@ -495,11 +635,8 @@ onMounted(async () => {
   cursor: pointer;
   text-decoration: none;
   text-align: center;
-  transition: opacity 0.2s;
+  box-shadow: var(--glow-primary);
 }
-
-.btn-primary:hover { opacity: 0.9; }
-.btn-primary.full-width { width: 100%; display: block; }
 
 /* Toast */
 .toast {
@@ -508,8 +645,9 @@ onMounted(async () => {
   left: 50%;
   transform: translateX(-50%);
   padding: 0.65rem 1.25rem;
-  background: var(--text-primary);
-  color: white;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-full);
   font-size: 0.8rem;
   font-weight: 500;

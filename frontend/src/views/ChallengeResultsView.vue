@@ -692,7 +692,7 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  background: linear-gradient(135deg, #1a6b8a, #2dd4bf);
+  background: var(--gradient-secondary);
   color: #fff;
   border: none;
   padding: 0.75rem 1.5rem;
@@ -713,15 +713,15 @@ onMounted(async () => {
   gap: 0.75rem;
   margin-top: 1rem;
   padding: 0.85rem 1rem;
-  background: linear-gradient(135deg, #eef6fb, #e8f4f8);
-  border: 1px solid #b8dce8;
+  background: rgba(20, 184, 166, 0.08);
+  border: 1px solid rgba(20, 184, 166, 0.2);
   border-radius: var(--radius-md);
   cursor: pointer;
 }
 
 .nudge-icon {
   flex-shrink: 0;
-  color: #1a6b8a;
+  color: var(--color-secondary);
 }
 
 .nudge-text {
@@ -734,7 +734,7 @@ onMounted(async () => {
   display: inline-block;
   font-size: 1rem;
   vertical-align: middle;
-  color: #007aff;
+  color: var(--color-primary);
 }
 
 /* Form Summary */

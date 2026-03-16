@@ -218,17 +218,17 @@ onMounted(loadCatalog)
 }
 
 .badge-active {
-  background: rgba(34, 197, 94, 0.15);
-  color: #22c55e;
+  background: var(--color-success-light);
+  color: var(--color-success);
 }
 
 .badge-active:hover {
-  background: rgba(34, 197, 94, 0.25);
+  background: rgba(16, 185, 129, 0.25);
 }
 
 .badge-pending {
-  background: rgba(234, 179, 8, 0.15);
-  color: #eab308;
+  background: var(--color-warning-light);
+  color: var(--color-warning);
 }
 
 .badge-rejected {
@@ -264,10 +264,10 @@ onMounted(loadCatalog)
 
 .error-message {
   text-align: center;
-  color: var(--color-error, #ef4444);
+  color: var(--color-destructive);
   margin-top: 1rem;
   padding: 0.75rem;
-  background: rgba(239, 68, 68, 0.1);
+  background: var(--color-destructive-light);
   border-radius: var(--radius-md);
 }
 </style>

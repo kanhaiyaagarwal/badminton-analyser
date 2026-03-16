@@ -222,7 +222,7 @@ function scrollToContact() {
   justify-content: space-between;
   align-items: center;
   padding: 1rem 4rem;
-  background: rgba(255, 255, 255, 0.85);
+  background: hsla(220, 18%, 13%, 0.85);
   backdrop-filter: blur(10px);
   z-index: 100;
   border-bottom: 1px solid var(--border-color);

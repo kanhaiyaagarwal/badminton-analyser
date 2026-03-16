@@ -40,13 +40,13 @@
             <path d="M22 10h-2"/>
           </svg>
         </BottomNavItem>
-        <BottomNavItem to="/features" label="Explore">
+        <BottomNavItem to="/explore" label="Explore">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="10"/>
             <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>
           </svg>
         </BottomNavItem>
-        <BottomNavItem to="/profile" label="Profile">
+        <BottomNavItem to="/profile" label="Me">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
             <circle cx="12" cy="7" r="4"/>
@@ -76,7 +76,7 @@ const canTune = computed(() => !authStore.user?.is_admin && authStore.hasFeature
 const isLandingPage = computed(() => route.name === 'Landing' || route.name === 'LandingFull')
 const isAuthPage = computed(() => ['Login', 'Signup', 'ForgotPassword'].includes(route.name))
 const isAdminPage = computed(() => ['Admin', 'Tuning', 'StreamTuning'].includes(route.name))
-const isFullscreenPage = computed(() => ['ChallengeSession', 'WorkoutSession'].includes(route.name))
+const isFullscreenPage = computed(() => ['ChallengeSession', 'WorkoutSession', 'WorkoutOnboarding'].includes(route.name))
 
 </script>
 
@@ -104,7 +104,7 @@ const isFullscreenPage = computed(() => ['ChallengeSession', 'WorkoutSession'].i
 
 @media (min-width: 480px) {
   .app-shell {
-    background: #E8E4DC;
+    background: hsl(220 22% 5%);
     padding: 1rem 0;
     align-items: flex-start;
   }
@@ -112,7 +112,7 @@ const isFullscreenPage = computed(() => ['ChallengeSession', 'WorkoutSession'].i
     min-height: calc(100vh - 2rem);
     min-height: calc(100dvh - 2rem);
     border-radius: 1.5rem;
-    box-shadow: 0 8px 40px rgba(45, 42, 38, 0.12), 0 0 0 1px rgba(45, 42, 38, 0.06);
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.06);
     overflow: hidden;
   }
 }
@@ -136,7 +136,7 @@ const isFullscreenPage = computed(() => ['ChallengeSession', 'WorkoutSession'].i
   align-items: center;
   justify-content: space-between;
   padding: 0.75rem 1.25rem;
-  background: rgba(253, 252, 249, 0.92);
+  background: hsla(220, 18%, 13%, 0.92);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border-color);
@@ -206,7 +206,7 @@ const isFullscreenPage = computed(() => ['ChallengeSession', 'WorkoutSession'].i
   justify-content: space-around;
   padding: 0.5rem 0.5rem;
   padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
-  background: rgba(253, 252, 249, 0.92);
+  background: hsla(220, 18%, 13%, 0.92);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-top: 1px solid var(--border-color);
