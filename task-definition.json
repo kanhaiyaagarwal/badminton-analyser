@@ -75,7 +75,7 @@
         },
         {
           "name": "CORS_ORIGINS",
-          "value": "http://localhost:5173,http://localhost:3000,https://pushup.neymo.ai"
+          "value": "http://localhost:5173,http://localhost:3000,https://pushup.neymo.ai,https://baddy.neymo.ai"
         },
         {
           "name": "JWT_ALGORITHM",
@@ -182,6 +182,10 @@
         {
           "name": "JWT_SECRET_KEY",
           "valueFrom": "arn:aws:secretsmanager:ap-south-1:453533986084:secret:badminton-analyzer/jwt-secret-key-4KgTgp"
+        },
+        {
+          "name": "OPENAI_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:453533986084:secret:badminton-analyzer/openai-api-key-oaGfhs"
         }
       ],
       "links": [
