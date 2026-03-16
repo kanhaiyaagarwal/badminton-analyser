@@ -957,9 +957,11 @@
 
 <script setup>
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import api from '../api/client'
 
+const router = useRouter()
 const authStore = useAuthStore()
 const currentUser = computed(() => authStore.user)
 const isAdmin = computed(() => authStore.user?.is_admin)
@@ -1066,9 +1068,11 @@ const mimicSsTotalPages = computed(() => Math.ceil(mimicSsModal.value.total / MI
 const mimicSsPageEntries = computed(() => mimicSsPageCache.value[mimicSsCurrentPage.value] || [])
 
 onMounted(async () => {
-  if (isAdmin.value) {
-    await Promise.all([loadCodes(), loadWhitelist(), loadWaitlist(), loadUsers()])
+  if (!isAdmin.value) {
+    router.replace('/dashboard')
+    return
   }
+  await Promise.all([loadCodes(), loadWhitelist(), loadWaitlist(), loadUsers()])
 })
 
 watch(activeTab, (tab) => {
