@@ -563,7 +563,7 @@ def _migrate_fix_non_ascii_s3_keys():
 
 
 def _migrate_invite_code_scope():
-    """Add scope column to invite_codes table for domain-scoped codes."""
+    """Add scope column to invite_codes table and default existing codes to fitness."""
     import logging
     logger = logging.getLogger(__name__)
     from sqlalchemy import text, inspect
@@ -576,6 +576,19 @@ def _migrate_invite_code_scope():
                     "ALTER TABLE invite_codes ADD COLUMN scope VARCHAR(20)"
                 ))
                 logger.info("Added column invite_codes.scope")
+                # Default all existing codes to fitness
+                conn.execute(text(
+                    "UPDATE invite_codes SET scope = 'fitness' WHERE scope IS NULL"
+                ))
+                logger.info("Set existing invite codes scope to 'fitness'")
+        else:
+            # Backfill: if column exists but some codes still NULL, set to fitness
+            with engine.begin() as conn:
+                result = conn.execute(text(
+                    "UPDATE invite_codes SET scope = 'fitness' WHERE scope IS NULL"
+                ))
+                if result.rowcount > 0:
+                    logger.info(f"Backfilled {result.rowcount} invite codes scope to 'fitness'")
     except Exception as e:
         logger.debug(f"invite_codes scope migration skipped: {e}")
 
