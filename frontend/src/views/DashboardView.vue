@@ -262,7 +262,7 @@ function triggerDownload(data, mimeType, filename) {
   position: relative;
   background: var(--gradient-primary);
   border-radius: var(--radius-lg);
-  padding: 2rem;
+  padding: 1.5rem;
   margin-bottom: 1rem;
   overflow: hidden;
   cursor: pointer;
@@ -302,7 +302,7 @@ function triggerDownload(data, mimeType, filename) {
 }
 
 .cta-title {
-  font-size: 1.75rem;
+  font-size: 1.3rem;
   font-weight: 700;
   color: #fff;
   margin: 0 0 0.5rem;
@@ -310,8 +310,8 @@ function triggerDownload(data, mimeType, filename) {
 
 .cta-sub {
   color: rgba(255, 255, 255, 0.75);
-  font-size: 1.05rem;
-  margin: 0 0 1.5rem;
+  font-size: 0.9rem;
+  margin: 0 0 1rem;
 }
 
 .cta-btn {
@@ -341,8 +341,8 @@ function triggerDownload(data, mimeType, filename) {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
-  padding: 1.25rem 1.5rem;
-  margin-bottom: 2rem;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
   text-decoration: none;
   color: var(--text-secondary);
   transition: all 0.2s;
@@ -405,7 +405,7 @@ function triggerDownload(data, mimeType, filename) {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: 10px;
-  padding: 1.25rem;
+  padding: 1rem;
   box-shadow: var(--shadow-md);
   transition: border-color 0.2s;
 }
@@ -529,14 +529,15 @@ function triggerDownload(data, mimeType, filename) {
 
 .history-actions {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.4rem;
   flex-wrap: wrap;
 }
 
 .btn-action {
-  padding: 0.5rem 1rem;
+  padding: 0.4rem 0.75rem;
   border-radius: var(--radius-sm);
   text-decoration: none;
+  font-size: 0.8rem;
   font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
@@ -572,36 +573,4 @@ function triggerDownload(data, mimeType, filename) {
 
 .btn-action:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* Mobile */
-@media (max-width: 640px) {
-  .cta-title {
-    font-size: 1.3rem;
-  }
-
-  .cta-sub {
-    font-size: 0.9rem;
-    margin-bottom: 1rem;
-  }
-
-  .cta-card {
-    padding: 1.5rem;
-  }
-
-  .upload-card {
-    padding: 1rem;
-  }
-
-  .history-card {
-    padding: 1rem;
-  }
-
-  .history-actions {
-    gap: 0.4rem;
-  }
-
-  .btn-action {
-    padding: 0.4rem 0.75rem;
-    font-size: 0.8rem;
-  }
-}
 </style>

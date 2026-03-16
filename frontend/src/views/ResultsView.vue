@@ -225,10 +225,11 @@ async function downloadVideo() {
 .results-view {
   max-width: 1000px;
   margin: 0 auto;
+  padding: 1rem;
 }
 
 .header {
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
 }
 
 .back-link {
@@ -245,6 +246,7 @@ async function downloadVideo() {
 
 h1 {
   color: var(--color-primary);
+  font-size: 1.3rem;
 }
 
 .loading, .error {
@@ -259,30 +261,30 @@ h1 {
 
 .summary-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 1rem;
-  margin-bottom: 2rem;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
 }
 
 .card {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
-  padding: 1.5rem;
+  padding: 1rem;
   text-align: center;
   box-shadow: var(--shadow-md);
 }
 
 .card h3 {
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   font-weight: normal;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.35rem;
 }
 
 .card .value {
   color: var(--color-primary);
-  font-size: 2rem;
+  font-size: 1.5rem;
   font-weight: bold;
 }
 
@@ -296,19 +298,19 @@ h1 {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
-  padding: 1.5rem;
-  margin-bottom: 1.5rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
   box-shadow: var(--shadow-md);
 }
 
 .section h2 {
   color: var(--text-primary);
-  font-size: 1.2rem;
-  margin-bottom: 1rem;
+  font-size: 1.05rem;
+  margin-bottom: 0.75rem;
 }
 
 .chart-container {
-  height: 300px;
+  height: 220px;
 }
 
 /* Shot Timeline */
@@ -320,23 +322,24 @@ h1 {
 .timeline-entry {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.4rem;
   padding: 0.5rem 0;
   border-bottom: 1px solid var(--border-color);
+  flex-wrap: wrap;
 }
 
 .timeline-time {
   color: var(--text-muted);
-  font-size: 0.85rem;
-  min-width: 60px;
+  font-size: 0.8rem;
+  min-width: 50px;
   font-family: monospace;
 }
 
 .timeline-shot {
   font-weight: bold;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   text-transform: capitalize;
-  min-width: 80px;
+  min-width: 65px;
 }
 
 .shot-smash { color: var(--color-destructive); }
@@ -348,12 +351,12 @@ h1 {
 
 .timeline-confidence {
   color: var(--text-muted);
-  font-size: 0.8rem;
+  font-size: 0.75rem;
 }
 
 .timeline-speed {
   color: var(--color-warning);
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-family: monospace;
 }
 
@@ -367,7 +370,9 @@ h1 {
 }
 
 .btn-download {
-  display: inline-block;
+  display: block;
+  width: 100%;
+  text-align: center;
   background: var(--color-primary);
   color: var(--text-on-primary);
   padding: 0.75rem 1.5rem;
@@ -377,7 +382,7 @@ h1 {
   transition: background 0.2s;
   border: none;
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 0.9rem;
 }
 
 .btn-download:hover:not(:disabled) {
@@ -388,4 +393,5 @@ h1 {
   background: var(--text-muted);
   cursor: not-allowed;
 }
+
 </style>

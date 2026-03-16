@@ -1468,7 +1468,7 @@ async function downloadRecording() {
 }
 
 .header {
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
 }
 
 .back-link {
@@ -1484,24 +1484,28 @@ async function downloadRecording() {
 h1 {
   color: var(--color-primary);
   margin: 0.5rem 0 0 0;
+  font-size: 1.3rem;
 }
 
 .section-card {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
-  padding: 1.5rem;
+  padding: 1rem;
   box-shadow: var(--shadow-md);
 }
 
 .section-card h2 {
   color: var(--text-primary);
-  margin: 0 0 1rem 0;
+  margin: 0 0 0.75rem 0;
+  font-size: 1.1rem;
 }
 
 .hint {
   color: var(--text-muted);
   margin-bottom: 1rem;
+  font-size: 0.85rem;
+  line-height: 1.6;
 }
 
 .form-group {
@@ -1574,14 +1578,8 @@ h1 {
 
 .stream-layout {
   display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 1.5rem;
-}
-
-@media (max-width: 900px) {
-  .stream-layout {
-    grid-template-columns: 1fr;
-  }
+  grid-template-columns: 1fr;
+  gap: 1rem;
 }
 
 .stream-main {
@@ -1592,11 +1590,12 @@ h1 {
 
 .stream-actions {
   display: flex;
-  gap: 1rem;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 .btn-record {
-  flex: 1;
+  width: 100%;
   padding: 0.75rem;
   background: var(--bg-card);
   border: 2px solid var(--color-destructive);
@@ -1605,6 +1604,8 @@ h1 {
   font-weight: bold;
   cursor: pointer;
   transition: all 0.2s;
+  text-align: center;
+  justify-content: center;
 }
 
 .btn-record:hover {
@@ -1623,7 +1624,8 @@ h1 {
 }
 
 .btn-end {
-  padding: 0.75rem 1.5rem;
+  width: 100%;
+  padding: 0.75rem;
   background: var(--color-destructive-light);
   border: none;
   border-radius: var(--radius-md);
@@ -1631,6 +1633,8 @@ h1 {
   font-weight: bold;
   cursor: pointer;
   transition: all 0.2s;
+  text-align: center;
+  justify-content: center;
 }
 
 .btn-end:hover {
@@ -1654,8 +1658,9 @@ h1 {
 
 .summary-stats {
   display: flex;
-  justify-content: center;
-  gap: 2rem;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
   margin-bottom: 1.5rem;
 }
 
@@ -1665,20 +1670,21 @@ h1 {
 
 .stat .value {
   display: block;
-  font-size: 2rem;
+  font-size: 1.5rem;
   font-weight: bold;
   color: var(--color-primary);
 }
 
 .stat .label {
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
 }
 
 .shot-breakdown {
   text-align: left;
-  max-width: 300px;
+  max-width: 100%;
   margin: 0 auto;
+  padding: 0 0.5rem;
 }
 
 .shot-breakdown h3 {
@@ -1728,9 +1734,10 @@ h1 {
 
 /* Court Selection Styles */
 .corner-label {
-  padding: 0.2rem 0.5rem;
+  padding: 0.15rem 0.4rem;
   border-radius: 4px;
   font-weight: 500;
+  font-size: 0.8rem;
   color: var(--text-muted);
   transition: all 0.2s;
 }
@@ -1746,7 +1753,7 @@ h1 {
   flex-direction: column;
   gap: 0.75rem;
   margin-bottom: 1rem;
-  padding: 1rem;
+  padding: 0.75rem;
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
@@ -1755,15 +1762,16 @@ h1 {
 .camera-select-row,
 .zoom-control-row {
   display: flex;
-  align-items: center;
-  gap: 1rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
 }
 
 .camera-select-row label,
 .zoom-control-row label {
-  min-width: 80px;
+  min-width: unset;
   color: var(--text-secondary);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
 }
 
 .camera-select-row select {
@@ -1857,8 +1865,18 @@ h1 {
 
 .court-actions {
   display: flex;
-  gap: 1rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
   margin-bottom: 1rem;
+}
+
+.court-actions .btn-secondary,
+.court-actions .btn-fullframe {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  font-size: 0.85rem;
+  padding: 0.5rem 0.75rem;
 }
 
 .btn-secondary {
@@ -1883,10 +1901,10 @@ h1 {
 
 .court-status {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 0.5rem;
   margin-bottom: 1rem;
-  padding: 1rem;
+  padding: 0.75rem;
   background: var(--bg-input);
   border-radius: var(--radius-md);
 }
@@ -1917,9 +1935,9 @@ h1 {
 /* Stream Controls */
 .stream-controls-bar {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.75rem 1rem;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
@@ -1930,7 +1948,9 @@ h1 {
 .session-info-bar {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  justify-content: space-between;
+  width: 100%;
+  gap: 0.75rem;
 }
 
 .info-label {
@@ -1947,7 +1967,9 @@ h1 {
 .controls-right {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  justify-content: space-between;
+  width: 100%;
+  gap: 0.75rem;
 }
 
 .toggle-control {
@@ -2098,9 +2120,16 @@ h1 {
 
 .resume-actions {
   display: flex;
-  gap: 1rem;
-  justify-content: center;
+  flex-direction: column;
+  gap: 0.75rem;
   margin-top: 1rem;
+}
+
+.resume-actions .btn-primary,
+.resume-actions .btn-secondary {
+  width: 100%;
+  text-align: center;
+  padding: 0.75rem;
 }
 
 .btn-fullframe {
@@ -2122,7 +2151,7 @@ h1 {
 
 .recording-download {
   margin: 1.5rem 0;
-  padding: 1.5rem;
+  padding: 1rem;
   background: var(--bg-input);
   border-radius: var(--radius-md);
   text-align: center;
@@ -2136,7 +2165,9 @@ h1 {
 .btn-download {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
+  width: 100%;
   background: var(--gradient-primary);
   color: var(--text-on-primary);
   padding: 0.75rem 1.5rem;
@@ -2144,7 +2175,7 @@ h1 {
   font-weight: 600;
   border: none;
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 0.9rem;
   transition: background 0.2s;
 }
 
@@ -2164,9 +2195,16 @@ h1 {
 
 .ended-actions {
   display: flex;
-  gap: 1rem;
-  justify-content: center;
+  flex-direction: column;
+  gap: 0.75rem;
   margin-top: 1.5rem;
+}
+
+.ended-actions .btn-primary,
+.ended-actions .btn-secondary {
+  width: 100%;
+  text-align: center;
+  padding: 0.75rem;
 }
 
 .ended-actions .btn-primary {
@@ -2244,7 +2282,7 @@ h1 {
 /* Post-analysis styles */
 .post-analysis-section {
   margin: 1.5rem 0;
-  padding: 1.5rem;
+  padding: 1rem;
   background: var(--bg-input);
   border-radius: var(--radius-md);
   text-align: center;
@@ -2290,16 +2328,24 @@ h1 {
 
 .post-analysis-stats {
   display: flex;
-  justify-content: center;
-  gap: 2rem;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
   margin-bottom: 1rem;
 }
 
 .analysis-actions {
   display: flex;
-  gap: 1rem;
-  justify-content: center;
+  flex-direction: column;
+  gap: 0.75rem;
   margin-top: 1rem;
+}
+
+.analysis-actions .btn-secondary,
+.analysis-actions .btn-primary {
+  width: 100%;
+  text-align: center;
+  justify-content: center;
 }
 
 .analysis-actions .btn-secondary {
@@ -2322,7 +2368,7 @@ h1 {
 
 .mode-cards {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 0.75rem;
 }
 
@@ -2330,7 +2376,7 @@ h1 {
   background: var(--bg-input);
   border: 2px solid var(--border-input);
   border-radius: var(--radius-md);
-  padding: 1rem;
+  padding: 0.75rem;
   cursor: pointer;
   transition: border-color 0.2s, background 0.2s;
 }
@@ -2371,14 +2417,8 @@ h1 {
 /* Advanced Layout */
 .advanced-layout {
   display: grid;
-  grid-template-columns: 1fr 320px;
+  grid-template-columns: 1fr;
   gap: 1rem;
-}
-
-@media (max-width: 900px) {
-  .advanced-layout {
-    grid-template-columns: 1fr;
-  }
 }
 
 .advanced-main {
@@ -2402,7 +2442,7 @@ h1 {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  padding: 0.75rem 1rem;
+  padding: 0.5rem 0.75rem;
   box-shadow: var(--shadow-md);
 }
 
@@ -2438,7 +2478,7 @@ h1 {
   display: flex;
   justify-content: space-between;
   margin-top: 0.5rem;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   color: var(--text-muted);
 }
 
@@ -2457,7 +2497,7 @@ h1 {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
-  padding: 1.25rem;
+  padding: 1rem;
   box-shadow: var(--shadow-md);
 }
 
@@ -2541,197 +2581,4 @@ h1 {
   text-align: right;
 }
 
-/* ---- Mobile Responsive ---- */
-@media (max-width: 640px) {
-  .live-stream-view {
-    padding: 0.75rem;
-  }
-
-  .header {
-    margin-bottom: 1rem;
-  }
-
-  h1 {
-    font-size: 1.3rem;
-  }
-
-  .section-card {
-    padding: 1rem;
-  }
-
-  /* Mode selector */
-  .mode-cards {
-    grid-template-columns: 1fr;
-  }
-
-  .mode-card {
-    padding: 0.75rem;
-  }
-
-  /* Court section */
-  .camera-controls {
-    padding: 0.75rem;
-  }
-
-  .camera-select-row,
-  .zoom-control-row {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.5rem;
-  }
-
-  .camera-select-row label,
-  .zoom-control-row label {
-    min-width: unset;
-  }
-
-  .court-actions {
-    flex-wrap: wrap;
-  }
-
-  .court-actions .btn-secondary,
-  .court-actions .btn-fullframe {
-    flex: 1;
-    min-width: 0;
-    text-align: center;
-    font-size: 0.85rem;
-    padding: 0.5rem 0.75rem;
-  }
-
-  .court-status {
-    grid-template-columns: 1fr;
-    padding: 0.75rem;
-  }
-
-  .corner-label {
-    font-size: 0.8rem;
-    padding: 0.15rem 0.4rem;
-  }
-
-  .hint {
-    font-size: 0.85rem;
-    line-height: 1.6;
-  }
-
-  /* Stream controls bar */
-  .stream-controls-bar {
-    flex-direction: column;
-    gap: 0.5rem;
-    padding: 0.5rem 0.75rem;
-  }
-
-  .session-info-bar {
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  .controls-right {
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  /* Stream actions */
-  .stream-actions {
-    flex-direction: column;
-  }
-
-  .btn-record,
-  .btn-end {
-    width: 100%;
-    text-align: center;
-    justify-content: center;
-  }
-
-  .recording-info {
-    font-size: 0.8rem;
-  }
-
-  .recording-info span {
-    font-size: 0.8rem;
-  }
-
-  /* Seek bar */
-  .seek-bar-container {
-    padding: 0.5rem 0.75rem;
-  }
-
-  .seek-labels {
-    font-size: 0.75rem;
-  }
-
-  /* Summary / ended section */
-  .summary-stats {
-    flex-direction: column;
-    gap: 1rem;
-    align-items: center;
-  }
-
-  .stat .value {
-    font-size: 1.5rem;
-  }
-
-  .shot-breakdown {
-    max-width: 100%;
-    padding: 0 0.5rem;
-  }
-
-  .post-analysis-section {
-    padding: 1rem;
-  }
-
-  .post-analysis-stats {
-    flex-direction: column;
-    gap: 1rem;
-    align-items: center;
-  }
-
-  .analysis-actions {
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-
-  .analysis-actions .btn-secondary,
-  .analysis-actions .btn-primary {
-    width: 100%;
-    text-align: center;
-    justify-content: center;
-  }
-
-  .ended-actions {
-    flex-direction: column;
-  }
-
-  .ended-actions .btn-primary,
-  .ended-actions .btn-secondary {
-    width: 100%;
-    text-align: center;
-    padding: 0.75rem;
-  }
-
-  .recording-download {
-    padding: 1rem;
-  }
-
-  .btn-download {
-    width: 100%;
-    justify-content: center;
-  }
-
-  /* Resume section */
-  .resume-actions {
-    flex-direction: column;
-  }
-
-  .resume-actions .btn-primary,
-  .resume-actions .btn-secondary {
-    width: 100%;
-    text-align: center;
-    padding: 0.75rem;
-  }
-
-  /* Advanced sidebar */
-  .advanced-results-card {
-    padding: 1rem;
-  }
-}
 </style>

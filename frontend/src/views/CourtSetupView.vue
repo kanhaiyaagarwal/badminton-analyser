@@ -235,15 +235,17 @@ async function startAnalysis() {
 .court-setup {
   max-width: 1200px;
   margin: 0 auto;
+  padding: 0.75rem;
 }
 
 .header {
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
 }
 
 h1 {
   color: var(--color-primary);
   margin-bottom: 0.5rem;
+  font-size: 1.3rem;
 }
 
 .subtitle {
@@ -277,15 +279,15 @@ h1 {
 
 .setup-container {
   display: grid;
-  grid-template-columns: 1fr 300px;
-  gap: 2rem;
+  grid-template-columns: 1fr;
+  gap: 1rem;
 }
 
 .canvas-container {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
-  padding: 1rem;
+  padding: 0.5rem;
   overflow: hidden;
   box-shadow: var(--shadow-md);
 }
@@ -294,10 +296,10 @@ h1 {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
-  padding: 1.5rem;
+  padding: 1rem;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1rem;
   box-shadow: var(--shadow-md);
 }
 
@@ -342,19 +344,19 @@ h1 {
 
 .video-info {
   background: var(--bg-input);
-  padding: 1rem;
+  padding: 0.75rem;
   border-radius: var(--radius-sm);
 }
 
 .video-info p {
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   margin-bottom: 0.25rem;
 }
 
 .boundary-preview {
   background: var(--bg-input);
-  padding: 1rem;
+  padding: 0.75rem;
   border-radius: var(--radius-sm);
 }
 
@@ -492,45 +494,4 @@ h1 {
   border: 1px solid var(--border-input);
 }
 
-@media (max-width: 900px) {
-  .setup-container {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 640px) {
-  .court-setup {
-    padding: 0.75rem;
-  }
-
-  .header {
-    margin-bottom: 1rem;
-  }
-
-  h1 {
-    font-size: 1.3rem;
-  }
-
-  .canvas-container {
-    padding: 0.5rem;
-  }
-
-  .controls-panel {
-    padding: 1rem;
-    gap: 1rem;
-  }
-
-  .video-info {
-    padding: 0.75rem;
-  }
-
-  .boundary-preview {
-    padding: 0.75rem;
-  }
-
-  .coordinates {
-    grid-template-columns: 1fr;
-    padding: 0.75rem;
-  }
-}
 </style>

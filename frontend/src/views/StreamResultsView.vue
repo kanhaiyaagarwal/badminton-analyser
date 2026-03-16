@@ -460,10 +460,11 @@ async function downloadAnnotatedVideo() {
 .results-view {
   max-width: 1000px;
   margin: 0 auto;
+  padding: 1rem;
 }
 
 .header {
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
 }
 
 .back-links {
@@ -491,6 +492,7 @@ async function downloadAnnotatedVideo() {
 h1 {
   color: var(--color-primary);
   margin-bottom: 0.25rem;
+  font-size: 1.3rem;
 }
 
 .session-title {
@@ -511,30 +513,30 @@ h1 {
 .session-info-cards {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 1rem;
-  margin-bottom: 1.5rem;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
 }
 
 .info-card {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
-  padding: 1rem 1.25rem;
+  padding: 0.6rem 0.75rem;
   box-shadow: var(--shadow-md);
 }
 
 .info-card-label {
   color: var(--text-muted);
-  font-size: 0.8rem;
+  font-size: 0.7rem;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.2rem;
 }
 
 .info-card-value {
   color: var(--text-primary);
-  font-size: 0.95rem;
+  font-size: 0.85rem;
   font-weight: 600;
 }
 
@@ -545,30 +547,30 @@ h1 {
 
 .summary-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 1rem;
-  margin-bottom: 2rem;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
 }
 
 .card {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
-  padding: 1.5rem;
+  padding: 1rem;
   text-align: center;
   box-shadow: var(--shadow-md);
 }
 
 .card h3 {
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   font-weight: normal;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.35rem;
 }
 
 .card .value {
   color: var(--color-primary);
-  font-size: 2rem;
+  font-size: 1.5rem;
   font-weight: bold;
 }
 
@@ -581,19 +583,19 @@ h1 {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
-  padding: 1.5rem;
-  margin-bottom: 1.5rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
   box-shadow: var(--shadow-md);
 }
 
 .section h2 {
   color: var(--text-primary);
-  font-size: 1.2rem;
-  margin-bottom: 1rem;
+  font-size: 1.05rem;
+  margin-bottom: 0.75rem;
 }
 
 .chart-container {
-  height: 300px;
+  height: 220px;
 }
 
 .no-data {
@@ -611,13 +613,13 @@ h1 {
 .shot-item {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.5rem;
 }
 
 .shot-type {
-  width: 100px;
+  width: 75px;
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-size: 0.8rem;
 }
 
 .shot-bar {
@@ -635,10 +637,11 @@ h1 {
 }
 
 .shot-count {
-  width: 40px;
+  width: 30px;
   text-align: right;
   color: var(--color-primary);
   font-weight: bold;
+  font-size: 0.85rem;
 }
 
 .post-analysis-stats {
@@ -653,25 +656,25 @@ h1 {
   align-items: center;
   background: var(--bg-input);
   border-radius: var(--radius-md);
-  padding: 1rem;
+  padding: 0.75rem;
 }
 
 .pa-value {
   color: var(--color-primary);
-  font-size: 1.4rem;
+  font-size: 1.2rem;
   font-weight: bold;
 }
 
 .pa-label {
   color: var(--text-muted);
-  font-size: 0.8rem;
+  font-size: 0.7rem;
   text-align: center;
 }
 
 .download-actions {
   display: flex;
-  gap: 1rem;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 .btn-download-secondary {
@@ -691,6 +694,7 @@ h1 {
 .btn-download {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
   background: var(--gradient-primary);
   color: var(--text-on-primary);
@@ -701,7 +705,9 @@ h1 {
   transition: background 0.2s;
   border: none;
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 0.9rem;
+  width: 100%;
+  text-align: center;
 }
 
 .btn-download:hover:not(:disabled) {
@@ -728,7 +734,7 @@ h1 {
 
 .timeline {
   position: relative;
-  height: 60px;
+  height: 50px;
   background: var(--border-color);
   border-radius: 4px;
   margin-bottom: 0.5rem;
@@ -742,8 +748,8 @@ h1 {
 }
 
 .timeline-dot {
-  width: 16px;
-  height: 16px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   border: 2px solid white;
   transition: transform 0.2s;
@@ -813,17 +819,18 @@ h1 {
 .timeline-list-item {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  padding: 0.5rem;
+  gap: 0.5rem;
+  padding: 0.4rem;
   background: var(--bg-input);
   border-radius: 4px;
+  font-size: 0.85rem;
 }
 
 .list-time {
   color: var(--text-muted);
   font-family: monospace;
-  font-size: 0.85rem;
-  width: 50px;
+  font-size: 0.8rem;
+  width: 40px;
 }
 
 .list-shot {
@@ -847,7 +854,7 @@ h1 {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  padding: 1rem;
+  padding: 0.75rem;
   border-left: 3px solid var(--color-primary);
   box-shadow: var(--shadow-md);
 }
@@ -872,9 +879,10 @@ h1 {
 
 .rally-details {
   display: flex;
-  gap: 1.5rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
   margin-bottom: 0.5rem;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
 }
 
 .rally-stat {
@@ -884,6 +892,7 @@ h1 {
 .rally-time {
   color: var(--text-muted);
   font-family: monospace;
+  font-size: 0.75rem;
 }
 
 .rally-shots {
@@ -900,136 +909,4 @@ h1 {
   border: 1px solid;
 }
 
-/* ---- Mobile Responsive ---- */
-@media (max-width: 640px) {
-  .results-view {
-    padding: 0.75rem;
-  }
-
-  .header {
-    margin-bottom: 1rem;
-  }
-
-  h1 {
-    font-size: 1.3rem;
-  }
-
-  .session-info-cards {
-    grid-template-columns: 1fr;
-    gap: 0.75rem;
-  }
-
-  .info-card {
-    padding: 0.75rem 1rem;
-  }
-
-  .info-card-value {
-    font-size: 0.9rem;
-  }
-
-  .summary-cards {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.75rem;
-  }
-
-  .card {
-    padding: 1rem;
-  }
-
-  .card .value {
-    font-size: 1.5rem;
-  }
-
-  .section {
-    padding: 1rem;
-    margin-bottom: 1rem;
-  }
-
-  .section h2 {
-    font-size: 1.05rem;
-  }
-
-  .chart-container {
-    height: 220px;
-  }
-
-  /* Shot list */
-  .shot-item {
-    gap: 0.5rem;
-  }
-
-  .shot-type {
-    width: 70px;
-    font-size: 0.8rem;
-  }
-
-  .shot-count {
-    width: 30px;
-    font-size: 0.85rem;
-  }
-
-  /* Post-analysis */
-  .pa-stat {
-    padding: 0.75rem;
-  }
-
-  .pa-value {
-    font-size: 1.2rem;
-  }
-
-  .pa-label {
-    font-size: 0.7rem;
-  }
-
-  /* Timeline */
-  .timeline {
-    height: 50px;
-  }
-
-  .timeline-dot {
-    width: 12px;
-    height: 12px;
-  }
-
-  .timeline-list-item {
-    gap: 0.5rem;
-    padding: 0.4rem;
-    font-size: 0.85rem;
-  }
-
-  .list-time {
-    width: 40px;
-    font-size: 0.8rem;
-  }
-
-  /* Rally breakdown */
-  .rally-card {
-    padding: 0.75rem;
-  }
-
-  .rally-details {
-    flex-wrap: wrap;
-    gap: 0.75rem;
-    font-size: 0.8rem;
-  }
-
-  .rally-time {
-    font-size: 0.75rem;
-  }
-
-  /* Downloads */
-  .download-actions {
-    flex-direction: column;
-  }
-
-  .btn-download {
-    width: 100%;
-    justify-content: center;
-    text-align: center;
-  }
-
-  .section-desc {
-    font-size: 0.85rem;
-  }
-}
 </style>

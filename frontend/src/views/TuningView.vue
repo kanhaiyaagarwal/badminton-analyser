@@ -11,6 +11,10 @@
     </div>
 
     <template v-else-if="canTune">
+      <div v-if="isMobile && !mobileNoticeDismissed" class="mobile-notice">
+        <span>Tuning works best on a desktop browser for the full experience.</span>
+        <button @click="mobileNoticeDismissed = true" class="mobile-notice-dismiss">&times;</button>
+      </div>
       <div class="tuning-layout">
         <!-- Row 1: Source Selection (full width) -->
         <div class="section source-section">
@@ -274,6 +278,8 @@ const props = defineProps({
 const authStore = useAuthStore()
 const isAdmin = computed(() => authStore.user?.is_admin)
 const canTune = computed(() => authStore.hasFeature('tuning'))
+const isMobile = ref(window.innerWidth < 768)
+const mobileNoticeDismissed = ref(false)
 
 // Source selection
 const sourceMode = ref('video')
@@ -1263,5 +1269,29 @@ h1 {
 .loading-schema .error-text {
   color: var(--color-destructive);
   margin-top: 0.5rem;
+}
+
+.mobile-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  background: hsla(40, 80%, 50%, 0.12);
+  border: 1px solid hsla(40, 80%, 50%, 0.3);
+  border-radius: var(--radius-md);
+  color: hsl(40, 80%, 65%);
+  font-size: 0.85rem;
+}
+
+.mobile-notice-dismiss {
+  background: none;
+  border: none;
+  color: hsl(40, 80%, 65%);
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0 0.25rem;
+  line-height: 1;
 }
 </style>
