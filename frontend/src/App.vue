@@ -10,6 +10,7 @@
           <span class="header-name">{{ appName }}</span>
         </router-link>
         <div class="header-actions">
+          <router-link v-if="canTune" to="/tuning" class="tuning-badge">Tuning</router-link>
           <router-link v-if="isAdmin" to="/admin" class="admin-badge">Admin</router-link>
         </div>
       </header>
@@ -197,14 +198,23 @@ const isFullscreenPage = computed(() => ['ChallengeSession', 'WorkoutSession', '
   gap: 0.5rem;
 }
 
-.admin-badge {
+.admin-badge,
+.tuning-badge {
   font-size: 0.7rem;
   font-weight: 600;
   padding: 0.2rem 0.6rem;
   border-radius: 9999px;
+  text-decoration: none;
+}
+
+.admin-badge {
   background: var(--color-secondary-light);
   color: var(--color-secondary);
-  text-decoration: none;
+}
+
+.tuning-badge {
+  background: hsla(200, 80%, 50%, 0.15);
+  color: hsl(200, 80%, 60%);
 }
 
 
