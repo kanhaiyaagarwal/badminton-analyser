@@ -42,45 +42,41 @@
 
             <form @submit.prevent="handleSignup">
               <div class="field-group">
-                <label for="inviteCode">Invite Code <span class="label-optional">(optional)</span></label>
                 <input
                   id="inviteCode"
                   v-model="inviteCode"
                   type="text"
-                  placeholder="Enter invite code or leave blank"
+                  placeholder="Invite code (optional)"
                 />
               </div>
 
               <div class="field-group">
-                <label for="email">Email</label>
                 <input
                   id="email"
                   v-model="email"
                   type="email"
-                  placeholder="your@email.com"
+                  placeholder="Email"
                   required
                 />
               </div>
 
               <div class="field-group">
-                <label for="password">Password</label>
                 <input
                   id="password"
                   v-model="password"
                   type="password"
-                  placeholder="Min 8 characters"
+                  placeholder="Password (min 8 characters)"
                   minlength="8"
                   required
                 />
               </div>
 
               <div class="field-group">
-                <label for="confirmPassword">Confirm Password</label>
                 <input
                   id="confirmPassword"
                   v-model="confirmPassword"
                   type="password"
-                  placeholder="Confirm your password"
+                  placeholder="Confirm password"
                   required
                 />
               </div>
@@ -207,6 +203,8 @@
         </div>
       </template>
     </div>
+
+    <footer class="auth-footer"><a href="mailto:connect@neymo.ai">connect@neymo.ai</a></footer>
 
     <!-- Waitlist Modal -->
     <div v-if="showWaitlist" class="modal-overlay" @click="showWaitlist = false">
@@ -534,10 +532,22 @@ async function handleWaitlist() {
 .auth-page {
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: var(--bg-page);
-  padding: 2rem 1.5rem 3rem;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 2rem 1.5rem 0;
+  background: url('/gym-bg.jpg') center/cover no-repeat;
+  position: relative;
+}
+
+.auth-page::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 0;
 }
 
 .auth-container {
@@ -546,6 +556,8 @@ async function handleWaitlist() {
   display: flex;
   flex-direction: column;
   align-items: center;
+  position: relative;
+  z-index: 1;
 }
 
 /* ---- Brand logo ---- */
@@ -564,14 +576,15 @@ async function handleWaitlist() {
 .auth-title {
   font-size: 1.75rem;
   font-weight: 800;
-  color: var(--text-primary);
+  color: #fff;
   text-align: center;
   margin-bottom: 0.35rem;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
 .auth-subtitle {
   font-size: 0.95rem;
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.75);
   text-align: center;
   margin-bottom: 2rem;
 }
@@ -579,11 +592,13 @@ async function handleWaitlist() {
 /* ---- Form area ---- */
 .auth-form-area {
   width: 100%;
-  background: var(--bg-card);
+  background: rgba(20, 20, 30, 0.05);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border-radius: 1.25rem;
   padding: 2rem 1.75rem;
-  box-shadow: var(--shadow-md);
-  border: 1px solid var(--border-color);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 /* ---- Form fields ---- */
@@ -595,24 +610,24 @@ async function handleWaitlist() {
   display: block;
   font-size: 0.875rem;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: rgba(255, 255, 255, 0.8);
   margin-bottom: 0.5rem;
 }
 
 .label-optional {
   font-weight: 400;
   font-size: 0.8rem;
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.4);
 }
 
 .field-group input {
   width: 100%;
   height: 52px;
   padding: 0 1rem;
-  border: 2px solid var(--border-input);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 1rem;
-  background: var(--bg-input);
-  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
   font-size: 1rem;
   font-family: inherit;
   outline: none;
@@ -620,12 +635,12 @@ async function handleWaitlist() {
 }
 
 .field-group input:focus {
-  border-color: var(--border-input-focus);
-  box-shadow: 0 0 0 3px rgba(124, 139, 111, 0.12);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(124, 139, 111, 0.25);
 }
 
 .field-group input::placeholder {
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.35);
 }
 
 .otp-input {
@@ -706,8 +721,8 @@ async function handleWaitlist() {
   width: 100%;
   height: 44px;
   background: transparent;
-  border: 1px solid var(--border-input);
-  color: var(--text-muted);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.6);
   border-radius: 1rem;
   font-size: 0.875rem;
   font-family: inherit;
@@ -717,8 +732,8 @@ async function handleWaitlist() {
 }
 
 .btn-secondary:hover {
-  border-color: var(--text-muted);
-  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #fff;
 }
 
 .btn-link {
@@ -729,7 +744,7 @@ async function handleWaitlist() {
   background: none;
   border: none;
   font-size: 0.875rem;
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.5);
   text-decoration: underline;
   cursor: pointer;
   font-family: inherit;
@@ -749,7 +764,7 @@ async function handleWaitlist() {
   text-align: center;
   margin-top: 1.5rem;
   font-size: 0.9rem;
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .auth-switch a {
@@ -766,12 +781,12 @@ async function handleWaitlist() {
 .waitlist-divider {
   margin-top: 1.5rem;
   padding-top: 1.5rem;
-  border-top: 1px solid var(--border-color);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
   text-align: center;
 }
 
 .waitlist-text {
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.5);
   font-size: 0.875rem;
   margin-bottom: 0.75rem;
 }
@@ -792,7 +807,7 @@ async function handleWaitlist() {
   display: flex;
   align-items: center;
   margin: 1.25rem 0;
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.45);
   font-size: 0.8rem;
 }
 
@@ -801,7 +816,7 @@ async function handleWaitlist() {
   content: '';
   flex: 1;
   height: 1px;
-  background: var(--border-color);
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .divider span {
@@ -883,6 +898,24 @@ async function handleWaitlist() {
 .auth-logo-text {
   font-size: 2rem;
   font-weight: 800;
+  color: var(--color-primary);
+}
+
+.auth-footer {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  padding: 1.25rem 1rem;
+  font-size: 0.75rem;
+  margin-top: auto;
+}
+
+.auth-footer a {
+  color: rgba(255, 255, 255, 0.5);
+  text-decoration: none;
+}
+
+.auth-footer a:hover {
   color: var(--color-primary);
 }
 

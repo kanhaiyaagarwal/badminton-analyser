@@ -80,8 +80,8 @@
         </BottomNavItem>
       </nav>
 
-      <!-- Footer (landing/auth pages only) -->
-      <footer v-if="isLandingPage || isAuthPage" class="app-footer">
+      <!-- Footer (landing pages only — auth pages render their own footer inside the bg image) -->
+      <footer v-if="isLandingPage" class="app-footer">
         <a href="mailto:connect@neymo.ai">connect@neymo.ai</a>
       </footer>
     </div>
@@ -262,6 +262,8 @@ const isFullscreenPage = computed(() => ['ChallengeSession', 'WorkoutSession', '
   padding: 1.25rem 1rem;
   font-size: 0.75rem;
   color: var(--text-muted);
+  position: relative;
+  z-index: 1;
 }
 
 .app-footer a {

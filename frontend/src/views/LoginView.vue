@@ -17,7 +17,7 @@
           :initial="{ opacity: 0, y: 16 }"
           :enter="{ opacity: 1, y: 0, transition: { delay: 100, duration: 400 } }"
           class="auth-title"
-        >Welcome back</h1>
+        >Let's Train</h1>
         <p
           v-motion
           :initial="{ opacity: 0, y: 16 }"
@@ -48,23 +48,21 @@
 
           <form @submit.prevent="handleLogin">
             <div class="field-group">
-              <label for="email">Email</label>
               <input
                 id="email"
                 v-model="email"
                 type="email"
-                placeholder="Enter your email"
+                placeholder="Email"
                 required
               />
             </div>
 
             <div class="field-group">
-              <label for="password">Password</label>
               <input
                 id="password"
                 v-model="password"
                 type="password"
-                placeholder="Enter your password"
+                placeholder="Password"
                 required
               />
               <router-link
@@ -133,6 +131,7 @@
         </div>
       </template>
     </div>
+    <footer class="auth-footer"><a href="mailto:connect@neymo.ai">connect@neymo.ai</a></footer>
   </div>
 </template>
 
@@ -279,10 +278,22 @@ function resetGoogleState() {
 .auth-page {
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: var(--bg-page);
-  padding: 2rem 1.5rem 3rem;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 2rem 1.5rem 0;
+  background: url('/gym-bg.jpg') center/cover no-repeat;
+  position: relative;
+}
+
+.auth-page::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 0;
 }
 
 .auth-container {
@@ -291,6 +302,8 @@ function resetGoogleState() {
   display: flex;
   flex-direction: column;
   align-items: center;
+  position: relative;
+  z-index: 1;
 }
 
 /* ---- Brand logo ---- */
@@ -309,14 +322,15 @@ function resetGoogleState() {
 .auth-title {
   font-size: 1.75rem;
   font-weight: 800;
-  color: var(--text-primary);
+  color: #fff;
   text-align: center;
   margin-bottom: 0.35rem;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
 .auth-subtitle {
   font-size: 0.95rem;
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.75);
   text-align: center;
   margin-bottom: 2rem;
 }
@@ -324,11 +338,13 @@ function resetGoogleState() {
 /* ---- Form area (full-width card on mobile, elevated on desktop) ---- */
 .auth-form-area {
   width: 100%;
-  background: var(--bg-card);
+  background: rgba(20, 20, 30, 0.05);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border-radius: 1.25rem;
   padding: 2rem 1.75rem;
-  box-shadow: var(--shadow-md);
-  border: 1px solid var(--border-color);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 /* ---- Form fields ---- */
@@ -340,7 +356,7 @@ function resetGoogleState() {
   display: block;
   font-size: 0.875rem;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: rgba(255, 255, 255, 0.8);
   margin-bottom: 0.5rem;
 }
 
@@ -348,10 +364,10 @@ function resetGoogleState() {
   width: 100%;
   height: 52px;
   padding: 0 1rem;
-  border: 2px solid var(--border-input);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 1rem;
-  background: var(--bg-input);
-  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
   font-size: 1rem;
   font-family: inherit;
   outline: none;
@@ -359,12 +375,12 @@ function resetGoogleState() {
 }
 
 .field-group input:focus {
-  border-color: var(--border-input-focus);
-  box-shadow: 0 0 0 3px rgba(124, 139, 111, 0.12);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(124, 139, 111, 0.25);
 }
 
 .field-group input::placeholder {
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.35);
 }
 
 /* ---- Forgot link ---- */
@@ -373,7 +389,7 @@ function resetGoogleState() {
   text-align: right;
   margin-top: 0.5rem;
   font-size: 0.8rem;
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.5);
   text-decoration: none;
 }
 
@@ -455,7 +471,7 @@ function resetGoogleState() {
   text-align: center;
   margin-top: 1.5rem;
   font-size: 0.9rem;
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .auth-switch a {
@@ -473,7 +489,7 @@ function resetGoogleState() {
   display: flex;
   align-items: center;
   margin: 1.25rem 0;
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.45);
   font-size: 0.8rem;
 }
 
@@ -482,7 +498,7 @@ function resetGoogleState() {
   content: '';
   flex: 1;
   height: 1px;
-  background: var(--border-color);
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .divider span {
@@ -537,6 +553,24 @@ function resetGoogleState() {
 .auth-logo-text {
   font-size: 2rem;
   font-weight: 800;
+  color: var(--color-primary);
+}
+
+.auth-footer {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  padding: 1.25rem 1rem;
+  font-size: 0.75rem;
+  margin-top: auto;
+}
+
+.auth-footer a {
+  color: rgba(255, 255, 255, 0.5);
+  text-decoration: none;
+}
+
+.auth-footer a:hover {
   color: var(--color-primary);
 }
 
