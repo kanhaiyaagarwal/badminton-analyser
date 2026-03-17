@@ -234,6 +234,8 @@ async function handleAction(action, params = {}) {
           query: {
             workout_session_id: sid.value,
             exercise_id: setData.exercise?.exercise_id,
+            exercise_slug: exerciseSlug,
+            exercise_name: setData.exercise?.name || '',
             set_number: setData.set_number,
             sets_total: setData.sets_total,
           }

@@ -153,7 +153,7 @@ def _handle_start(db: Session, user_id: int, session_id: Optional[int], params: 
         slug_order = {s: i for i, s in enumerate(exercise_slugs)}
         exercises.sort(key=lambda e: slug_order.get(e.slug, 999))
 
-        planned = _build_planned_exercises(exercises, "intermediate")
+        planned = _build_planned_exercises(exercises, "intermediate", time_budget_minutes=time_budget or 0)
         session.planned_exercises = planned
         db.commit()
 
@@ -668,16 +668,22 @@ def _populate_session_from_plan(db: Session, user_id: int, session: WorkoutSessi
         session.plan_id = plan.id
 
 
-def _build_planned_exercises(exercises: list, fitness_level: str = "intermediate") -> list:
+def _build_planned_exercises(exercises: list, fitness_level: str = "intermediate", time_budget_minutes: int = 0) -> list:
     """Build planned_exercises JSON from a list of Exercise ORM objects."""
     volume = VOLUME_SCHEMES.get(fitness_level, VOLUME_SCHEMES["intermediate"])
+    sets = volume.get("sets", volume.get("base_sets", 3))
+
+    # Adjust sets based on time budget vs exercise count
+    if time_budget_minutes > 0 and len(exercises) > 0:
+        from .plan_generator import _plan_for_duration
+        _, sets = _plan_for_duration(time_budget_minutes, volume.get("base_sets", 3))
 
     return [
         {
             "exercise_id": ex.id,
             "slug": ex.slug,
             "name": ex.name,
-            "sets": volume["sets"],
+            "sets": sets,
             "reps": volume["reps"] if ex.tracking_mode == "reps" else "30s",
             "equipment": ex.equipment or ["none"],
             "order": i,
@@ -687,8 +693,8 @@ def _build_planned_exercises(exercises: list, fitness_level: str = "intermediate
 
 
 def _trim_exercises(planned: list, time_budget_minutes: int) -> list:
-    """Trim exercises to fit within time budget. ~5 min per exercise."""
-    max_exercises = max(1, time_budget_minutes // 5)
+    """Trim exercises to fit within time budget. ~7 min per exercise."""
+    max_exercises = max(1, time_budget_minutes // 7)
     return planned[:max_exercises]
 
 

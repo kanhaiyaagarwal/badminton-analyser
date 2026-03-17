@@ -128,7 +128,8 @@ async def _try_llm_chat(user_message: str, context: str, session_data: dict, use
         if not system_prompt:
             return None
 
-        result = await llm_chat(system_prompt, user_message or "How's it going?")
+        opening = "Greet the user briefly and present today's workout plan. Ask if they're ready or want to make changes."
+        result = await llm_chat(system_prompt, user_message or opening)
         if not result:
             return None
 

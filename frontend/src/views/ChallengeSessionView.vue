@@ -235,6 +235,8 @@ const challengeType = computed(() => route.params.type)
 // Workout mode: when launched from a workout session to track a set
 const workoutSessionId = computed(() => route.query.workout_session_id)
 const workoutExerciseId = computed(() => route.query.exercise_id)
+const workoutExerciseSlug = computed(() => route.query.exercise_slug)
+const workoutExerciseName = computed(() => route.query.exercise_name)
 const workoutSetNumber = computed(() => route.query.set_number)
 const workoutSetsTotal = computed(() => route.query.sets_total)
 const isWorkoutMode = computed(() => !!workoutSessionId.value)
@@ -245,6 +247,7 @@ const CHALLENGE_META = {
   squat_half: { title: 'Half Squats', hint: 'Stand facing camera. Half-depth squats — bend to about 90\u00B0.', scoreLabel: 'Reps', unit: 'reps' },
   squat_full: { title: 'Full Squats', hint: 'Stand facing camera. Go all the way down past parallel.', scoreLabel: 'Reps', unit: 'reps' },
   pushup: { title: 'Max Pushups', hint: 'Position the camera to the side so your full body is visible.', scoreLabel: 'Reps', unit: 'reps' },
+  arm_rep: { title: 'Arm Exercise', hint: 'Stand facing camera with full upper body visible.', scoreLabel: 'Reps', unit: 'reps' },
 }
 
 const isHoldType = computed(() => ['plank', 'squat_hold'].includes(challengeType.value))
@@ -256,9 +259,17 @@ const POSITION_GUIDE_IMAGES = {
   squat_hold: '/position-guide-squat.png',
   squat_half: '/position-guide-squat.png',
   squat_full: '/position-guide-squat.png',
+  arm_rep: '/position-guide-squat.png',
 }
 const positionGuideImg = computed(() => POSITION_GUIDE_IMAGES[challengeType.value] || '/position-guide-pushup.png')
-const challengeTitle = computed(() => meta.value.title)
+const challengeTitle = computed(() => {
+  // In workout mode, show the actual exercise name (e.g., "Shoulder Press" instead of "Arm Exercise")
+  if (isWorkoutMode.value && workoutExerciseName.value) {
+    const setInfo = workoutSetNumber.value ? ` — Set ${workoutSetNumber.value}/${workoutSetsTotal.value}` : ''
+    return `${workoutExerciseName.value}${setInfo}`
+  }
+  return meta.value.title
+})
 const challengeHint = computed(() => meta.value.hint)
 const scoreLabel = computed(() => meta.value.scoreLabel)
 
@@ -545,8 +556,10 @@ async function startSession() {
     let sid
     if (isWorkoutMode.value) {
       // Workout mode: create challenge session via workout start-tracking endpoint
+      // Use exercise_slug from query param (passed by WorkoutSessionView) for accurate mapping
+      const slug = workoutExerciseSlug.value || _workoutSlugFromChallengeType(challengeType.value)
       const resp = await api.post(`/api/v1/workout/sessions/${workoutSessionId.value}/start-tracking`, {
-        exercise_slug: _workoutSlugFromChallengeType(challengeType.value),
+        exercise_slug: slug,
       })
       sid = resp.data.challenge_session_id
     } else {

@@ -104,6 +104,7 @@ onMounted(() => {
 <style scoped>
 .library {
   padding: 1.25rem;
+  padding-bottom: 6rem; /* space for bottom nav */
 }
 
 .back-link {

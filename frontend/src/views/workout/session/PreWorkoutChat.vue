@@ -28,6 +28,7 @@
         ref="chatRef"
         context="pre_workout"
         :session-id="sessionId"
+        :initial-message="coachSays || null"
         compact
         @action="handleChatAction"
       />

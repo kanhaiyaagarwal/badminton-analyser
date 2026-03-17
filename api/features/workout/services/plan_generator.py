@@ -50,11 +50,11 @@ SPLIT_TEMPLATES = {
     },
 }
 
-# Volume schemes by experience level
+# Volume schemes by experience level (sets adjusted dynamically by session duration)
 VOLUME_SCHEMES = {
-    "beginner": {"sets": 3, "reps": "10-12", "rest_sec": 90},
-    "intermediate": {"sets": 4, "reps": "8-10", "rest_sec": 75},
-    "advanced": {"sets": 5, "reps": "6-8", "rest_sec": 60},
+    "beginner": {"base_sets": 3, "reps": "10-12", "rest_sec": 90},
+    "intermediate": {"base_sets": 3, "reps": "8-10", "rest_sec": 75},
+    "advanced": {"base_sets": 4, "reps": "6-8", "rest_sec": 60},
 }
 
 # Category priority: compounds first, then bodyweight, then isolation, then cardio
@@ -209,6 +209,33 @@ def _exercises_for_muscles(
     return selected
 
 
+def _plan_for_duration(session_minutes: int, base_sets: int) -> tuple:
+    """Return (max_exercises, sets_per_exercise) for a given session duration.
+
+    Strategy: shorter sessions → fewer exercises with same sets.
+    Longer sessions → more exercises, bump to 4 sets when time allows.
+    ~7 min per exercise @ 3 sets, ~9 min per exercise @ 4 sets.
+    """
+    if session_minutes <= 15:
+        return 2, min(base_sets, 3)
+    elif session_minutes <= 20:
+        return 3, 3
+    elif session_minutes <= 25:
+        return 3, min(base_sets, 3)
+    elif session_minutes <= 30:
+        return 4, 3
+    elif session_minutes <= 40:
+        return 4, min(base_sets + 1, 4)
+    elif session_minutes <= 45:
+        return 5, 3
+    elif session_minutes <= 50:
+        return 5, min(base_sets + 1, 4)
+    elif session_minutes <= 55:
+        return 6, 3
+    else:
+        return 6, min(base_sets + 1, 4)
+
+
 def _estimate_duration(num_exercises: int, sets: int, rest_sec: int) -> int:
     """Rough estimate of workout duration in minutes."""
     set_time_sec = 40 + rest_sec  # ~40s of work per set + rest
@@ -235,15 +262,13 @@ def generate_template_plan(
     volume = VOLUME_SCHEMES.get(fitness_level, VOLUME_SCHEMES["beginner"])
     is_home = train_location == "home"
 
-    # Max exercises per session based on duration
-    if session_duration_minutes <= 20:
-        max_per_session = 3
-    elif session_duration_minutes <= 30:
-        max_per_session = 4
-    elif session_duration_minutes <= 45:
-        max_per_session = 5
-    else:
-        max_per_session = 7
+    # Realistic exercise/set planning based on session duration
+    # ~7 min per exercise @ 3 sets, ~9 min per exercise @ 4 sets
+    # (45s work + rest per set + transition time)
+    max_per_session, sets_per_exercise = _plan_for_duration(
+        session_duration_minutes, volume["base_sets"]
+    )
+    rest_sec = volume["rest_sec"]
 
     # Track used slugs across days for variety (especially for repeated day types like PPL)
     global_used = set()
@@ -278,7 +303,7 @@ def generate_template_plan(
                 {
                     "slug": ex["slug"],
                     "name": ex["name"],
-                    "sets": volume["sets"],
+                    "sets": sets_per_exercise,
                     "reps": volume["reps"] if ex.get("tracking_mode") == "reps" else (
                         "30s" if ex.get("tracking_mode") == "hold" else "30s"
                     ),
@@ -287,7 +312,7 @@ def generate_template_plan(
                 for ex in day_exercises
             ],
             "estimated_minutes": _estimate_duration(
-                len(day_exercises), volume["sets"], volume["rest_sec"]
+                len(day_exercises), sets_per_exercise, rest_sec
             ),
         }
         days.append(day_data)
@@ -299,6 +324,6 @@ def generate_template_plan(
         "split_type": split_type,
         "days_per_week": days_per_week,
         "fitness_level": fitness_level,
-        "volume": volume,
+        "volume": {**volume, "sets": sets_per_exercise},
         "days": days,
     }

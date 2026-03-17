@@ -152,9 +152,37 @@ const videoId = computed(() => {
   return match ? match[1] : null
 })
 
+// All exercises that support camera-based rep/hold counting
+// Keep in sync with WorkoutSessionView TRACKABLE_SLUG_TO_CHALLENGE
 const TRACKABLE_SLUGS = [
-  'push-up', 'bodyweight-squat', 'plank', 'squat-hold', 'jump-squat', 'burpee',
-  'bicep-curl', 'lateral-raise', 'calf-raise',
+  // Pushup analyzer
+  'push-up', 'diamond-push-up', 'wide-grip-push-up', 'burpee',
+  'dips', 'tricep-dip-bench', 'pull-up', 'chin-up',
+  'bench-press', 'incline-bench-press', 'decline-bench-press',
+  'incline-dumbbell-press', 'close-grip-bench-press',
+  'skull-crusher', 'dumbbell-fly', 'incline-dumbbell-fly',
+  // Squat analyzer
+  'bodyweight-squat', 'jump-squat', 'sumo-squat', 'front-squat', 'barbell-squat',
+  'hack-squat', 'smith-machine-squat', 'bulgarian-split-squat', 'lunges', 'step-up',
+  'box-jump', 'sissy-squat', 'deadlift', 'sumo-deadlift', 'kettlebell-swing',
+  'barbell-thruster', 'hip-thrust', 'nordic-curl', 'leg-extension', 'cable-pull-through',
+  'glute-bridge', 'donkey-kick', 'fire-hydrant', 'calf-raise', 'single-leg-calf-raise',
+  'crunch', 'russian-twist', 'bicycle-crunch', 'hanging-leg-raise', 'v-up', 'dead-bug',
+  'decline-sit-up', 'cable-crunch', 'ab-wheel-rollout', 'hyperextension', 'superman',
+  // Arm rep analyzer
+  'bicep-curl', 'hammer-curl', 'preacher-curl', 'incline-dumbbell-curl',
+  'concentration-curl', 'cable-curl', 'reverse-curl',
+  'overhead-tricep-extension', 'tricep-pushdown', 'dumbbell-tricep-kickback',
+  'lateral-raise', 'cable-lateral-raise', 'front-raise', 'reverse-fly',
+  'shoulder-press', 'arnold-press',
+  'barbell-shrug', 'dumbbell-shrug',
+  'upright-row', 'barbell-row', 'single-arm-dumbbell-row', 't-bar-row',
+  'seated-cable-row', 'chest-supported-row', 'pendlay-row',
+  'good-morning', 'romanian-deadlift', 'stiff-leg-deadlift',
+  'face-pull', 'glute-kickback',
+  // Holds
+  'plank', 'side-plank', 'hollow-body-hold', 'squat-hold', 'wall-sit',
+  'hip-flexor-stretch', 'pigeon-pose', 'childs-pose',
 ]
 const isTrackable = computed(() => TRACKABLE_SLUGS.includes(exercise.value.slug))
 const useCamera = ref(true)

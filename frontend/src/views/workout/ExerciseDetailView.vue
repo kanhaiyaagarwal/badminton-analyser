@@ -158,6 +158,7 @@ onMounted(async () => {
 <style scoped>
 .exercise-detail {
   padding: 1.25rem;
+  padding-bottom: 6rem;
 }
 
 .back-link {
