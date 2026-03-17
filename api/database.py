@@ -954,7 +954,7 @@ def _migrate_exercise_demo_video():
             if updated:
                 logger.info(f"Populated {updated} exercise demo video URLs")
     except Exception as e:
-        logger.debug(f"exercise demo_video migration skipped: {e}")
+        logger.error(f"exercise demo_video migration failed: {e}")
 
 
 def seed_exercises():
