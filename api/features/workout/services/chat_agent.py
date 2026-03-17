@@ -11,12 +11,16 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 PRE_WORKOUT_SYSTEM = """You are Coach, a friendly AI fitness coach. The user is about to start their workout.
-You can help them review and modify today's plan.
+You can help them review and modify today's plan, AND answer any fitness or exercise questions.
 
 Today's plan:
 {plan_summary}
 
-Available actions you can return:
+If the user asks HOW to do an exercise, explain the proper form in 2-3 concise bullet points.
+If the user asks a general fitness question, answer helpfully.
+If the user wants to modify the plan, use the appropriate action.
+
+Available actions you can return (only when modifying the plan):
 - swap_exercise: {{"type": "swap_exercise", "params": {{"old_slug": "...", "new_slug": "..."}}}}
 - adjust_set: {{"type": "adjust_next_set", "params": {{"exercise_id": "...", "weight_kg": N, "reps": N}}}}
 - remove_exercise: {{"type": "remove_exercise", "params": {{"exercise_id": "..."}}}}
@@ -29,7 +33,7 @@ Respond in JSON:
   "suggested_buttons": [{{"label": "...", "action": "..."}}]
 }}
 
-Keep responses short (1-2 sentences). Be encouraging."""
+Keep responses short but helpful. Be encouraging."""
 
 REST_SYSTEM = """You are Coach, a friendly AI fitness coach. The user just finished a set and is resting.
 
@@ -97,7 +101,7 @@ TEMPLATES = {
 }
 
 
-def process_chat(
+async def process_chat(
     user_message: str,
     context: str,
     session_data: Optional[dict] = None,
@@ -108,7 +112,7 @@ def process_chat(
     user_context = user_context or {}
 
     # Try LLM
-    result = _try_llm_chat(user_message, context, session_data, user_context)
+    result = await _try_llm_chat(user_message, context, session_data, user_context)
     if result:
         return result
 
@@ -116,7 +120,7 @@ def process_chat(
     return _template_chat(user_message, context, session_data)
 
 
-def _try_llm_chat(user_message: str, context: str, session_data: dict, user_context: dict) -> Optional[dict]:
+async def _try_llm_chat(user_message: str, context: str, session_data: dict, user_context: dict) -> Optional[dict]:
     """Try LLM for chat response."""
     try:
         from .llm_service import chat as llm_chat
@@ -124,9 +128,7 @@ def _try_llm_chat(user_message: str, context: str, session_data: dict, user_cont
         if not system_prompt:
             return None
 
-        result = asyncio.get_event_loop().run_until_complete(
-            llm_chat(system_prompt, user_message or "How's it going?")
-        )
+        result = await llm_chat(system_prompt, user_message or "How's it going?")
         if not result:
             return None
 
@@ -146,7 +148,7 @@ def _try_llm_chat(user_message: str, context: str, session_data: dict, user_cont
             "suggested_options": suggested_options,
         }
     except Exception as e:
-        logger.debug("LLM chat failed: %s", e)
+        logger.warning("LLM chat failed: %s", e)
         return None
 
 
@@ -211,6 +213,14 @@ def _template_chat(user_message: str, context: str, session_data: dict) -> dict:
                     {"label": "Keep it", "action": "dismiss"},
                 ]
 
+        elif any(kw in msg_lower for kw in ("how do", "how to", "explain", "what is", "show me", "form", "technique", "tips")):
+            # Exercise question — try to find form cues from session exercises
+            response = _answer_exercise_question(msg_lower, exercises)
+            buttons = [
+                {"label": "Got it, let's go!", "action": "begin_workout"},
+                {"label": "Ask another", "action": "dismiss"},
+            ]
+
         else:
             # Default: show greeting with standard buttons
             response = tmpl["greeting"].format(
@@ -270,3 +280,47 @@ def _template_chat(user_message: str, context: str, session_data: dict) -> dict:
         return {"response": response, "actions": [], "suggested_options": [{"label": "Thanks!", "value": "dismiss"}]}
 
     return {"response": "I'm here if you need anything!", "actions": [], "suggested_options": []}
+
+
+def _answer_exercise_question(msg: str, session_exercises: list) -> str:
+    """Try to answer an exercise question using seed data form cues."""
+    from ..db_models.workout import Exercise
+    from ....database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        # Find which exercise the user is asking about
+        exercises = db.query(Exercise).all()
+        matched = None
+        for ex in exercises:
+            name_lower = ex.name.lower()
+            slug_lower = ex.slug.replace("-", " ")
+            if name_lower in msg or slug_lower in msg:
+                matched = ex
+                break
+        # Fuzzy: check if any word from exercise name appears
+        if not matched:
+            for ex in exercises:
+                words = ex.name.lower().split()
+                if any(w in msg for w in words if len(w) > 3):
+                    matched = ex
+                    break
+
+        if matched and matched.form_cues:
+            cues = matched.form_cues if isinstance(matched.form_cues, list) else []
+            cue_text = "\n".join(f"• {c}" for c in cues[:4])
+            mistakes = ""
+            if matched.common_mistakes:
+                m_list = matched.common_mistakes if isinstance(matched.common_mistakes, list) else []
+                if m_list:
+                    mistakes = "\n\nAvoid: " + "; ".join(m_list[:2]) + "."
+            return f"Here's how to do {matched.name}:\n{cue_text}{mistakes}"
+        elif matched:
+            return f"{matched.name}: {matched.description or 'No detailed form guide yet — focus on controlled movement and proper range of motion.'}"
+        else:
+            return "I'm not sure which exercise you mean. Could you be more specific? I can explain form for any exercise in your plan."
+    except Exception as e:
+        logger.debug("Exercise question lookup failed: %s", e)
+        return "Sorry, I couldn't look that up right now. Try asking again!"
+    finally:
+        db.close()

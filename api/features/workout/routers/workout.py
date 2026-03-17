@@ -90,7 +90,7 @@ async def workout_chat(
 ):
     """Unified chat endpoint. Routes to OnboardingAgent or WorkoutChatAgent based on context."""
     if body.context == "onboarding":
-        result = onboarding_agent.process_turn(
+        result = await onboarding_agent.process_turn(
             conversation_id=body.conversation_id,
             user_message=body.message,
         )
@@ -106,7 +106,7 @@ async def workout_chat(
     session_data = _build_chat_session_data(db, body.session_id, current_user)
     user_context = {"name": current_user.username or ""}
 
-    result = chat_agent.process_chat(
+    result = await chat_agent.process_chat(
         user_message=body.message,
         context=body.context,
         session_data=session_data,
@@ -155,7 +155,7 @@ async def list_exercises(
     equipment: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
     category: Optional[str] = Query(None),
-    limit: int = Query(50, ge=1, le=100),
+    limit: int = Query(200, ge=1, le=500),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -221,6 +221,58 @@ async def get_progress_stats(
 ):
     """Get progress statistics."""
     return WorkoutService.get_progress_stats(db, current_user.id)
+
+
+@router.get("/history")
+async def get_workout_history(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    """Get completed workout sessions history."""
+    return WorkoutService.get_workout_history(db, current_user.id, limit, offset)
+
+
+@router.put("/profile/measurements")
+async def update_measurements(
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Update body measurements (weight_kg, height_cm, age)."""
+    try:
+        return WorkoutService.update_measurements(db, current_user.id, data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/goals")
+async def get_goals(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get user goals."""
+    return WorkoutService.get_goals(db, current_user.id)
+
+
+@router.get("/equipment")
+async def get_equipment(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get user's saved equipment and master equipment list."""
+    return WorkoutService.get_equipment(db, current_user.id)
+
+
+@router.put("/equipment")
+async def update_equipment(
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Update user's available equipment list."""
+    return WorkoutService.update_equipment(db, current_user.id, data.get("equipment", []), data.get("train_location"))
 
 
 # ---------------------------------------------------------------------------
@@ -329,8 +381,11 @@ async def start_tracking_session(
         ChallengeConfig.challenge_type == challenge_type
     ).first()
     config_val = config_row.thresholds if config_row else None
+    from ...challenges.services.arm_curl_analyzer import ArmRepAnalyzer
     if analyzer_cls is SquatAnalyzer:
         analyzer = analyzer_cls(challenge_type=challenge_type, config=config_val)
+    elif analyzer_cls is ArmRepAnalyzer:
+        analyzer = analyzer_cls(exercise_slug=data.get("exercise_slug", "bicep-curl"), config=config_val)
     else:
         analyzer = analyzer_cls(config=config_val)
 

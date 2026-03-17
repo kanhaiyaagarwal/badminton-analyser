@@ -11,7 +11,7 @@
         <!-- Coach bubble -->
         <template v-if="msg.role === 'coach'">
           <div class="msg-avatar-ring">
-            <span class="avatar-emoji">🦦</span>
+            <img src="/mascot/otter-mascot.png" alt="Coach" class="avatar-img" />
           </div>
           <div class="msg-bubble coach-bubble glass">
             {{ msg.content }}
@@ -42,7 +42,7 @@
       <button
         v-for="(opt, i) in latestOptions"
         :key="opt.value"
-        class="option-card glass"
+        :class="['option-card', 'glass', { 'option-skip': opt.value === '__skip__' }]"
         @click="handleOptionTap(opt)"
       >
         <span v-if="opt.emoji" class="option-emoji">{{ opt.emoji }}</span>
@@ -140,7 +140,12 @@ watch(() => voiceInput.error.value, (err) => {
 const latestOptions = computed(() => {
   for (let i = messages.value.length - 1; i >= 0; i--) {
     if (messages.value[i].role === 'coach' && messages.value[i].options?.length > 0) {
-      return messages.value[i].options
+      const opts = [...messages.value[i].options]
+      // Add "Skip this" in onboarding so user can skip any question
+      if (props.context === 'onboarding' && !opts.some(o => o.value === '__skip__')) {
+        opts.push({ label: 'Skip this', value: '__skip__' })
+      }
+      return opts
     }
   }
   return []
@@ -265,17 +270,16 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-.avatar-emoji {
-  font-size: 0.85rem;
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
 }
 
 .compact .msg-avatar-ring {
   width: 22px;
   height: 22px;
-}
-
-.compact .avatar-emoji {
-  font-size: 0.7rem;
 }
 
 .msg-bubble {
@@ -328,10 +332,11 @@ onMounted(() => {
 /* Option strip */
 .option-strip {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
-  padding: 0.5rem 1.5rem;
-  overflow-x: auto;
+  padding: 0.5rem 1rem;
   flex-shrink: 0;
+  justify-content: center;
   scroll-snap-type: x mandatory;
 }
 
@@ -340,10 +345,10 @@ onMounted(() => {
 }
 
 .option-card {
-  min-width: 100px;
-  padding: 1.25rem 1rem;
-  border-radius: 1rem;
-  font-size: 0.875rem;
+  min-width: 0;
+  padding: 0.6rem 0.85rem;
+  border-radius: 0.75rem;
+  font-size: 0.8rem;
   font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
@@ -361,18 +366,33 @@ onMounted(() => {
   border-color: var(--color-primary);
 }
 
+.option-skip {
+  background: transparent !important;
+  border-color: transparent !important;
+  color: var(--text-muted) !important;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-weight: 500 !important;
+  padding: 0.4rem 0.5rem !important;
+}
+
+.option-skip:hover {
+  color: var(--text-secondary) !important;
+  border-color: transparent !important;
+}
+
 .option-card:active {
   transform: scale(0.95);
 }
 
 .option-emoji {
-  font-size: 1.75rem;
+  font-size: 1.1rem;
 }
 
 .compact .option-card {
-  padding: 0.6rem 0.8rem;
+  padding: 0.5rem 0.7rem;
   font-size: 0.75rem;
-  min-width: 80px;
+  min-width: 0;
 }
 
 /* Voice error */

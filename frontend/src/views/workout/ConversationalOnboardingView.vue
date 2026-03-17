@@ -3,7 +3,7 @@
     <!-- Top bar with skip -->
     <div class="top-bar">
       <div class="top-spacer"></div>
-      <button class="skip-btn" @click="handleSkip">Skip →</button>
+      <button class="skip-btn" @click="handleSkip">Skip Setup</button>
     </div>
 
     <!-- Mascot & Title -->
@@ -14,7 +14,7 @@
       class="mascot-section"
     >
       <div class="mascot-icon">
-        <span class="mascot-emoji">🦦</span>
+        <img src="/mascot/otter-mascot.png" alt="Coach" class="mascot-img" />
       </div>
       <h1 class="mascot-title font-display">AI Fitness Coach</h1>
     </div>
@@ -82,17 +82,19 @@ function handleSkip() {
 }
 
 .skip-btn {
-  padding: 0.3rem 0.75rem;
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  font-size: 0.85rem;
-  font-weight: 500;
+  padding: 0.4rem 0.85rem;
+  background: hsla(220, 15%, 50%, 0.15);
+  border: 1px solid hsla(220, 15%, 50%, 0.3);
+  border-radius: var(--radius-full);
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: color 0.2s;
+  transition: all 0.2s;
 }
 
 .skip-btn:hover {
+  background: hsla(220, 15%, 50%, 0.25);
   color: var(--text-primary);
 }
 
@@ -117,8 +119,11 @@ function handleSkip() {
   box-shadow: 0 0 30px -5px rgba(20, 184, 166, 0.3);
 }
 
-.mascot-emoji {
-  font-size: 2.5rem;
+.mascot-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 1rem;
 }
 
 .mascot-title {

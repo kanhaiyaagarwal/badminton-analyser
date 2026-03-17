@@ -300,11 +300,11 @@ onMounted(async () => {
 
 /* Header */
 .home-header {
-  padding: 2.5rem 1.5rem 1rem;
+  padding: 1.5rem 1.5rem 0.75rem;
 }
 
 .greeting {
-  font-size: 1.75rem;
+  font-size: 1.2rem;
   font-weight: 900;
   text-transform: uppercase;
   letter-spacing: -0.02em;
@@ -325,7 +325,7 @@ onMounted(async () => {
 }
 
 .streak-text {
-  font-size: 0.875rem;
+  font-size: 0.8rem;
   font-weight: 500;
   color: var(--text-muted);
 }
@@ -383,11 +383,11 @@ onMounted(async () => {
 }
 
 .coach-message {
-  font-size: 0.875rem;
+  font-size: 0.8rem;
   color: var(--text-primary);
   opacity: 0.9;
   font-style: italic;
-  line-height: 1.6;
+  line-height: 1.5;
   flex: 1;
 }
 
@@ -422,7 +422,7 @@ onMounted(async () => {
 
 .nudge-body h3 {
   font-family: var(--font-display);
-  font-size: 0.95rem;
+  font-size: 0.85rem;
   font-weight: 700;
   color: var(--text-primary);
   margin-bottom: 0.2rem;
@@ -436,12 +436,12 @@ onMounted(async () => {
 
 /* Section label */
 .section-label {
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-muted);
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.6rem;
 }
 
 /* Today card */
@@ -465,7 +465,7 @@ onMounted(async () => {
 }
 
 .workout-card-title {
-  font-size: 1.25rem;
+  font-size: 1.05rem;
   font-weight: 700;
   color: var(--text-on-primary);
 }
@@ -589,7 +589,7 @@ onMounted(async () => {
 }
 
 .quick-card {
-  padding: 1.5rem;
+  padding: 1rem;
   border-radius: 1rem;
   text-decoration: none;
   text-align: left;
@@ -605,14 +605,14 @@ onMounted(async () => {
 }
 
 .quick-emoji {
-  font-size: 1.75rem;
+  font-size: 1.5rem;
   display: block;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.4rem;
 }
 
 .quick-title {
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   color: var(--text-primary);
   margin-bottom: 0.15rem;
 }

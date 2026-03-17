@@ -165,6 +165,51 @@ watch(activeSession, (session, oldSession) => {
   }
 })
 
+const TRACKABLE_SLUG_TO_CHALLENGE = {
+  // Pushup analyzer — horizontal push + vertical elbow cycles
+  'push-up': 'pushup', 'diamond-push-up': 'pushup', 'wide-grip-push-up': 'pushup',
+  'burpee': 'pushup', 'dips': 'pushup', 'tricep-dip-bench': 'pushup',
+  'pull-up': 'pushup', 'chin-up': 'pushup',
+  'bench-press': 'pushup', 'incline-bench-press': 'pushup', 'decline-bench-press': 'pushup',
+  'incline-dumbbell-press': 'pushup', 'close-grip-bench-press': 'pushup',
+  'skull-crusher': 'pushup', 'dumbbell-fly': 'pushup', 'incline-dumbbell-fly': 'pushup',
+  // Squat analyzer — knee/hip angle cycles
+  'bodyweight-squat': 'squat_full', 'jump-squat': 'squat_full', 'sumo-squat': 'squat_full',
+  'front-squat': 'squat_full', 'barbell-squat': 'squat_full', 'hack-squat': 'squat_full',
+  'smith-machine-squat': 'squat_full', 'bulgarian-split-squat': 'squat_full',
+  'lunges': 'squat_full', 'step-up': 'squat_full', 'box-jump': 'squat_full',
+  'sissy-squat': 'squat_full', 'deadlift': 'squat_full', 'sumo-deadlift': 'squat_full',
+  'kettlebell-swing': 'squat_full', 'barbell-thruster': 'squat_full',
+  'hip-thrust': 'squat_full', 'nordic-curl': 'squat_full', 'leg-extension': 'squat_full',
+  'cable-pull-through': 'squat_full', 'glute-bridge': 'squat_full',
+  'donkey-kick': 'squat_full', 'fire-hydrant': 'squat_full',
+  'calf-raise': 'squat_full', 'single-leg-calf-raise': 'squat_full',
+  'crunch': 'squat_full', 'russian-twist': 'squat_full', 'bicycle-crunch': 'squat_full',
+  'hanging-leg-raise': 'squat_full', 'v-up': 'squat_full', 'dead-bug': 'squat_full',
+  'decline-sit-up': 'squat_full', 'cable-crunch': 'squat_full',
+  'ab-wheel-rollout': 'squat_full', 'hyperextension': 'squat_full', 'superman': 'squat_full',
+  // Arm rep analyzer — curls, raises, presses, rows, shrugs
+  'bicep-curl': 'arm_rep', 'hammer-curl': 'arm_rep', 'preacher-curl': 'arm_rep',
+  'incline-dumbbell-curl': 'arm_rep', 'concentration-curl': 'arm_rep',
+  'cable-curl': 'arm_rep', 'reverse-curl': 'arm_rep',
+  'overhead-tricep-extension': 'arm_rep', 'tricep-pushdown': 'arm_rep',
+  'dumbbell-tricep-kickback': 'arm_rep',
+  'lateral-raise': 'arm_rep', 'cable-lateral-raise': 'arm_rep',
+  'front-raise': 'arm_rep', 'reverse-fly': 'arm_rep',
+  'shoulder-press': 'arm_rep', 'arnold-press': 'arm_rep',
+  'barbell-shrug': 'arm_rep', 'dumbbell-shrug': 'arm_rep',
+  'upright-row': 'arm_rep', 'barbell-row': 'arm_rep',
+  'single-arm-dumbbell-row': 'arm_rep', 't-bar-row': 'arm_rep',
+  'seated-cable-row': 'arm_rep', 'chest-supported-row': 'arm_rep',
+  'pendlay-row': 'arm_rep',
+  'good-morning': 'arm_rep', 'romanian-deadlift': 'arm_rep',
+  'stiff-leg-deadlift': 'arm_rep', 'face-pull': 'arm_rep', 'glute-kickback': 'arm_rep',
+  // Hold analyzers
+  'squat-hold': 'squat_hold', 'wall-sit': 'squat_hold',
+  'plank': 'plank', 'side-plank': 'plank', 'hollow-body-hold': 'plank',
+  'hip-flexor-stretch': 'plank', 'pigeon-pose': 'plank', 'childs-pose': 'plank',
+}
+
 async function handleAction(action, params = {}) {
   if (!sid.value) return
   // Capture camera preference from exercise intro
@@ -173,6 +218,29 @@ async function handleAction(action, params = {}) {
   }
   try {
     await workoutStore.sendAction(sid.value, action, params)
+
+    // After action resolves, check if we landed on active_set with camera for a trackable exercise
+    // → redirect to ChallengeSessionView which has the full polished camera UX
+    if (
+      workoutStore.activeSession?.view === 'active_set' &&
+      useCameraForCurrentExercise.value
+    ) {
+      const exerciseSlug = workoutStore.activeSession?.data?.exercise?.slug
+      const challengeType = TRACKABLE_SLUG_TO_CHALLENGE[exerciseSlug]
+      if (challengeType) {
+        const setData = workoutStore.activeSession.data
+        router.push({
+          path: `/challenges/${challengeType}/session`,
+          query: {
+            workout_session_id: sid.value,
+            exercise_id: setData.exercise?.exercise_id,
+            set_number: setData.set_number,
+            sets_total: setData.sets_total,
+          }
+        })
+        return
+      }
+    }
   } catch (err) {
     console.error('Action failed:', err)
   }

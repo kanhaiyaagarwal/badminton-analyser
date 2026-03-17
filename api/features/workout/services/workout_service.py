@@ -43,18 +43,26 @@ class WorkoutService:
             profile = UserProfile(user_id=user_id)
             db.add(profile)
 
-        profile.fitness_level = data["fitness_level"]
-        profile.age = data.get("age")
-        profile.gender = data.get("gender")
-        profile.height_cm = data.get("height_cm")
-        profile.weight_kg = data.get("weight_kg")
-        profile.injuries = data.get("injuries")
+        profile.fitness_level = data.get("fitness_level", "beginner")
+        if data.get("age"):
+            profile.age = data["age"]
+        if data.get("gender"):
+            profile.gender = data["gender"]
+        if data.get("height_cm"):
+            profile.height_cm = data["height_cm"]
+        if data.get("weight_kg"):
+            profile.weight_kg = data["weight_kg"]
+        if data.get("injuries"):
+            profile.injuries = data["injuries"]
         profile.onboarding_completed = True
         profile.onboarding_completed_at = datetime.utcnow()
 
         # Replace goals
+        goals = data.get("goals", [])
+        if not goals:
+            goals = ["stay_active"]  # sensible default
         db.query(UserGoal).filter(UserGoal.user_id == user_id).delete()
-        for i, goal_type in enumerate(data.get("goals", [])):
+        for i, goal_type in enumerate(goals):
             db.add(UserGoal(user_id=user_id, goal_type=goal_type, priority=i))
 
         # Upsert preferences
@@ -399,6 +407,144 @@ class WorkoutService:
             "total_volume_kg": round(total_volume, 1),
             "workouts_this_week": workouts_this_week,
             "recent_prs": [],
+        }
+
+    @staticmethod
+    def get_workout_history(db: Session, user_id: int, limit: int = 20, offset: int = 0) -> dict:
+        """Get completed workout sessions with set details."""
+        sessions = (
+            db.query(WorkoutSession)
+            .filter(
+                WorkoutSession.user_id == user_id,
+                WorkoutSession.status == SessionStatus.COMPLETED,
+            )
+            .order_by(WorkoutSession.ended_at.desc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+
+        result = []
+        for s in sessions:
+            sets = db.query(ExerciseSet).filter(ExerciseSet.session_id == s.id).all()
+            total_volume = sum((st.actual_reps or 0) * (st.weight_kg or 0) for st in sets)
+            total_sets = len([st for st in sets if not st.is_skipped])
+            total_reps = sum(st.actual_reps or 0 for st in sets if not st.is_skipped)
+
+            # Group by exercise
+            exercise_ids = list({st.exercise_id for st in sets if st.exercise_id})
+            exercises_done = db.query(Exercise).filter(Exercise.id.in_(exercise_ids)).all() if exercise_ids else []
+            exercise_names = [e.name for e in exercises_done]
+
+            result.append({
+                "id": s.id,
+                "date": s.scheduled_date.isoformat() if s.scheduled_date else (s.ended_at.isoformat() if s.ended_at else None),
+                "duration_seconds": s.duration_seconds,
+                "session_type": s.session_type.value if s.session_type else None,
+                "exercises": exercise_names,
+                "total_sets": total_sets,
+                "total_reps": total_reps,
+                "total_volume_kg": round(total_volume, 1),
+                "summary": s.summary,
+            })
+
+        total_count = db.query(WorkoutSession).filter(
+            WorkoutSession.user_id == user_id,
+            WorkoutSession.status == SessionStatus.COMPLETED,
+        ).count()
+
+        return {"sessions": result, "total": total_count}
+
+    @staticmethod
+    def update_measurements(db: Session, user_id: int, data: dict) -> dict:
+        """Update body measurements."""
+        profile = db.query(UserProfile).filter(UserProfile.user_id == user_id).first()
+        if not profile:
+            raise ValueError("Profile not found. Complete onboarding first.")
+
+        allowed = {"weight_kg", "height_cm", "age"}
+        updated = {}
+        for key in allowed:
+            if key in data and data[key] is not None:
+                setattr(profile, key, data[key])
+                updated[key] = data[key]
+
+        db.commit()
+        return {
+            "weight_kg": profile.weight_kg,
+            "height_cm": profile.height_cm,
+            "age": profile.age,
+            **updated,
+        }
+
+    @staticmethod
+    def get_goals(db: Session, user_id: int) -> dict:
+        """Get user goals and preferences."""
+        goals = db.query(UserGoal).filter(UserGoal.user_id == user_id).order_by(UserGoal.priority).all()
+        prefs = db.query(CoachPreferences).filter(CoachPreferences.user_id == user_id).first()
+
+        return {
+            "goals": [{"type": g.goal_type, "priority": g.priority} for g in goals],
+            "preferences": {
+                "days_per_week": prefs.days_per_week if prefs else None,
+                "session_duration_minutes": prefs.session_duration_minutes if prefs else None,
+                "workout_split": prefs.workout_split if prefs else None,
+                "train_location": prefs.train_location if prefs else None,
+            } if prefs else None,
+        }
+
+    # Master equipment list grouped for UI
+    EQUIPMENT_CATEGORIES = {
+        "Free Weights": ["barbell", "dumbbells", "kettlebell"],
+        "Benches & Racks": ["bench", "decline bench", "squat rack", "preacher bench", "dip bars", "pull-up bar"],
+        "Machines": [
+            "cable machine", "smith machine", "leg press machine", "leg extension machine",
+            "leg curl machine", "seated leg curl machine", "seated calf raise machine",
+            "hack squat machine", "chest press machine", "pec deck machine",
+            "row machine", "abductor machine", "adductor machine", "hyperextension bench",
+        ],
+        "Accessories": ["resistance band", "ab wheel", "yoga mat", "jump rope", "box"],
+        "Specialty": ["battle ropes", "sled"],
+    }
+
+    @staticmethod
+    def get_equipment(db: Session, user_id: int) -> dict:
+        """Get user's saved equipment and the master equipment catalog."""
+        prefs = db.query(CoachPreferences).filter(CoachPreferences.user_id == user_id).first()
+        user_equipment = prefs.available_equipment if prefs and prefs.available_equipment else []
+        train_location = prefs.train_location if prefs else "gym"
+
+        # Count how many exercises each equipment item unlocks
+        exercises = db.query(Exercise).all()
+        equip_exercise_count = {}
+        for eq_cat, eq_list in WorkoutService.EQUIPMENT_CATEGORIES.items():
+            for eq in eq_list:
+                count = sum(1 for e in exercises if eq in (e.equipment or []))
+                equip_exercise_count[eq] = count
+
+        return {
+            "user_equipment": user_equipment,
+            "train_location": train_location,
+            "categories": WorkoutService.EQUIPMENT_CATEGORIES,
+            "exercise_counts": equip_exercise_count,
+        }
+
+    @staticmethod
+    def update_equipment(db: Session, user_id: int, equipment: list, train_location: str = None) -> dict:
+        """Update user's available equipment."""
+        prefs = db.query(CoachPreferences).filter(CoachPreferences.user_id == user_id).first()
+        if not prefs:
+            prefs = CoachPreferences(user_id=user_id)
+            db.add(prefs)
+
+        prefs.available_equipment = equipment
+        if train_location:
+            prefs.train_location = train_location
+        db.commit()
+
+        return {
+            "equipment": prefs.available_equipment,
+            "train_location": prefs.train_location,
         }
 
     @staticmethod

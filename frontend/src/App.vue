@@ -5,7 +5,7 @@
 
       <!-- Top Header (authenticated, non-landing/auth pages) -->
       <header v-if="authStore.isAuthenticated && !isLandingPage && !isAuthPage && !isFullscreenPage" class="app-header">
-        <router-link :to="isBadminton ? '/dashboard' : '/challenges'" class="header-brand">
+        <router-link :to="isBadminton ? '/dashboard' : '/hub'" class="header-brand">
           <img v-if="!isBadminton" src="/mascot/otter-mascot.png" alt="PushUp Pro" class="header-logo" />
           <span class="header-name">{{ appName }}</span>
         </router-link>
@@ -28,7 +28,7 @@
       <nav v-if="authStore.isAuthenticated && !isLandingPage && !isAuthPage && !isAdminPage && !isFullscreenPage" class="bottom-nav">
         <!-- Fitness nav -->
         <template v-if="!isBadminton">
-          <BottomNavItem to="/challenges" label="Home" exact>
+          <BottomNavItem to="/hub" label="Home" exact>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
               <polyline points="9 22 9 12 15 12 15 22"/>

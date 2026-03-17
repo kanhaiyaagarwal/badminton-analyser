@@ -54,6 +54,7 @@ class ExerciseResponse(BaseModel):
     form_cues: Optional[List[str]] = None
     common_mistakes: Optional[List[str]] = None
     demo_image_url: Optional[str] = None
+    demo_video_url: Optional[str] = None
     description: Optional[str] = None
 
     class Config:

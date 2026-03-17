@@ -48,25 +48,127 @@
       </div>
     </section>
 
-    <!-- Menu Items -->
+    <!-- Menu Items with inline panels -->
     <section class="menu-section">
-      <button
-        v-for="(item, i) in menuItems"
-        :key="item.label"
-        v-motion
-        :initial="{ opacity: 0, x: -20 }"
-        :enter="{ opacity: 1, x: 0, transition: { delay: 200 + i * 50 } }"
-        class="menu-item glass"
-        @click="handleMenuItem(item)"
-      >
-        <div class="menu-icon-wrap">
-          <span class="menu-emoji">{{ item.icon }}</span>
+      <template v-for="(item, i) in menuItems" :key="item.label">
+        <button
+          v-motion
+          :initial="{ opacity: 0, x: -20 }"
+          :enter="{ opacity: 1, x: 0, transition: { delay: 200 + i * 50 } }"
+          :class="['menu-item', 'glass', { 'menu-item-active': activePanel === item.action }]"
+          @click="handleMenuItem(item)"
+        >
+          <div class="menu-icon-wrap">
+            <span class="menu-emoji">{{ item.icon }}</span>
+          </div>
+          <span class="menu-label font-display">{{ item.label }}</span>
+          <svg :class="['menu-chevron', { rotated: activePanel === item.action }]" viewBox="0 0 20 20" fill="none" width="20" height="20">
+            <path d="M7.5 15L12.5 10L7.5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+
+        <!-- Workout History Panel -->
+        <div v-if="item.action === 'history' && activePanel === 'history'" class="panel glass">
+          <div v-if="historyLoading" class="panel-loading">Loading...</div>
+          <div v-else-if="!workoutHistory.length" class="panel-empty">No workouts yet. Start your first session!</div>
+          <div v-else class="history-list">
+            <div v-for="session in workoutHistory" :key="session.id" class="history-item">
+              <div class="history-date">{{ formatDate(session.date) }}</div>
+              <div class="history-detail">
+                <span class="history-exercises">{{ session.exercises.join(', ') || 'Workout' }}</span>
+                <div class="history-meta">
+                  <span v-if="session.duration_seconds">{{ formatDuration(session.duration_seconds) }}</span>
+                  <span v-if="session.total_sets">{{ session.total_sets }} sets</span>
+                  <span v-if="session.total_volume_kg">{{ session.total_volume_kg }} kg</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-        <span class="menu-label font-display">{{ item.label }}</span>
-        <svg class="menu-chevron" viewBox="0 0 20 20" fill="none" width="20" height="20">
-          <path d="M7.5 15L12.5 10L7.5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </button>
+
+        <!-- Body Measurements Panel -->
+        <div v-if="item.action === 'measurements' && activePanel === 'measurements'" class="panel glass">
+          <div class="measurements-grid">
+            <div class="measurement-item">
+              <span class="measurement-label">Weight</span>
+              <div class="measurement-edit">
+                <input v-model.number="editWeight" type="number" step="0.1" class="measurement-input" placeholder="—" />
+                <span class="measurement-unit">kg</span>
+              </div>
+            </div>
+            <div class="measurement-item">
+              <span class="measurement-label">Height</span>
+              <div class="measurement-edit">
+                <input v-model.number="editHeight" type="number" step="0.1" class="measurement-input" placeholder="—" />
+                <span class="measurement-unit">cm</span>
+              </div>
+            </div>
+            <div class="measurement-item">
+              <span class="measurement-label">Age</span>
+              <div class="measurement-edit">
+                <input v-model.number="editAge" type="number" step="1" class="measurement-input" placeholder="—" />
+                <span class="measurement-unit">yrs</span>
+              </div>
+            </div>
+          </div>
+          <button @click="saveMeasurements" class="btn-save-measurements" :disabled="savingMeasurements">
+            {{ savingMeasurements ? 'Saving...' : 'Save' }}
+          </button>
+        </div>
+
+        <!-- Goals & Progress Panel -->
+        <div v-if="item.action === 'goals' && activePanel === 'goals'" class="panel glass">
+          <div v-if="goalsLoading" class="panel-loading">Loading...</div>
+          <template v-else>
+            <div v-if="progressStats" class="progress-grid">
+              <div class="progress-item">
+                <span class="progress-value gradient-text">{{ progressStats.total_workouts }}</span>
+                <span class="progress-label">Total Workouts</span>
+              </div>
+              <div class="progress-item">
+                <span class="progress-value gradient-text">{{ progressStats.current_streak }}d</span>
+                <span class="progress-label">Streak</span>
+              </div>
+              <div class="progress-item">
+                <span class="progress-value gradient-text">{{ progressStats.workouts_this_week }}</span>
+                <span class="progress-label">This Week</span>
+              </div>
+              <div class="progress-item">
+                <span class="progress-value gradient-text">{{ Math.round(progressStats.total_volume_kg) }}</span>
+                <span class="progress-label">Total Vol (kg)</span>
+              </div>
+            </div>
+
+            <div v-if="userGoals.length" class="goals-list">
+              <h3 class="panel-subtitle">Goals</h3>
+              <div v-for="goal in userGoals" :key="goal.type" class="goal-item">
+                <span class="goal-icon">{{ goalIcon(goal.type) }}</span>
+                <span class="goal-text">{{ goalLabel(goal.type) }}</span>
+              </div>
+            </div>
+
+            <div v-if="userPreferences" class="prefs-list">
+              <h3 class="panel-subtitle">Plan</h3>
+              <div class="pref-row">
+                <span class="pref-label">Schedule</span>
+                <span class="pref-value">{{ userPreferences.days_per_week }}x/week • {{ userPreferences.session_duration_minutes }}min</span>
+              </div>
+              <div v-if="userPreferences.workout_split" class="pref-row">
+                <span class="pref-label">Split</span>
+                <span class="pref-value">{{ userPreferences.workout_split.toUpperCase() }}</span>
+              </div>
+              <div v-if="userPreferences.train_location" class="pref-row">
+                <span class="pref-label">Location</span>
+                <span class="pref-value">{{ capitalize(userPreferences.train_location) }}</span>
+              </div>
+            </div>
+
+            <div v-if="!userGoals.length && !progressStats" class="panel-empty">
+              Complete onboarding to set your goals.
+            </div>
+          </template>
+        </div>
+      </template>
     </section>
 
     <!-- Settings panel (inline, replaces old edit rows) -->
@@ -135,6 +237,7 @@ const authStore = useAuthStore()
 const workoutStore = useWorkoutStore()
 
 const showSettings = ref(false)
+const activePanel = ref(null)
 const editing = ref(null)
 const editName = ref('')
 const editPhone = ref('')
@@ -146,6 +249,17 @@ const nameInput = ref(null)
 const phoneInput = ref(null)
 const workoutProfile = ref(null)
 const progressStats = ref(null)
+
+// Panel data
+const workoutHistory = ref([])
+const historyLoading = ref(false)
+const editWeight = ref(null)
+const editHeight = ref(null)
+const editAge = ref(null)
+const savingMeasurements = ref(false)
+const userGoals = ref([])
+const userPreferences = ref(null)
+const goalsLoading = ref(false)
 
 function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : '' }
 
@@ -165,15 +279,93 @@ const profileStats = computed(() => [
 const menuItems = [
   { label: 'Workout History', icon: '📊', action: 'history' },
   { label: 'Body Measurements', icon: '📏', action: 'measurements' },
+  { label: 'My Equipment', icon: '🏋️', action: 'equipment', route: '/workout/equipment' },
   { label: 'Goals & Progress', icon: '🎯', action: 'goals' },
   { label: 'Settings', icon: '⚙️', action: 'settings' },
 ]
 
 function handleMenuItem(item) {
+  if (item.route) {
+    router.push(item.route)
+    return
+  }
   if (item.action === 'settings') {
     showSettings.value = !showSettings.value
+    activePanel.value = null
+    return
   }
-  // Other items can be routed later
+  // Toggle panel
+  if (activePanel.value === item.action) {
+    activePanel.value = null
+    return
+  }
+  activePanel.value = item.action
+  showSettings.value = false
+  loadPanelData(item.action)
+}
+
+async function loadPanelData(action) {
+  if (action === 'history') {
+    historyLoading.value = true
+    try {
+      const data = await workoutStore.fetchWorkoutHistory()
+      workoutHistory.value = data.sessions || []
+    } catch { workoutHistory.value = [] }
+    finally { historyLoading.value = false }
+  } else if (action === 'measurements') {
+    editWeight.value = workoutProfile.value?.weight_kg || null
+    editHeight.value = workoutProfile.value?.height_cm || null
+    editAge.value = workoutProfile.value?.age || null
+  } else if (action === 'goals') {
+    goalsLoading.value = true
+    try {
+      const data = await workoutStore.fetchGoals()
+      userGoals.value = data.goals || []
+      userPreferences.value = data.preferences || null
+    } catch { userGoals.value = [] }
+    finally { goalsLoading.value = false }
+  }
+}
+
+async function saveMeasurements() {
+  savingMeasurements.value = true
+  error.value = ''
+  try {
+    const data = await workoutStore.updateMeasurements({
+      weight_kg: editWeight.value,
+      height_cm: editHeight.value,
+      age: editAge.value,
+    })
+    if (workoutProfile.value) {
+      workoutProfile.value.weight_kg = data.weight_kg
+      workoutProfile.value.height_cm = data.height_cm
+      workoutProfile.value.age = data.age
+    }
+    flashSuccess('Measurements updated')
+  } catch (err) { error.value = err.response?.data?.detail || 'Failed to save' }
+  finally { savingMeasurements.value = false }
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '—'
+  const d = new Date(dateStr)
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+function formatDuration(seconds) {
+  if (!seconds) return ''
+  const m = Math.floor(seconds / 60)
+  return m > 0 ? `${m}min` : `${seconds}s`
+}
+
+function goalIcon(type) {
+  const map = { build_muscle: '💪', lose_fat: '🔥', get_stronger: '🏋️', stay_active: '🏃' }
+  return map[type] || '🎯'
+}
+
+function goalLabel(type) {
+  const map = { build_muscle: 'Build Muscle', lose_fat: 'Lose Fat', get_stronger: 'Get Stronger', stay_active: 'Stay Active' }
+  return map[type] || capitalize(type?.replace('_', ' '))
 }
 
 function startEdit(field) {
@@ -398,6 +590,215 @@ onMounted(async () => {
 .menu-chevron {
   color: var(--text-muted);
   flex-shrink: 0;
+  transition: transform 0.2s;
+}
+
+.menu-chevron.rotated {
+  transform: rotate(90deg);
+}
+
+.menu-item-active {
+  border-color: var(--color-secondary) !important;
+}
+
+/* Expandable Panels */
+.panel {
+  border-radius: 1rem;
+  padding: 1rem;
+}
+
+.panel-loading,
+.panel-empty {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  padding: 1rem 0;
+}
+
+.panel-subtitle {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin: 1rem 0 0.5rem;
+}
+
+/* History */
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.history-item {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.history-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.history-date {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-primary);
+  min-width: 50px;
+  padding-top: 0.1rem;
+}
+
+.history-exercises {
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.history-meta {
+  display: flex;
+  gap: 0.75rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 0.2rem;
+}
+
+/* Measurements */
+.measurements-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.measurement-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.measurement-label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.measurement-edit {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.measurement-input {
+  width: 70px;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  text-align: right;
+}
+
+.measurement-unit {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  width: 20px;
+}
+
+.btn-save-measurements {
+  width: 100%;
+  margin-top: 1rem;
+  padding: 0.6rem;
+  background: var(--gradient-primary);
+  color: var(--text-on-primary);
+  border: none;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.btn-save-measurements:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Goals & Progress */
+.progress-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+}
+
+.progress-item {
+  text-align: center;
+  padding: 0.5rem;
+  background: var(--bg-input);
+  border-radius: var(--radius-md);
+}
+
+.progress-value {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 900;
+}
+
+.progress-label {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.goals-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.goal-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-input);
+  border-radius: var(--radius-md);
+}
+
+.goal-icon {
+  font-size: 1.1rem;
+}
+
+.goal-text {
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.prefs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.pref-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+}
+
+.pref-label {
+  color: var(--text-muted);
+}
+
+.pref-value {
+  color: var(--text-primary);
+  font-weight: 500;
 }
 
 /* Settings panel */

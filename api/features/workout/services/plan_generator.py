@@ -1,5 +1,13 @@
-"""Template-based workout plan generation (no LLM)."""
+"""Template-based workout plan generation (no LLM).
 
+Exercise prioritization:
+1. Compound exercises first (bench press before cable fly)
+2. Match user's difficulty level (beginner gets beginner exercises)
+3. Respect equipment constraints (home = bodyweight/dumbbells only)
+4. Variety — don't repeat the same exercise across days
+"""
+
+import random
 from typing import Dict, List, Optional
 
 
@@ -49,16 +57,19 @@ VOLUME_SCHEMES = {
     "advanced": {"sets": 5, "reps": "6-8", "rest_sec": 60},
 }
 
-# Bodyweight substitutions when no gym equipment
-BODYWEIGHT_SUBS = {
-    "bench-press": "push-up",
-    "shoulder-press": "push-up",  # pike push-up variant
-    "barbell-squat": "bodyweight-squat",
-    "leg-press": "bodyweight-squat",
-    "barbell-row": "push-up",  # inverted row approximation
-    "cable-fly": "push-up",
-    "tricep-pushdown": "push-up",  # diamond push-up variant
-    "leg-curl": "bodyweight-squat",
+# Category priority: compounds first, then bodyweight, then isolation, then cardio
+CATEGORY_PRIORITY = {
+    "compound": 0,
+    "bodyweight": 1,
+    "isolation": 2,
+    "cardio": 3,
+}
+
+# Difficulty ranking for matching user level
+DIFFICULTY_RANK = {
+    "beginner": 0,
+    "intermediate": 1,
+    "advanced": 2,
 }
 
 
@@ -72,37 +83,128 @@ def _pick_split(days_per_week: int) -> str:
         return "full_body"
 
 
+def _score_exercise(ex: dict, target_muscle: str, user_level: str) -> float:
+    """Score an exercise for selection priority. Lower = better.
+
+    Priorities:
+    1. Primary muscle match (exact primary_muscle match scores best)
+    2. Compound > bodyweight > isolation > cardio
+    3. Difficulty matches user level (exact match best, ±1 ok, ±2 worst)
+    4. Small random factor for variety across regenerations
+    """
+    score = 0.0
+
+    # Primary muscle match: 0 if primary matches, 5 if only in muscle_groups
+    if ex.get("primary_muscle") == target_muscle:
+        score += 0
+    else:
+        score += 5
+
+    # Category priority
+    score += CATEGORY_PRIORITY.get(ex.get("category", "cardio"), 3) * 10
+
+    # Difficulty match
+    user_rank = DIFFICULTY_RANK.get(user_level, 0)
+    ex_rank = DIFFICULTY_RANK.get(ex.get("difficulty", "beginner"), 0)
+    diff_gap = abs(user_rank - ex_rank)
+    if diff_gap == 0:
+        score += 0
+    elif diff_gap == 1:
+        score += 3
+    else:
+        score += 8  # advanced exercise for beginner or vice versa
+
+    # Skip flexibility/recovery exercises for main workout slots
+    if ex.get("tracking_mode") == "hold" and ex.get("category") == "cardio":
+        score += 50
+
+    # Small random factor for variety (different plans each time)
+    score += random.random() * 2
+
+    return score
+
+
+def _equipment_available(ex: dict, available_equipment: Optional[List[str]], is_home: bool) -> bool:
+    """Check if user has the equipment for this exercise."""
+    ex_equip = set(ex.get("equipment", ["none"]))
+    if ex_equip == {"none"}:
+        return True  # bodyweight — always available
+    if not is_home:
+        return True  # gym — assume all equipment available
+    # Home: must have the equipment
+    user_equip = set(available_equipment or [])
+    return ex_equip.issubset(user_equip | {"none"})
+
+
 def _exercises_for_muscles(
     target_muscles: List[str],
     exercises: List[dict],
     available_equipment: Optional[List[str]],
     is_home: bool,
+    user_level: str,
     max_exercises: int = 5,
+    used_slugs: set = None,
 ) -> List[dict]:
-    """Select exercises that hit the target muscles, respecting equipment constraints."""
+    """Select exercises that hit the target muscles, with smart prioritization.
+
+    For each target muscle:
+    1. Filter to exercises that hit this muscle AND user has equipment for
+    2. Score and sort by priority (compound first, difficulty match, variety)
+    3. Pick the best available exercise not already used
+    """
+    if used_slugs is None:
+        used_slugs = set()
     selected = []
-    used_slugs = set()
+    selected_slugs = set()
 
     for muscle in target_muscles:
+        if len(selected) >= max_exercises:
+            break
+
+        # Find all candidate exercises for this muscle
+        candidates = []
         for ex in exercises:
-            if ex["slug"] in used_slugs:
+            slug = ex["slug"]
+            if slug in used_slugs or slug in selected_slugs:
                 continue
             if muscle not in ex.get("muscle_groups", []):
                 continue
+            if not _equipment_available(ex, available_equipment, is_home):
+                continue
+            candidates.append(ex)
 
-            # Equipment check for home workouts
-            if is_home and ex.get("equipment", ["none"]) != ["none"]:
-                # Check if user has this equipment at home
-                ex_equip = set(ex.get("equipment", []))
-                user_equip = set(available_equipment or [])
-                if ex_equip - {"none"} and not ex_equip.issubset(user_equip):
-                    continue
+        if not candidates:
+            continue
 
-            selected.append(ex)
-            used_slugs.add(ex["slug"])
+        # Score and sort
+        candidates.sort(key=lambda ex: _score_exercise(ex, muscle, user_level))
 
+        # Pick the best one
+        best = candidates[0]
+        selected.append(best)
+        selected_slugs.add(best["slug"])
+
+    # If we have room, add more exercises for under-represented muscles
+    if len(selected) < max_exercises:
+        all_candidates = []
+        for ex in exercises:
+            slug = ex["slug"]
+            if slug in used_slugs or slug in selected_slugs:
+                continue
+            if not any(m in ex.get("muscle_groups", []) for m in target_muscles):
+                continue
+            if not _equipment_available(ex, available_equipment, is_home):
+                continue
+            all_candidates.append(ex)
+
+        # Sort remaining by how well they complement what we already have
+        all_candidates.sort(key=lambda ex: _score_exercise(ex, target_muscles[0], user_level))
+
+        for ex in all_candidates:
             if len(selected) >= max_exercises:
-                return selected
+                break
+            selected.append(ex)
+            selected_slugs.add(ex["slug"])
 
     return selected
 
@@ -143,6 +245,9 @@ def generate_template_plan(
     else:
         max_per_session = 7
 
+    # Track used slugs across days for variety (especially for repeated day types like PPL)
+    global_used = set()
+
     # Build day assignments
     days = []
     day_labels = template["day_labels"]
@@ -158,8 +263,13 @@ def generate_template_plan(
                     break
 
         day_exercises = _exercises_for_muscles(
-            target_muscles, exercises, available_equipment, is_home, max_per_session
+            target_muscles, exercises, available_equipment, is_home,
+            fitness_level, max_per_session, used_slugs=global_used,
         )
+
+        # Add selected slugs to global used (for variety on next day with same muscle group)
+        for ex in day_exercises:
+            global_used.add(ex["slug"])
 
         day_data = {
             "day": day_name,

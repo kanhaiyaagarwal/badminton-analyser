@@ -251,7 +251,7 @@ import { useAppMode } from '../composables/useAppMode'
 import api from '../api/client'
 
 const { isBadminton, appName } = useAppMode()
-const defaultHome = isBadminton.value ? '/dashboard' : '/challenges'
+const defaultHome = isBadminton.value ? '/dashboard' : '/hub'
 
 const router = useRouter()
 const route = useRoute()

@@ -72,8 +72,8 @@
 
     <!-- Step 3: Goals -->
     <div v-if="step === 3" class="step-content" key="step3">
-      <h2 class="step-title">Your Goals</h2>
-      <p class="step-desc">Select all that apply.</p>
+      <h2 class="step-title">What are you training for?</h2>
+      <p class="step-desc">Pick all that apply, or skip to let us decide.</p>
 
       <div class="goal-cards">
         <button
@@ -92,9 +92,9 @@
     <!-- Step 4: Schedule -->
     <div v-if="step === 4" class="step-content" key="step4">
       <h2 class="step-title">Your Schedule</h2>
-      <p class="step-desc">When and where do you train?</p>
+      <p class="step-desc">When and where do you train? All optional.</p>
 
-      <label class="field-label">Training Days</label>
+      <label class="field-label">How many days a week?</label>
       <div class="day-picker">
         <button
           v-for="d in dayOptions"
@@ -107,16 +107,16 @@
         </button>
       </div>
 
-      <label class="field-label">Session Length</label>
+      <label class="field-label">How long per session?</label>
       <div class="pill-options">
         <button
           v-for="dur in durationOptions"
-          :key="dur"
+          :key="dur.value"
           class="pill"
-          :class="{ selected: form.session_duration_minutes === dur }"
-          @click="form.session_duration_minutes = dur"
+          :class="{ selected: form.session_duration_minutes === dur.value }"
+          @click="form.session_duration_minutes = dur.value"
         >
-          {{ dur }} min
+          {{ dur.label }}
         </button>
       </div>
 
@@ -184,9 +184,17 @@
     <!-- Navigation -->
     <div v-if="step > 1 && step < 5" class="nav-bar">
       <button class="btn-ghost" @click="step--">Back</button>
-      <button class="btn-primary" :disabled="!canProceed" @click="handleNext">
-        {{ step === 4 ? 'Preview Plan' : 'Next' }}
-      </button>
+      <div class="nav-right">
+        <button class="btn-skip" @click="handleSkipStep">Skip</button>
+        <button class="btn-primary" @click="handleNext">
+          {{ step === 4 ? 'Preview Plan' : 'Next' }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Skip all banner -->
+    <div v-if="step > 1 && step < 5" class="skip-all-bar">
+      <button class="btn-skip-all" @click="skipAndGenerate">Skip setup, build my plan with defaults</button>
     </div>
   </div>
 </template>
@@ -241,19 +249,19 @@ const dayOptions = [
   { value: 'sun', short: 'S' },
 ]
 
-const durationOptions = [20, 30, 45, 60]
+const durationOptions = [
+  { value: 20, label: '20 min' },
+  { value: 30, label: '30 min' },
+  { value: 45, label: '45 min' },
+  { value: 60, label: '60 min' },
+  { value: 0, label: 'Flexible' },
+]
 
 const equipmentOptions = [
   'barbell', 'dumbbells', 'bench', 'squat rack', 'cable machine',
   'leg press machine', 'leg curl machine', 'yoga mat',
 ]
 
-const canProceed = computed(() => {
-  if (step.value === 2) return !!form.value.fitness_level
-  if (step.value === 3) return form.value.goals.length > 0
-  if (step.value === 4) return form.value.preferred_days.length > 0
-  return true
-})
 
 function toggleGoal(goal) {
   const idx = form.value.goals.indexOf(goal)
@@ -275,7 +283,21 @@ function toggleEquipment(eq) {
 }
 
 function skipToWorkout() {
-  router.push('/workout')
+  router.push('/hub')
+}
+
+function handleSkipStep() {
+  if (step.value === 4) {
+    step.value = 5
+    submitPlan()
+  } else {
+    step.value++
+  }
+}
+
+async function skipAndGenerate() {
+  step.value = 5
+  await submitPlan()
 }
 
 async function handleNext() {
@@ -295,6 +317,10 @@ async function submitPlan() {
     const payload = { ...form.value }
     if (injuriesText.value) {
       payload.injuries = injuriesText.value.split(',').map(s => s.trim()).filter(Boolean)
+    }
+    // Flexible = no fixed duration, send default
+    if (!payload.session_duration_minutes) {
+      payload.session_duration_minutes = 45
     }
     const result = await workoutStore.submitOnboarding(payload)
     planResult.value = result
@@ -357,6 +383,7 @@ function finishOnboarding() {
   font-weight: 800;
   color: var(--text-primary);
   margin-bottom: 0.35rem;
+  text-align: center;
 }
 
 .step-desc {
@@ -364,6 +391,7 @@ function finishOnboarding() {
   color: var(--text-secondary);
   margin-bottom: 1.25rem;
   line-height: 1.5;
+  text-align: center;
 }
 
 /* Welcome */
@@ -433,18 +461,17 @@ function finishOnboarding() {
 .goal-cards {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
+  gap: 0.5rem;
 }
 
 .goal-card {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 0.35rem;
-  padding: 1.25rem 0.75rem;
+  gap: 0.5rem;
+  padding: 0.7rem 0.75rem;
   background: var(--bg-card);
   border: 2px solid var(--border-color);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -455,25 +482,29 @@ function finishOnboarding() {
 }
 
 .goal-icon {
-  font-size: 1.5rem;
+  font-size: 1.2rem;
+  flex-shrink: 0;
 }
 
 .goal-label {
   font-weight: 600;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: var(--text-primary);
+  white-space: nowrap;
 }
 
 /* Day picker */
 .day-picker {
   display: flex;
-  gap: 0.5rem;
+  flex-wrap: wrap;
+  gap: 0.4rem;
   margin-bottom: 1.25rem;
+  justify-content: center;
 }
 
 .day-circle {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   border: 2px solid var(--border-color);
   background: var(--bg-card);
@@ -481,7 +512,7 @@ function finishOnboarding() {
   align-items: center;
   justify-content: center;
   font-weight: 600;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s;
@@ -499,18 +530,20 @@ function finishOnboarding() {
   gap: 0.5rem;
   margin-bottom: 1.25rem;
   flex-wrap: wrap;
+  justify-content: center;
 }
 
 .pill {
-  padding: 0.5rem 1rem;
+  padding: 0.4rem 0.85rem;
   border-radius: var(--radius-full);
   border: 2px solid var(--border-color);
   background: var(--bg-card);
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 500;
   color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s;
+  white-space: nowrap;
 }
 
 .pill.selected {
@@ -521,9 +554,10 @@ function finishOnboarding() {
 
 /* Equipment */
 .equipment-checks {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.4rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
 }
 
 .check-label {
@@ -548,6 +582,7 @@ function finishOnboarding() {
   margin-bottom: 0.4rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+  text-align: center;
 }
 
 .optional {
@@ -649,6 +684,39 @@ function finishOnboarding() {
   padding-top: 1rem;
   margin-top: 1rem;
   border-top: 1px solid var(--border-color);
+}
+
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-skip {
+  padding: 0.5rem 0.85rem;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.skip-all-bar {
+  text-align: center;
+  padding-top: 0.75rem;
+}
+
+.btn-skip-all {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 /* Buttons */

@@ -55,6 +55,28 @@
           </div>
         </div>
 
+        <!-- Demo video -->
+        <div v-if="videoId" class="demo-video">
+          <div class="video-wrap" @click="showVideo = !showVideo">
+            <template v-if="showVideo">
+              <iframe
+                :src="`https://www.youtube.com/embed/${videoId}?autoplay=1&loop=1&mute=1&playsinline=1`"
+                frameborder="0"
+                allow="autoplay; encrypted-media"
+                allowfullscreen
+                class="video-iframe"
+              ></iframe>
+            </template>
+            <template v-else>
+              <img :src="`https://img.youtube.com/vi/${videoId}/0.jpg`" alt="Demo" class="video-thumb" />
+              <div class="play-overlay">
+                <svg viewBox="0 0 24 24" fill="white" width="32" height="32"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              </div>
+            </template>
+          </div>
+          <p class="demo-label">Tap to {{ showVideo ? 'hide' : 'watch' }} demo</p>
+        </div>
+
         <!-- Form cues -->
         <div v-if="formCues.length > 0" class="form-cues">
           <h3 class="cues-title">Form Cues</h3>
@@ -120,6 +142,15 @@ const emit = defineEmits(['action'])
 const exercise = computed(() => props.data.exercise || {})
 const formCues = computed(() => props.data.form_cues || [])
 const history = computed(() => props.data.history || null)
+const showVideo = ref(false)
+
+const videoId = computed(() => {
+  const url = exercise.value.demo_video_url
+  if (!url) return null
+  // Extract YouTube video ID from shorts or regular URL
+  const match = url.match(/(?:shorts\/|v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
+  return match ? match[1] : null
+})
 
 const TRACKABLE_SLUGS = [
   'push-up', 'bodyweight-squat', 'plank', 'squat-hold', 'jump-squat', 'burpee',
@@ -279,6 +310,50 @@ function skipExercise() {
   color: var(--text-muted);
   margin-bottom: 1rem;
   cursor: pointer;
+}
+
+/* Demo video */
+.demo-video {
+  margin-bottom: 1rem;
+}
+
+.video-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 9/16;
+  max-height: 280px;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  background: #000;
+  cursor: pointer;
+}
+
+.video-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.video-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.play-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.demo-label {
+  text-align: center;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-top: 0.35rem;
 }
 
 /* Form cues */

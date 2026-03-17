@@ -116,6 +116,7 @@ TEMPLATE_STEPS = [
             {"label": "30 min", "value": "30"},
             {"label": "45 min", "value": "45"},
             {"label": "60 min", "value": "60"},
+            {"label": "Flexible", "value": "flexible"},
         ],
     },
     {
@@ -158,7 +159,7 @@ def get_or_create_conversation(conversation_id: Optional[str] = None) -> Convers
     return state
 
 
-def process_turn(conversation_id: Optional[str], user_message: str) -> dict:
+async def process_turn(conversation_id: Optional[str], user_message: str) -> dict:
     """Process one turn of onboarding conversation.
 
     Returns dict with: response, suggested_options, data_collected, onboarding_complete, conversation_id
@@ -167,26 +168,30 @@ def process_turn(conversation_id: Optional[str], user_message: str) -> dict:
 
     # Opening turn (empty message)
     if not user_message and not state.messages:
-        return _opening_turn(state)
+        return await _opening_turn(state)
 
     state.messages.append({"role": "user", "content": user_message})
+    logger.info("Onboarding turn [step=%d]: user='%s', collected_so_far=%s", state.step, user_message[:100], state.collected)
 
     # Always try to extract optional fields (age, height, weight, injuries)
     # from every message, regardless of which step we're on
     _extract_freeform(state, user_message)
 
     # Try LLM first
-    result = _try_llm_turn(state, user_message)
+    result = await _try_llm_turn(state, user_message)
     if result:
+        logger.info("Onboarding LLM result: collected=%s, complete=%s", result.get("data_collected"), result.get("onboarding_complete"))
         return result
 
     # Template fallback
-    return _template_turn(state, user_message)
+    result = _template_turn(state, user_message)
+    logger.info("Onboarding template result: collected=%s, complete=%s", result.get("data_collected"), result.get("onboarding_complete"))
+    return result
 
 
-def _opening_turn(state: ConversationState) -> dict:
+async def _opening_turn(state: ConversationState) -> dict:
     """Generate the opening greeting."""
-    result = _try_llm_opening(state)
+    result = await _try_llm_opening(state)
     if result:
         return result
 
@@ -201,14 +206,12 @@ def _opening_turn(state: ConversationState) -> dict:
     }
 
 
-def _try_llm_opening(state: ConversationState) -> Optional[dict]:
+async def _try_llm_opening(state: ConversationState) -> Optional[dict]:
     """Try LLM for the opening turn."""
     try:
         from .llm_service import chat as llm_chat
         prompt = SYSTEM_PROMPT.format(collected="{}", still_needed=str(REQUIRED_FIELDS))
-        result = asyncio.get_event_loop().run_until_complete(
-            llm_chat(prompt, "Start the conversation with a warm greeting and ask about fitness level.")
-        )
+        result = await llm_chat(prompt, "Start the conversation with a warm greeting and ask about fitness level.")
         if not result:
             return None
 
@@ -225,7 +228,7 @@ def _try_llm_opening(state: ConversationState) -> Optional[dict]:
         return None
 
 
-def _try_llm_turn(state: ConversationState, user_message: str) -> Optional[dict]:
+async def _try_llm_turn(state: ConversationState, user_message: str) -> Optional[dict]:
     """Try LLM for a conversation turn."""
     try:
         from .llm_service import chat as llm_chat
@@ -238,11 +241,11 @@ def _try_llm_turn(state: ConversationState, user_message: str) -> Optional[dict]
             f"{'Coach' if m['role'] == 'assistant' else 'User'}: {m['content']}"
             for m in state.messages[-6:]  # Last 6 messages for context
         )
-        result = asyncio.get_event_loop().run_until_complete(
-            llm_chat(prompt, convo_text)
-        )
+        result = await llm_chat(prompt, convo_text)
         if not result:
             return None
+
+        logger.info("LLM raw response: %s", {k: v for k, v in result.items() if k != 'suggested_options'})
 
         # Extract data
         extracted = result.get("extracted_data", {})
@@ -250,13 +253,24 @@ def _try_llm_turn(state: ConversationState, user_message: str) -> Optional[dict]
             for key, val in extracted.items():
                 if key in REQUIRED_FIELDS or key in OPTIONAL_FIELDS:
                     state.collected[key] = val
+            logger.info("LLM extracted: %s -> collected: %s", extracted, state.collected)
 
         response_text = result.get("response", "")
         state.messages.append({"role": "assistant", "content": response_text})
 
         all_done = state.all_collected or result.get("all_collected", False)
         if all_done:
-            response_text = result.get("response", "Perfect! Building your plan now...")
+            # Fill defaults for any still-missing required fields
+            defaults = {
+                "fitness_level": "beginner",
+                "goals": ["stay_active"],
+                "preferred_days": ["mon", "wed", "fri"],
+                "session_duration_minutes": 45,
+                "train_location": "gym",
+            }
+            for key, val in defaults.items():
+                if key not in state.collected:
+                    state.collected[key] = val
 
         return {
             "response": response_text,
@@ -266,7 +280,7 @@ def _try_llm_turn(state: ConversationState, user_message: str) -> Optional[dict]
             "conversation_id": state.id,
         }
     except Exception as e:
-        logger.debug("LLM turn failed: %s", e)
+        logger.warning("LLM turn failed: %s", e)
         return None
 
 
@@ -279,6 +293,17 @@ def _template_turn(state: ConversationState, user_message: str) -> dict:
     state.step += 1
 
     if state.step >= len(TEMPLATE_STEPS) or state.all_collected:
+        # Fill defaults for any missing required fields
+        defaults = {
+            "fitness_level": "beginner",
+            "goals": ["stay_active"],
+            "preferred_days": ["mon", "wed", "fri"],
+            "session_duration_minutes": 45,
+            "train_location": "gym",
+        }
+        for key, val in defaults.items():
+            if key not in state.collected:
+                state.collected[key] = val
         return {
             "response": "Perfect! I've got everything I need. Building your plan now...",
             "suggested_options": [],
@@ -303,8 +328,15 @@ def _extract_template_data(state: ConversationState, step: dict, user_message: s
     field = step.get("field")
     msg = user_message.strip().lower()
 
+    # Always try to extract optional fields (age/height/weight/injuries)
+    # from every message, regardless of which step we're on
+    before = dict(state.collected)
+    _extract_freeform(state, user_message)
+    freeform_extracted = {k: v for k, v in state.collected.items() if k not in before or before[k] != v}
+    if freeform_extracted:
+        logger.info("Freeform extracted from '%s': %s", user_message[:80], freeform_extracted)
+
     if not field or msg == "__skip__":
-        _extract_freeform(state, user_message)
         return
 
     if field == "fitness_level":
@@ -324,14 +356,37 @@ def _extract_template_data(state: ConversationState, step: dict, user_message: s
         state.collected["goals"] = goals if goals else ["stay_active"]
 
     elif field == "preferred_days":
+        # First try predefined options
         for opt in step["options"]:
             if opt["value"] == msg or opt["label"].lower() in msg:
                 state.collected["preferred_days"] = opt["value"].split(",")
                 return
-        days = [d.strip() for d in msg.split(",") if d.strip()]
-        state.collected["preferred_days"] = days if days else ["mon", "wed", "fri"]
+        # Parse day names from natural language
+        day_map = {
+            "monday": "mon", "mon": "mon",
+            "tuesday": "tue", "tue": "tue", "tues": "tue",
+            "wednesday": "wed", "wed": "wed",
+            "thursday": "thu", "thu": "thu", "thurs": "thu",
+            "friday": "fri", "fri": "fri",
+            "saturday": "sat", "sat": "sat",
+            "sunday": "sun", "sun": "sun",
+        }
+        found_days = []
+        for name, abbr in day_map.items():
+            if name in msg and abbr not in found_days:
+                found_days.append(abbr)
+        if found_days:
+            state.collected["preferred_days"] = found_days
+        else:
+            # Try comma-separated abbreviations
+            parts = [d.strip() for d in msg.split(",") if d.strip()]
+            valid = [p for p in parts if p in ("mon", "tue", "wed", "thu", "fri", "sat", "sun")]
+            state.collected["preferred_days"] = valid if valid else ["mon", "wed", "fri"]
 
     elif field == "session_duration_minutes":
+        if "flexible" in msg or "flex" in msg:
+            state.collected["session_duration_minutes"] = 45
+            return
         for val in ("20", "30", "45", "60"):
             if val in msg:
                 state.collected["session_duration_minutes"] = int(val)
@@ -355,22 +410,44 @@ def _extract_template_data(state: ConversationState, step: dict, user_message: s
 
 def _extract_freeform(state: ConversationState, text: str):
     """Try to extract optional fields from free-form text."""
-    age_match = re.search(r'\b(\d{2})\s*(?:years?\s*old|yo)?\b', text)
+    lower = text.lower()
+
+    # Age: "25 years old", "I'm 25", "age 25", "25 yo", bare "25" if plausible
+    age_match = re.search(r'(?:i\'?m\s+|age\s*:?\s*|i am\s+)(\d{2})\b', lower)
+    if not age_match:
+        age_match = re.search(r'\b(\d{2})\s*(?:years?\s*old|yo|yrs)\b', lower)
     if age_match:
         age = int(age_match.group(1))
         if 13 <= age <= 100:
             state.collected["age"] = age
 
-    height_match = re.search(r'(\d{3})\s*cm', text)
+    # Height: "175cm", "175 cm", "5'11", "5 feet 11", "height 175"
+    height_match = re.search(r'(?:height\s*:?\s*)?(\d{3})\s*(?:cm)?\b', lower)
     if height_match:
-        state.collected["height_cm"] = int(height_match.group(1))
+        h = int(height_match.group(1))
+        if 100 <= h <= 250:
+            state.collected["height_cm"] = h
+    else:
+        # Feet/inches: 5'11 or 5 feet 11
+        ft_match = re.search(r"(\d)'?\s*(?:feet|ft|foot)?\s*(\d{1,2})?", lower)
+        if ft_match:
+            feet = int(ft_match.group(1))
+            inches = int(ft_match.group(2)) if ft_match.group(2) else 0
+            if 4 <= feet <= 7:
+                state.collected["height_cm"] = round(feet * 30.48 + inches * 2.54)
 
-    weight_match = re.search(r'(\d{2,3})\s*kg', text)
+    # Weight: "75kg", "75 kg", "75 kgs", "75 kilos", "weigh 75", "weight 75", bare number near "kg"
+    weight_match = re.search(r'(?:weigh[t]?\s*:?\s*|i\'?m\s+)?(\d{2,3})\s*(?:kg|kgs|kilos?)\b', lower)
+    if not weight_match:
+        weight_match = re.search(r'(?:weigh[t]?\s*:?\s*|weight\s*:?\s*)(\d{2,3})\b', lower)
     if weight_match:
-        state.collected["weight_kg"] = int(weight_match.group(1))
+        w = int(weight_match.group(1))
+        if 30 <= w <= 300:
+            state.collected["weight_kg"] = w
 
+    # Injuries
     injury_keywords = ["back", "knee", "shoulder", "wrist", "ankle", "hip", "neck", "elbow"]
-    injuries = [kw for kw in injury_keywords if kw in text.lower()]
+    injuries = [kw for kw in injury_keywords if kw in lower]
     if injuries:
         state.collected["injuries"] = injuries
 

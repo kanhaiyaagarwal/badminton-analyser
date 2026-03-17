@@ -40,6 +40,17 @@ REST_DURATIONS = {
 # AgentResponse (dict-based to avoid import cycles with Pydantic models)
 # ---------------------------------------------------------------------------
 
+def _enrich_exercise(exercise_dict: dict, db_exercise) -> dict:
+    """Add DB-only fields (demo_video_url, description) to exercise dict for frontend."""
+    enriched = dict(exercise_dict)
+    if db_exercise:
+        if db_exercise.demo_video_url:
+            enriched["demo_video_url"] = db_exercise.demo_video_url
+        if db_exercise.demo_image_url:
+            enriched["demo_image_url"] = db_exercise.demo_image_url
+    return enriched
+
+
 def _agent_response(
     view: str,
     data: dict,
@@ -244,7 +255,7 @@ def _handle_begin_workout(db: Session, user_id: int, session_id: Optional[int], 
         view="exercise_intro",
         data={
             "session_id": session.id,
-            "exercise": first,
+            "exercise": _enrich_exercise(first, exercise),
             "form_cues": (exercise.form_cues or [])[:3] if exercise else [],
             "history": history,
         },
@@ -346,7 +357,7 @@ def _handle_complete_set(db: Session, user_id: int, session_id: Optional[int], p
             view="exercise_intro",
             data={
                 "session_id": session.id,
-                "exercise": next_ex,
+                "exercise": _enrich_exercise(next_ex, next_exercise),
                 "form_cues": (next_exercise.form_cues or [])[:3] if next_exercise else [],
                 "history": history,
                 "prev_feedback": feedback,
@@ -411,7 +422,7 @@ def _handle_skip_exercise(db: Session, user_id: int, session_id: Optional[int], 
             view="exercise_intro",
             data={
                 "session_id": session.id,
-                "exercise": next_ex,
+                "exercise": _enrich_exercise(next_ex, exercise),
                 "form_cues": (exercise.form_cues or [])[:3] if exercise else [],
                 "history": history,
             },
@@ -521,7 +532,7 @@ def _handle_modify_exercise(db: Session, user_id: int, session_id: Optional[int]
         view="exercise_intro",
         data={
             "session_id": session.id,
-            "exercise": target_ex,
+            "exercise": _enrich_exercise(target_ex, exercise),
             "form_cues": (exercise.form_cues or [])[:3] if exercise else [],
             "history": history,
         },

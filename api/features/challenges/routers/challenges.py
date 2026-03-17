@@ -29,6 +29,7 @@ from ..services.plank_analyzer import PlankAnalyzer
 from ..services.squat_analyzer import SquatAnalyzer
 from ..services.squat_hold_analyzer import SquatHoldAnalyzer
 from ..services.pushup_analyzer import PushupAnalyzer
+from ..services.arm_curl_analyzer import ArmRepAnalyzer
 from ....core.streaming.session_manager import get_generic_session_manager
 
 logger = logging.getLogger(__name__)
@@ -67,6 +68,7 @@ ANALYZER_MAP = {
     "squat_half": SquatAnalyzer,
     "squat_full": SquatAnalyzer,
     "pushup": PushupAnalyzer,
+    "arm_rep": ArmRepAnalyzer,
 }
 
 

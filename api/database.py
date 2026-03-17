@@ -54,6 +54,7 @@ def init_db():
     _migrate_add_workout_to_existing_users()
     _migrate_workout_session_m1()
     _migrate_exercise_progression()
+    _migrate_exercise_demo_video()
     seed_default_tuning_data()
     seed_challenge_defaults()
     seed_feature_access()
@@ -798,6 +799,162 @@ def _migrate_exercise_progression():
                     logger.info("Added column exercise_sets.form_score")
     except Exception as e:
         logger.debug(f"exercise_progression migration skipped: {e}")
+
+
+def _migrate_exercise_demo_video():
+    """Add demo_video_url column to exercises and populate YouTube Shorts URLs."""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    from sqlalchemy import text, inspect
+    try:
+        inspector = inspect(engine)
+        if "exercises" not in inspector.get_table_names():
+            return
+        existing = {c["name"] for c in inspector.get_columns("exercises")}
+        if "demo_video_url" not in existing:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE exercises ADD COLUMN demo_video_url VARCHAR(512)"))
+                logger.info("Added column exercises.demo_video_url")
+
+        # Populate YouTube Shorts URLs — 118 exercises
+        YOUTUBE_URLS = {
+            # Compound (44)
+            "arnold-press": "https://www.youtube.com/shorts/6K_N9AGhItQ",
+            "barbell-row": "https://www.youtube.com/shorts/phVtqawIgbk",
+            "barbell-squat": "https://www.youtube.com/shorts/MLoZuAkIyZI",
+            "barbell-thruster": "https://www.youtube.com/shorts/XvhRYWgekT4",
+            "battle-ropes": "https://www.youtube.com/shorts/X5g7P_M8Wo4",
+            "bench-press": "https://www.youtube.com/shorts/hWbUlkb5Ms4",
+            "bulgarian-split-squat": "https://www.youtube.com/shorts/Q20qIs79tJc",
+            "cable-pull-through": "https://www.youtube.com/shorts/dcHyetTdY_I",
+            "chest-press-machine": "https://www.youtube.com/shorts/JsQd_KYl4w8",
+            "chest-supported-row": "https://www.youtube.com/shorts/czoQ_ncuqqI",
+            "chin-up": "https://www.youtube.com/shorts/Oi3bW9nQmGI",
+            "close-grip-bench-press": "https://www.youtube.com/shorts/4yKLxOsrGfg",
+            "deadlift": "https://www.youtube.com/shorts/ZaTM37cfiDs",
+            "decline-bench-press": "https://www.youtube.com/shorts/EdDqD4aKwxM",
+            "dips": "https://www.youtube.com/shorts/ci5tcFgIntI",
+            "dumbbell-snatch": "https://www.youtube.com/shorts/rCVmr5bgI7c",
+            "farmers-walk": "https://www.youtube.com/shorts/1uOs1hP3u4A",
+            "front-squat": "https://www.youtube.com/shorts/_qv0m3tPd3s",
+            "good-morning": "https://www.youtube.com/shorts/7cpldMZjLOs",
+            "hack-squat": "https://www.youtube.com/shorts/g9i05umL5vc",
+            "hip-thrust": "https://www.youtube.com/shorts/8BPi7X21BhA",
+            "incline-bench-press": "https://www.youtube.com/shorts/98HWfiRonkE",
+            "incline-dumbbell-press": "https://www.youtube.com/shorts/8fXfwG4ftaQ",
+            "kettlebell-swing": "https://www.youtube.com/shorts/aSYap2yhW8s",
+            "lat-pulldown": "https://www.youtube.com/shorts/bNmvKpJSWKM",
+            "leg-press": "https://www.youtube.com/shorts/nDh_BlnLCGc",
+            "lunges": "https://www.youtube.com/shorts/1cS-6KsJW9g",
+            "pendlay-row": "https://www.youtube.com/shorts/tYxEGi7ir4I",
+            "power-clean": "https://www.youtube.com/shorts/HFKsnymM_R4",
+            "pull-up": "https://www.youtube.com/shorts/ym1V5H35IpA",
+            "romanian-deadlift": "https://www.youtube.com/shorts/5rIqP63yWFg",
+            "seated-cable-row": "https://www.youtube.com/shorts/qD1WZ5pSuvk",
+            "seated-row-machine": "https://www.youtube.com/shorts/DHA7QGDa2qg",
+            "shoulder-press": "https://www.youtube.com/shorts/hIcHJ4xP9Ng",
+            "single-arm-dumbbell-row": "https://www.youtube.com/shorts/qN54-QNO1eQ",
+            "sled-push": "https://www.youtube.com/shorts/Qw8q55JR5VY",
+            "smith-machine-squat": "https://www.youtube.com/shorts/GkiiLtJMg9g",
+            "step-up": "https://www.youtube.com/shorts/EswvBNNHsRg",
+            "stiff-leg-deadlift": "https://www.youtube.com/shorts/4ZEZd1zVJzE",
+            "sumo-deadlift": "https://www.youtube.com/shorts/k_jHUVBU-T0",
+            "sumo-squat": "https://www.youtube.com/shorts/ihvHG1QH654",
+            "t-bar-row": "https://www.youtube.com/shorts/8pR3JoZ0iBU",
+            "turkish-get-up": "https://www.youtube.com/shorts/g5dwOlGGfmU",
+            "upright-row": "https://www.youtube.com/shorts/U-KG4oahSLA",
+            # Bodyweight (32)
+            "ab-wheel-rollout": "https://www.youtube.com/shorts/MinlHnG7j4k",
+            "bear-crawl": "https://www.youtube.com/shorts/LCVMqEmgglo",
+            "bicycle-crunch": "https://www.youtube.com/shorts/NWzlS1Lp1e8",
+            "bodyweight-squat": "https://www.youtube.com/shorts/eFEVKmp3M4g",
+            "box-jump": "https://www.youtube.com/shorts/HJZh-12p6vg",
+            "burpee": "https://www.youtube.com/shorts/FUJTlYHJdg8",
+            "crunch": "https://www.youtube.com/shorts/dkGwcfo9zto",
+            "dead-bug": "https://www.youtube.com/shorts/x-BStnplCYg",
+            "decline-sit-up": "https://www.youtube.com/shorts/dwB9Rp_patE",
+            "diamond-push-up": "https://www.youtube.com/shorts/PPTj-MW2tcs",
+            "donkey-kick": "https://www.youtube.com/shorts/YoOlLusFMYU",
+            "fire-hydrant": "https://www.youtube.com/shorts/BLx5wSzafxg",
+            "glute-bridge": "https://www.youtube.com/shorts/R6n608M3czU",
+            "hanging-leg-raise": "https://www.youtube.com/shorts/2n4UqRIJyk4",
+            "high-knees": "https://www.youtube.com/shorts/d9kQK5Ds0wo",
+            "hollow-body-hold": "https://www.youtube.com/shorts/Mjeur54Z0wI",
+            "jump-rope": "https://www.youtube.com/shorts/Nssl3QZL6L8",
+            "jump-squat": "https://www.youtube.com/shorts/eFEVKmp3M4g",
+            "jumping-jacks": "https://www.youtube.com/shorts/7Pxr4xOrhNk",
+            "mountain-climber": "https://www.youtube.com/shorts/hZb6jTbCLeE",
+            "nordic-curl": "https://www.youtube.com/shorts/1IIavrSbEvo",
+            "plank": "https://www.youtube.com/shorts/v25dawSzRTM",
+            "push-up": "https://www.youtube.com/shorts/_YrJc-kTYA0",
+            "russian-twist": "https://www.youtube.com/shorts/-BzNffL_6YE",
+            "side-plank": "https://www.youtube.com/shorts/wP7xBF-LZxs",
+            "single-leg-calf-raise": "https://www.youtube.com/shorts/PJGXyldAWk4",
+            "sissy-squat": "https://www.youtube.com/shorts/AYN-U5nZieY",
+            "superman": "https://www.youtube.com/shorts/w5WIZ-rY9NQ",
+            "tricep-dip-bench": "https://www.youtube.com/shorts/9llvBAV4RHI",
+            "v-up": "https://www.youtube.com/shorts/BNIPC_HaXWQ",
+            "wall-sit": "https://www.youtube.com/shorts/S_SmgeQ7hiU",
+            "wide-grip-push-up": "https://www.youtube.com/shorts/TEGkpxBvU_Y",
+            # Isolation (34)
+            "abductor-machine": "https://www.youtube.com/shorts/01HilwRf8m8",
+            "adductor-machine": "https://www.youtube.com/shorts/fwpMYCWdUNY",
+            "barbell-shrug": "https://www.youtube.com/shorts/MlqHEfydPpE",
+            "bicep-curl": "https://www.youtube.com/shorts/MKWBV29S6c0",
+            "cable-crossover": "https://www.youtube.com/shorts/M97ra0UR-40",
+            "cable-crunch": "https://www.youtube.com/shorts/K2m0jj6RfYg",
+            "cable-curl": "https://www.youtube.com/shorts/CrbTqNOlFgE",
+            "cable-fly": "https://www.youtube.com/shorts/I-Ue34qLxc4",
+            "cable-lateral-raise": "https://www.youtube.com/shorts/f_OGBg2KxgY",
+            "calf-raise": "https://www.youtube.com/shorts/baEXLy09Ncc",
+            "concentration-curl": "https://www.youtube.com/shorts/TYrurDZTj9I",
+            "donkey-calf-raise": "https://www.youtube.com/shorts/a-x_NR-ibos",
+            "dumbbell-fly": "https://www.youtube.com/shorts/rk8YayRoTRQ",
+            "dumbbell-shrug": "https://www.youtube.com/shorts/rFsSeClGnNA",
+            "dumbbell-tricep-kickback": "https://www.youtube.com/shorts/3Bv1n7-DN7c",
+            "face-pull": "https://www.youtube.com/shorts/qEyoBOpvqR4",
+            "front-raise": "https://www.youtube.com/shorts/1lXa528j0Vs",
+            "glute-kickback": "https://www.youtube.com/shorts/n-cgsNePyFo",
+            "hammer-curl": "https://www.youtube.com/shorts/lmIo_gVE8T4",
+            "hyperextension": "https://www.youtube.com/shorts/EBui4Bt5N7o",
+            "incline-dumbbell-curl": "https://www.youtube.com/shorts/XhIsIcjIbCw",
+            "incline-dumbbell-fly": "https://www.youtube.com/shorts/kIpagzRxFPo",
+            "lateral-raise": "https://www.youtube.com/shorts/JMt_uxE8bBc",
+            "leg-curl": "https://www.youtube.com/shorts/_lgE0gPvbik",
+            "leg-extension": "https://www.youtube.com/shorts/uM86QE59Tgc",
+            "overhead-tricep-extension": "https://www.youtube.com/shorts/b5le--KkyH0",
+            "pec-deck": "https://www.youtube.com/shorts/fgXSA2-o0NM",
+            "preacher-curl": "https://www.youtube.com/shorts/fgYBENCgIME",
+            "reverse-curl": "https://www.youtube.com/shorts/ZG2n5IcYIcY",
+            "reverse-fly": "https://www.youtube.com/shorts/-TKqxK7-ehc",
+            "seated-calf-raise": "https://www.youtube.com/shorts/ar8nav0jGoE",
+            "seated-leg-curl": "https://www.youtube.com/shorts/NxPR7G_YNHI",
+            "skull-crusher": "https://www.youtube.com/shorts/K3mFeNz4e3w",
+            "tricep-pushdown": "https://www.youtube.com/shorts/fehf9ZV0tHY",
+            # Cardio & Flexibility (8)
+            "ankle-mobility-drill": "https://www.youtube.com/shorts/m6J-9oQ9lHQ",
+            "band-shoulder-dislocates": "https://www.youtube.com/shorts/gXE-gVzYD9w",
+            "cat-cow-stretch": "https://www.youtube.com/shorts/2of247Kt0tU",
+            "childs-pose": "https://www.youtube.com/shorts/1ygQrW_0MZY",
+            "foam-roll": "https://www.youtube.com/shorts/7_m0E0N-PtY",
+            "hip-flexor-stretch": "https://www.youtube.com/shorts/ktgtEWGhFd8",
+            "pigeon-pose": "https://www.youtube.com/shorts/AI5A1PRYX7E",
+            "worlds-greatest-stretch": "https://www.youtube.com/shorts/7XheaZERvBQ",
+        }
+
+        with engine.begin() as conn:
+            updated = 0
+            for slug, url in YOUTUBE_URLS.items():
+                result = conn.execute(text(
+                    "UPDATE exercises SET demo_video_url = :url WHERE slug = :slug"
+                ), {"url": url, "slug": slug})
+                if result.rowcount > 0:
+                    updated += 1
+            if updated:
+                logger.info(f"Populated {updated} exercise demo video URLs")
+    except Exception as e:
+        logger.debug(f"exercise demo_video migration skipped: {e}")
 
 
 def seed_exercises():

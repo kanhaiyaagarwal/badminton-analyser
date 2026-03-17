@@ -30,6 +30,7 @@ class Exercise(Base):
     form_cues = Column(JSON, nullable=True)  # ["Keep elbows at 45°", ...]
     common_mistakes = Column(JSON, nullable=True)
     demo_image_url = Column(String(512), nullable=True)
+    demo_video_url = Column(String(512), nullable=True)
     description = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 

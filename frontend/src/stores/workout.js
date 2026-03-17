@@ -88,6 +88,63 @@ export const useWorkoutStore = defineStore('workout', () => {
     }
   }
 
+  async function fetchWorkoutHistory(params = {}) {
+    try {
+      const res = await api.get('/api/v1/workout/history', { params })
+      return res.data
+    } catch (err) {
+      error.value = err.response?.data?.detail || 'Failed to fetch history'
+      throw err
+    }
+  }
+
+  async function updateMeasurements(data) {
+    try {
+      const res = await api.put('/api/v1/workout/profile/measurements', data)
+      // Update profile cache
+      if (profile.value) {
+        Object.assign(profile.value, res.data)
+      }
+      return res.data
+    } catch (err) {
+      error.value = err.response?.data?.detail || 'Failed to update measurements'
+      throw err
+    }
+  }
+
+  async function fetchGoals() {
+    try {
+      const res = await api.get('/api/v1/workout/goals')
+      return res.data
+    } catch (err) {
+      error.value = err.response?.data?.detail || 'Failed to fetch goals'
+      throw err
+    }
+  }
+
+  async function fetchEquipment() {
+    try {
+      const res = await api.get('/api/v1/workout/equipment')
+      return res.data
+    } catch (err) {
+      error.value = err.response?.data?.detail || 'Failed to fetch equipment'
+      throw err
+    }
+  }
+
+  async function updateEquipment(equipment, trainLocation) {
+    try {
+      const res = await api.put('/api/v1/workout/equipment', {
+        equipment,
+        train_location: trainLocation,
+      })
+      return res.data
+    } catch (err) {
+      error.value = err.response?.data?.detail || 'Failed to update equipment'
+      throw err
+    }
+  }
+
   async function fetchExercises(params = {}) {
     try {
       const res = await api.get('/api/v1/workout/exercises', { params })
@@ -215,6 +272,11 @@ export const useWorkoutStore = defineStore('workout', () => {
     fetchTodayWorkout,
     fetchWeekView,
     fetchProgressStats,
+    fetchWorkoutHistory,
+    updateMeasurements,
+    fetchGoals,
+    fetchEquipment,
+    updateEquipment,
     fetchExercises,
     fetchExercise,
     createQuickStart,

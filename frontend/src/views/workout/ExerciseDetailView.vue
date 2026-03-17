@@ -7,9 +7,26 @@
     </div>
 
     <div v-else-if="exercise">
-      <!-- Demo area -->
+      <!-- Demo video -->
       <div class="demo-area">
-        <div class="demo-placeholder">
+        <div v-if="videoId" class="video-wrap" @click="showVideo = !showVideo">
+          <template v-if="showVideo">
+            <iframe
+              :src="`https://www.youtube.com/embed/${videoId}?autoplay=1&loop=1&mute=1&playsinline=1`"
+              frameborder="0"
+              allow="autoplay; encrypted-media"
+              allowfullscreen
+              class="video-iframe"
+            ></iframe>
+          </template>
+          <template v-else>
+            <img :src="`https://img.youtube.com/vi/${videoId}/0.jpg`" alt="Demo" class="video-thumb" />
+            <div class="play-overlay">
+              <svg viewBox="0 0 24 24" fill="white" width="40" height="40"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            </div>
+          </template>
+        </div>
+        <div v-else class="demo-placeholder">
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="5" r="2"/>
             <path d="M12 7v6"/>
@@ -18,6 +35,7 @@
           </svg>
           <span>Demo coming soon</span>
         </div>
+        <p v-if="videoId" class="demo-label">Tap to {{ showVideo ? 'hide' : 'watch' }} demo</p>
       </div>
 
       <!-- Exercise info -->
@@ -102,6 +120,14 @@ const workoutStore = useWorkoutStore()
 const loading = ref(true)
 const exercise = ref(null)
 const toast = ref(null)
+const showVideo = ref(false)
+
+const videoId = computed(() => {
+  const url = exercise.value?.demo_video_url
+  if (!url) return null
+  const match = url.match(/(?:shorts\/|v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
+  return match ? match[1] : null
+})
 
 const trackingLabel = computed(() => {
   const mode = exercise.value?.tracking_mode
@@ -144,6 +170,45 @@ onMounted(async () => {
 /* Demo */
 .demo-area {
   margin: 1rem 0;
+}
+
+.video-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 9/16;
+  max-height: 360px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: #000;
+  cursor: pointer;
+}
+
+.video-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.video-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.play-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.demo-label {
+  text-align: center;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-top: 0.4rem;
 }
 
 .demo-placeholder {

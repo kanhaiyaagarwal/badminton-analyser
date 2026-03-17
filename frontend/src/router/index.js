@@ -169,6 +169,12 @@ const routes = [
     meta: { requiresAuth: true, requiredFeature: 'workout', appMode: 'fitness' }
   },
   {
+    path: '/workout/equipment',
+    name: 'WorkoutEquipment',
+    component: () => import('../views/workout/EquipmentView.vue'),
+    meta: { requiresAuth: true, requiredFeature: 'workout', appMode: 'fitness' }
+  },
+  {
     path: '/workout/exercises',
     name: 'ExerciseLibrary',
     component: () => import('../views/workout/ExerciseLibraryView.vue'),
@@ -222,8 +228,8 @@ function getHomePath(authStore) {
   if (isBadmintonMode) {
     return '/dashboard'
   }
-  // Fitness mode — land on challenges for now
-  return '/challenges'
+  // Fitness mode — land on home
+  return '/hub'
 }
 
 router.beforeEach(async (to, from, next) => {
@@ -236,7 +242,7 @@ router.beforeEach(async (to, from, next) => {
   }
 
   const isAdmin = authStore.user?.is_admin
-  const home = isAuth ? getHomePath(authStore) : (isBadmintonMode ? '/dashboard' : '/challenges')
+  const home = isAuth ? getHomePath(authStore) : (isBadmintonMode ? '/dashboard' : '/hub')
 
   // 1. Auth required but not logged in
   if (to.meta.requiresAuth && !isAuth) {

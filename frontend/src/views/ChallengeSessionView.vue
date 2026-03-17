@@ -73,10 +73,10 @@
 
         <!-- Top bar: back, title, info -->
         <div class="setup-top-bar" @click.stop>
-          <router-link :to="`/challenges/${challengeType}`" class="setup-back-btn">
+          <router-link :to="isWorkoutMode ? `/workout/session/${workoutSessionId}` : `/challenges/${challengeType}`" class="setup-back-btn">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="20" height="20" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
           </router-link>
-          <span class="setup-title">{{ challengeTitle }}</span>
+          <span class="setup-title">{{ isWorkoutMode ? `Set ${workoutSetNumber}/${workoutSetsTotal}` : challengeTitle }}</span>
           <button class="setup-info-btn" @click="showPlacementGuide = true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
           </button>
@@ -231,6 +231,13 @@ const challengesStore = useChallengesStore()
 const analytics = useAnalytics()
 
 const challengeType = computed(() => route.params.type)
+
+// Workout mode: when launched from a workout session to track a set
+const workoutSessionId = computed(() => route.query.workout_session_id)
+const workoutExerciseId = computed(() => route.query.exercise_id)
+const workoutSetNumber = computed(() => route.query.set_number)
+const workoutSetsTotal = computed(() => route.query.sets_total)
+const isWorkoutMode = computed(() => !!workoutSessionId.value)
 
 const CHALLENGE_META = {
   plank: { title: 'Plank Hold', hint: 'Get into a plank position in view of the camera, then start.', scoreLabel: 'Hold (s)', unit: 's' },
@@ -535,22 +542,41 @@ async function startSession() {
   starting.value = true
   try {
     const sessionCreateStart = performance.now()
-    const data = await challengesStore.createSession(challengeType.value)
+    let sid
+    if (isWorkoutMode.value) {
+      // Workout mode: create challenge session via workout start-tracking endpoint
+      const resp = await api.post(`/api/v1/workout/sessions/${workoutSessionId.value}/start-tracking`, {
+        exercise_slug: _workoutSlugFromChallengeType(challengeType.value),
+      })
+      sid = resp.data.challenge_session_id
+    } else {
+      const data = await challengesStore.createSession(challengeType.value)
+      sid = data.session_id
+    }
     if (window.DD_RUM) {
       window.DD_RUM.addTiming('session_create_ms', Math.round(performance.now() - sessionCreateStart))
     }
-    sessionId.value = data.session_id
+    sessionId.value = sid
     analytics.challengeStarted(challengeType.value)
     phase.value = 'connecting'
     _wsConnectStart = performance.now()
     _firstFrameSent = false
-    await connectWebSocket(data.session_id)
+    await connectWebSocket(sid)
   } catch (err) {
     if (window.DD_RUM) {
       window.DD_RUM.addError(err, { source: 'custom', challenge: challengeType.value, action: 'start_session' })
     }
     starting.value = false
   }
+}
+
+function _workoutSlugFromChallengeType(type) {
+  const map = {
+    pushup: 'push-up', squat_full: 'bodyweight-squat', plank: 'plank',
+    squat_hold: 'squat-hold', squat_half: 'bodyweight-squat',
+    bicep_curl: 'bicep-curl', lateral_raise: 'lateral-raise', calf_raise: 'calf-raise',
+  }
+  return map[type] || type
 }
 
 async function connectWebSocket(sid) {
@@ -759,6 +785,10 @@ async function endSession() {
   // Fallback: if WS is already closed, end via REST and navigate directly.
   if (!ws || ws.readyState !== WebSocket.OPEN) {
     if (autoEnded) speak('Session ended')
+    if (isWorkoutMode.value) {
+      submitWorkoutResults(null)
+      return
+    }
     try {
       const result = await challengesStore.endSession(sessionId.value)
       navigateToResults(sessionId.value, result)
@@ -780,6 +810,12 @@ function handleSessionEnded(report) {
     })
   }
   cleanup()
+
+  if (isWorkoutMode.value) {
+    submitWorkoutResults(report)
+    return
+  }
+
   // End session via REST to persist results
   challengesStore.endSession(sessionId.value).then((result) => {
     navigateToResults(sessionId.value, result)
@@ -797,6 +833,40 @@ function navigateToResults(sid, data) {
     sessionStorage.setItem(`challenge_result_${sid}`, JSON.stringify(payload))
   }
   router.push(`/challenges/results/${sid}`)
+}
+
+// ---------- Workout Mode: submit results back to workout session ----------
+
+async function submitWorkoutResults(report) {
+  const reps = isHoldType.value
+    ? Math.floor(report?.hold_seconds || holdSeconds.value || 0)
+    : (report?.score || report?.reps || 0)
+  const duration = report?.duration_seconds || Math.floor((Date.now() - (startTime || Date.now())) / 1000)
+  const formScore = report?.form_score || null
+
+  try {
+    const resp = await api.post(
+      `/api/v1/workout/sessions/${workoutSessionId.value}/sets/${workoutSetNumber.value}/camera-result`,
+      {
+        exercise_id: Number(workoutExerciseId.value),
+        set_number: Number(workoutSetNumber.value),
+        reps,
+        form_score: formScore,
+        duration_seconds: duration,
+      }
+    )
+    // Update the workout store with the next state (rest_timer, exercise_intro, etc.)
+    // so WorkoutSessionView renders the correct view on return
+    const { useWorkoutStore } = await import('../stores/workout')
+    const workoutStore = useWorkoutStore()
+    workoutStore.activeSession = resp.data
+    if (resp.data.data?.session_id) {
+      workoutStore.sessionId = resp.data.data.session_id
+    }
+  } catch { /* best-effort */ }
+
+  // Navigate back to the workout session
+  router.replace(`/workout/session/${workoutSessionId.value}`)
 }
 
 // ---------- Recording ----------
