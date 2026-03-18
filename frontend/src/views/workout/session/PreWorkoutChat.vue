@@ -723,13 +723,13 @@ watch(editing, (isEditing, wasEditing) => {
 
 .quick-buttons {
   display: flex;
-  gap: 0.4rem;
+  flex-wrap: wrap;
+  gap: 0.35rem;
   margin-bottom: 0.5rem;
 }
 
 .quick-btn {
-  flex: 1;
-  padding: 0.45rem 0.5rem;
+  padding: 0.4rem 0.65rem;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-full);
   background: transparent;

@@ -29,24 +29,24 @@
           :value="workoutsValue"
           label="Workouts"
           color="primary"
-          :size="100"
-          :stroke-width="6"
+          :size="80"
+          :stroke-width="5"
         />
         <ProgressRing
           :progress="volumeProgress"
           :value="formatVolume(progressStats.total_volume_kg || 0)"
           label="Volume"
           color="secondary"
-          :size="100"
-          :stroke-width="6"
+          :size="80"
+          :stroke-width="5"
         />
         <ProgressRing
           :progress="streakProgress"
           :value="(todayWorkout?.streak || 0) + 'd'"
           label="Streak"
           color="accent"
-          :size="100"
-          :stroke-width="6"
+          :size="80"
+          :stroke-width="5"
         />
       </div>
     </section>
@@ -356,9 +356,10 @@ onMounted(async () => {
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 1rem;
-  padding: 1.5rem;
+  gap: 0.5rem;
+  padding: 1rem;
   border-radius: 1rem;
+  overflow: hidden;
 }
 
 /* Coach preview */

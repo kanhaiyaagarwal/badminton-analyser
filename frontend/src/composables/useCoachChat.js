@@ -62,8 +62,10 @@ export function useCoachChat(context, sessionId = null) {
           timestamp: Date.now(),
         })
 
-        // Auto-play coach response via TTS
-        voiceOutput.speak(data.response, data.audio_url || null)
+        // Auto-play coach response via TTS (skip for onboarding)
+        if (context !== 'onboarding') {
+          voiceOutput.speak(data.response, data.audio_url || null)
+        }
       }
 
       return data
@@ -119,7 +121,9 @@ export function useCoachChat(context, sessionId = null) {
           actions: data.actions || [],
           timestamp: Date.now(),
         })
-        voiceOutput.speak(data.response, data.audio_url || null)
+        if (context !== 'onboarding') {
+          voiceOutput.speak(data.response, data.audio_url || null)
+        }
       }
 
       return data
