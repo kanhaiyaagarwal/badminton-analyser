@@ -143,16 +143,37 @@
           v-for="(d, index) in weekView.days"
           :key="d.day"
           class="week-dot-wrap"
+          :class="{ 'week-dot-clickable': d.exercises?.length > 0 }"
+          @click="d.exercises?.length ? (selectedDay = selectedDay === d.day ? null : d.day) : null"
         >
           <span
             class="week-dot"
-            :class="d.status"
+            :class="[d.status, { 'week-dot-selected': selectedDay === d.day }]"
           >
             <template v-if="d.status === 'completed'">&#10003;</template>
             <template v-else-if="d.status === 'today'">&bull;</template>
             <template v-else-if="d.status === 'planned'">&#9675;</template>
           </span>
           <span class="week-day-label">{{ d.day.charAt(0).toUpperCase() }}</span>
+        </div>
+      </div>
+
+      <!-- Selected day's exercises -->
+      <div v-if="selectedDayData" class="selected-day-detail glass">
+        <div class="selected-day-header">
+          <span class="selected-day-label">{{ selectedDayData.label || selectedDayData.day }}</span>
+          <span class="selected-day-meta">{{ selectedDayData.exercises.length }} exercises · ~{{ selectedDayData.estimated_minutes || selectedDayData.exercises.length * 5 }}m</span>
+        </div>
+        <div class="selected-day-exercises">
+          <router-link
+            v-for="ex in selectedDayData.exercises"
+            :key="ex.slug"
+            :to="`/workout/exercises/${ex.slug}`"
+            class="selected-day-ex"
+          >
+            <span class="selected-day-ex-name">{{ ex.name }}</span>
+            <span class="selected-day-ex-detail">{{ ex.sets }}x{{ ex.reps }}</span>
+          </router-link>
         </div>
       </div>
     </section>
@@ -209,6 +230,12 @@ const selectedTime = ref(0)
 const toast = ref(null)
 const coachInsight = ref('')
 const insightType = ref('')
+const selectedDay = ref(null)
+
+const selectedDayData = computed(() => {
+  if (!selectedDay.value || !weekView.value) return null
+  return weekView.value.days.find(d => d.day === selectedDay.value && d.exercises?.length > 0)
+})
 
 const fallbackGreeting = computed(() => {
   const hour = new Date().getHours()
@@ -623,6 +650,77 @@ onMounted(async () => {
 }
 
 .week-day-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.week-dot-clickable {
+  cursor: pointer;
+}
+
+.week-dot-selected {
+  box-shadow: 0 0 0 2px var(--color-primary);
+}
+
+/* Selected day detail */
+.selected-day-detail {
+  margin-top: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.selected-day-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.selected-day-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.selected-day-meta {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.selected-day-exercises {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.selected-day-ex {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.04);
+  text-decoration: none;
+  transition: background 0.15s;
+}
+
+.selected-day-ex:hover {
+  background: var(--color-primary-light);
+}
+
+.selected-day-ex-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.selected-day-ex-detail {
   font-size: 0.7rem;
   color: var(--text-muted);
 }

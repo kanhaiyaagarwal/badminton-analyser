@@ -359,10 +359,22 @@ class WorkoutService:
             else:
                 status = "rest"
 
+            # Include exercises for planned days
+            day_exercises = []
+            day_est_minutes = 0
+            if plan and plan.plan_data:
+                for d in plan.plan_data.get("days", []):
+                    if d.get("day") == day_name:
+                        day_exercises = d.get("exercises", [])
+                        day_est_minutes = d.get("estimated_minutes", 0)
+                        break
+
             days.append({
                 "day": day_name,
                 "label": plan_day_labels.get(day_name),
                 "status": status,
+                "exercises": day_exercises,
+                "estimated_minutes": day_est_minutes,
             })
 
         return {
