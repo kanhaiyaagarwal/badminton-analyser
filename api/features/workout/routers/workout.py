@@ -268,6 +268,102 @@ async def get_week_view(
     return WorkoutService.get_week_view(db, current_user.id, week_offset)
 
 
+@router.put("/plan/customize")
+async def customize_weekly_plan(
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Customize the weekly plan by assigning muscle groups per day.
+
+    Body: { "days": [ { "day": "mon", "muscles": ["chest", "shoulders"] }, ... ] }
+    Regenerates exercises for each day based on selected muscles.
+    """
+    from ..db_models.workout import WorkoutPlan, Exercise
+    from ..services.plan_generator import (
+        _exercises_for_muscles, _plan_for_duration, VOLUME_SCHEMES,
+    )
+
+    plan = db.query(WorkoutPlan).filter(
+        WorkoutPlan.user_id == current_user.id,
+        WorkoutPlan.status == "active",
+    ).first()
+    if not plan:
+        raise HTTPException(status_code=404, detail="No active plan")
+
+    plan_data = plan.plan_data or {}
+    custom_days = data.get("days", [])
+    if not custom_days:
+        raise HTTPException(status_code=400, detail="No days provided")
+
+    # Get user's fitness level + equipment
+    from ..db_models.workout import UserProfile, CoachPreferences
+    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+    prefs = db.query(CoachPreferences).filter(CoachPreferences.user_id == current_user.id).first()
+    fitness_level = profile.fitness_level if profile else "beginner"
+    duration = prefs.session_duration_minutes if prefs else 45
+    is_home = (prefs.train_location == "home") if prefs else False
+    available_equipment = prefs.available_equipment if prefs else None
+
+    # Load all exercises from DB
+    all_exercises = db.query(Exercise).all()
+    exercise_dicts = [
+        {
+            "slug": e.slug, "name": e.name, "category": e.category,
+            "muscle_groups": e.muscle_groups or [], "primary_muscle": e.primary_muscle,
+            "equipment": e.equipment or [], "tracking_mode": e.tracking_mode,
+            "difficulty": e.difficulty,
+        }
+        for e in all_exercises
+    ]
+
+    volume = VOLUME_SCHEMES.get(fitness_level, VOLUME_SCHEMES["beginner"])
+    max_per_session, sets_per_exercise = _plan_for_duration(duration, volume["base_sets"])
+
+    # Build new days
+    global_used = set()
+    new_days = []
+    for cd in custom_days:
+        day_name = cd["day"]
+        muscles = cd.get("muscles", [])
+        if not muscles:
+            continue
+
+        # Build label from muscles
+        label = " & ".join(m.title() for m in muscles[:2])
+        if len(muscles) > 2:
+            label += f" +{len(muscles) - 2}"
+
+        day_exercises = _exercises_for_muscles(
+            muscles, exercise_dicts, available_equipment, is_home,
+            fitness_level, max_per_session, used_slugs=global_used,
+        )
+        for ex in day_exercises:
+            global_used.add(ex["slug"])
+
+        new_days.append({
+            "day": day_name,
+            "label": label,
+            "exercises": [
+                {
+                    "slug": ex["slug"], "name": ex["name"],
+                    "sets": sets_per_exercise,
+                    "reps": volume["reps"] if ex.get("tracking_mode") == "reps" else "30s",
+                    "equipment": ex.get("equipment", ["none"]),
+                }
+                for ex in day_exercises
+            ],
+            "estimated_minutes": max(15, len(day_exercises) * (7 if sets_per_exercise <= 3 else 9)),
+        })
+
+    plan_data["days"] = new_days
+    plan.plan_data = plan_data
+    plan.name = "Custom Plan"
+    db.commit()
+
+    return {"status": "ok", "days": new_days}
+
+
 @router.get("/progress/stats")
 async def get_progress_stats(
     current_user: User = Depends(get_current_user),

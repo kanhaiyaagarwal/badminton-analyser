@@ -83,18 +83,56 @@
     </section>
 
     <!-- Start button -->
-    <div v-if="todayWorkout?.has_plan" class="plan-actions">
-      <button
-        v-motion
-        :initial="{ opacity: 0, y: 20 }"
-        :enter="{ opacity: 1, y: 0, transition: { delay: 500 } }"
-        class="btn-start"
-        @click="handleStartWorkout"
-      >
+    <div v-if="todayWorkout?.has_plan && !showCustomize" class="plan-actions">
+      <button class="btn-start" @click="handleStartWorkout">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20">
           <polygon points="5 3 19 12 5 21 5 3"/>
         </svg>
         Start Workout
+      </button>
+      <button class="btn-customize" @click="openCustomize">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18"/></svg>
+        Customize Weekly Plan
+      </button>
+    </div>
+
+    <!-- Weekly Plan Customizer -->
+    <div v-if="showCustomize" class="customize-section">
+      <div class="customize-header">
+        <h2 class="section-label">Customize Weekly Plan</h2>
+        <button class="btn-cancel" @click="showCustomize = false">Cancel</button>
+      </div>
+
+      <div class="customize-days">
+        <div
+          v-for="(cd, di) in customDays"
+          :key="cd.day"
+          class="customize-day glass"
+        >
+          <div class="customize-day-header">
+            <span class="customize-day-name">{{ fullDayName(cd.day) }}</span>
+            <span v-if="cd.muscles.length" class="customize-day-count">{{ cd.muscles.length }} groups</span>
+          </div>
+          <div class="muscle-pills">
+            <button
+              v-for="mg in sortedMuscleGroups(cd.day)"
+              :key="mg"
+              class="muscle-pill"
+              :class="{
+                'muscle-selected': cd.muscles.includes(mg),
+                'muscle-used': !cd.muscles.includes(mg) && usedMuscles(cd.day).has(mg),
+              }"
+              @click="toggleMuscle(di, mg)"
+              :disabled="!cd.muscles.includes(mg) && usedMuscles(cd.day).has(mg)"
+            >
+              {{ mg }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn-start" @click="saveCustomPlan" :disabled="savingCustom">
+        {{ savingCustom ? 'Saving...' : 'Save Plan' }}
       </button>
     </div>
 
@@ -107,6 +145,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useWorkoutStore } from '../../stores/workout'
+import api from '../../api/client'
 
 const router = useRouter()
 const workoutStore = useWorkoutStore()
@@ -114,6 +153,117 @@ const workoutStore = useWorkoutStore()
 const loading = ref(true)
 const todayWorkout = ref(null)
 const toast = ref(null)
+
+// Weekly plan customizer
+const showCustomize = ref(false)
+const savingCustom = ref(false)
+const customDays = ref([])
+
+const ALL_MUSCLE_GROUPS = [
+  'chest', 'back', 'shoulders', 'biceps', 'triceps',
+  'quads', 'hamstrings', 'glutes', 'calves', 'core',
+]
+
+const DAY_NAMES_FULL = {
+  mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday',
+  thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday',
+}
+
+function fullDayName(abbr) {
+  return DAY_NAMES_FULL[abbr] || abbr
+}
+
+function openCustomize() {
+  // Initialize from current plan days
+  const weekData = todayWorkout.value
+  if (!weekData) return
+
+  // Fetch the week view to get all days
+  workoutStore.fetchWeekView(0).then(wv => {
+    customDays.value = (wv.days || [])
+      .filter(d => d.exercises?.length > 0 || d.status === 'today' || d.status === 'planned')
+      .map(d => ({
+        day: d.day,
+        muscles: guessMusclesFromExercises(d.exercises || []),
+      }))
+    // If no planned days found, use existing plan days
+    if (customDays.value.length === 0 && weekData.exercises?.length) {
+      customDays.value = [{ day: 'mon', muscles: [] }, { day: 'wed', muscles: [] }, { day: 'fri', muscles: [] }]
+    }
+    showCustomize.value = true
+  })
+}
+
+function guessMusclesFromExercises(exercises) {
+  // Extract unique muscle groups from exercise names/data
+  const muscles = new Set()
+  for (const ex of exercises) {
+    if (ex.primary_muscle) muscles.add(ex.primary_muscle)
+    for (const mg of (ex.muscle_groups || [])) {
+      if (ALL_MUSCLE_GROUPS.includes(mg)) muscles.add(mg)
+    }
+  }
+  // Limit to top 2-3 primary ones
+  return [...muscles].filter(m => ALL_MUSCLE_GROUPS.includes(m)).slice(0, 3)
+}
+
+function usedMuscles(currentDay) {
+  // Collect muscles selected on OTHER days
+  const used = new Set()
+  for (const cd of customDays.value) {
+    if (cd.day === currentDay) continue
+    for (const m of cd.muscles) {
+      used.add(m)
+    }
+  }
+  return used
+}
+
+function sortedMuscleGroups(currentDay) {
+  const used = usedMuscles(currentDay)
+  const selected = new Set(customDays.value.find(d => d.day === currentDay)?.muscles || [])
+  // Selected first, then available, then used (greyed) at the end
+  return [...ALL_MUSCLE_GROUPS].sort((a, b) => {
+    const aSelected = selected.has(a) ? 0 : 1
+    const bSelected = selected.has(b) ? 0 : 1
+    if (aSelected !== bSelected) return aSelected - bSelected
+    const aUsed = used.has(a) && !selected.has(a) ? 1 : 0
+    const bUsed = used.has(b) && !selected.has(b) ? 1 : 0
+    return aUsed - bUsed
+  })
+}
+
+function toggleMuscle(dayIndex, muscle) {
+  const day = customDays.value[dayIndex]
+  const idx = day.muscles.indexOf(muscle)
+  if (idx >= 0) {
+    day.muscles.splice(idx, 1)
+  } else {
+    day.muscles.push(muscle)
+  }
+}
+
+async function saveCustomPlan() {
+  const days = customDays.value.filter(d => d.muscles.length > 0)
+  if (days.length === 0) {
+    toast.value = 'Select at least one muscle group per day'
+    setTimeout(() => { toast.value = null }, 3000)
+    return
+  }
+  savingCustom.value = true
+  try {
+    await api.put('/api/v1/workout/plan/customize', { days })
+    todayWorkout.value = await workoutStore.fetchTodayWorkout()
+    showCustomize.value = false
+    toast.value = 'Plan updated!'
+    setTimeout(() => { toast.value = null }, 2000)
+  } catch (err) {
+    toast.value = 'Failed to save plan'
+    setTimeout(() => { toast.value = null }, 3000)
+  } finally {
+    savingCustom.value = false
+  }
+}
 
 const TRACKABLE_SLUGS = [
   'push-up', 'bodyweight-squat', 'plank', 'squat-hold', 'jump-squat', 'burpee',
@@ -463,6 +613,118 @@ onMounted(async () => {
   text-decoration: none;
   text-align: center;
   color: var(--text-primary);
+}
+
+/* Customize button */
+.btn-customize {
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.6rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0.75rem;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  transition: all 0.15s;
+}
+
+.btn-customize:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+/* Customizer */
+.customize-section {
+  padding: 0 1.5rem 2rem;
+}
+
+.customize-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.btn-cancel {
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.customize-days {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.customize-day {
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+}
+
+.customize-day-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.customize-day-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.customize-day-count {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.muscle-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.muscle-pill {
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-transform: capitalize;
+  transition: all 0.15s;
+}
+
+.muscle-pill:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.muscle-selected {
+  background: var(--color-primary) !important;
+  color: var(--text-on-primary) !important;
+  border-color: var(--color-primary) !important;
+}
+
+.muscle-used {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 
 /* Toast */
