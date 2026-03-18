@@ -133,6 +133,9 @@
               {{ mg }}
             </button>
           </div>
+          <div v-if="secondaryMuscles(cd.muscles).size > 0" class="secondary-hint">
+            <span class="secondary-dot"></span> also worked via compounds
+          </div>
         </div>
 
         <!-- Add day pills -->
@@ -824,6 +827,23 @@ onMounted(async () => {
 .muscle-secondary {
   border-color: rgba(78, 204, 163, 0.5);
   color: #4ecca3;
+}
+
+.secondary-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.3rem;
+  font-size: 0.6rem;
+  color: #4ecca3;
+}
+
+.secondary-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 2px solid rgba(78, 204, 163, 0.5);
+  flex-shrink: 0;
 }
 
 .muscle-used {
