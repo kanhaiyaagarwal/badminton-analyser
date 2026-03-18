@@ -126,6 +126,7 @@
               :class="{
                 'muscle-selected': cd.muscles.includes(mg),
                 'muscle-used': !cd.muscles.includes(mg) && usedMuscles(cd.day).has(mg),
+                'muscle-secondary': !cd.muscles.includes(mg) && secondaryMuscles(cd.muscles).has(mg),
               }"
               @click="toggleMuscle(di, mg)"
             >
@@ -243,6 +244,28 @@ function sortedMuscleGroups(currentDay) {
     const bUsed = used.has(b) && !selected.has(b) ? 1 : 0
     return aUsed - bUsed
   })
+}
+
+// Which secondary muscles get worked when you train a primary muscle
+const SECONDARY_MUSCLE_MAP = {
+  chest: ['triceps', 'shoulders'],
+  back: ['biceps', 'rear delts'],
+  shoulders: ['triceps'],
+  quads: ['glutes', 'core'],
+  hamstrings: ['glutes'],
+  glutes: ['hamstrings', 'core'],
+}
+
+function secondaryMuscles(selectedMuscles) {
+  const secondary = new Set()
+  for (const m of selectedMuscles) {
+    for (const s of (SECONDARY_MUSCLE_MAP[m] || [])) {
+      if (!selectedMuscles.includes(s)) {
+        secondary.add(s)
+      }
+    }
+  }
+  return secondary
 }
 
 const ALL_DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
@@ -796,6 +819,11 @@ onMounted(async () => {
   background: var(--color-primary) !important;
   color: var(--text-on-primary) !important;
   border-color: var(--color-primary) !important;
+}
+
+.muscle-secondary {
+  border-color: rgba(78, 204, 163, 0.5);
+  color: #4ecca3;
 }
 
 .muscle-used {
