@@ -134,16 +134,17 @@
           </div>
         </div>
 
-        <!-- Add day -->
-        <div v-if="availableDays.length > 0" class="add-day-row">
-          <select v-model="addDaySelected" class="add-day-select">
-            <option value="" disabled>Add a day...</option>
-            <option v-for="d in availableDays" :key="d" :value="d">{{ fullDayName(d) }}</option>
-          </select>
-          <button class="btn-add-day" @click="addDay" :disabled="!addDaySelected">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Add
+        <!-- Add day pills -->
+        <div v-if="availableDays.length > 0" class="add-day-pills">
+          <button
+            v-for="d in availableDays"
+            :key="d"
+            class="add-day-pill"
+            @click="addDayDirect(d)"
+          >
+            {{ shortDayName(d) }}
           </button>
+          <span class="add-day-hint">add</span>
         </div>
       </div>
 
@@ -250,18 +251,18 @@ function sortedMuscleGroups(currentDay) {
   })
 }
 
-const addDaySelected = ref('')
 const ALL_DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+const SHORT_DAY_NAMES = { mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun' }
 
 const availableDays = computed(() => {
   const used = new Set(customDays.value.map(d => d.day))
   return ALL_DAYS.filter(d => !used.has(d))
 })
 
-function addDay() {
-  if (!addDaySelected.value) return
-  // Insert in weekday order
-  const dayIdx = ALL_DAYS.indexOf(addDaySelected.value)
+function shortDayName(abbr) { return SHORT_DAY_NAMES[abbr] || abbr }
+
+function addDayDirect(day) {
+  const dayIdx = ALL_DAYS.indexOf(day)
   let insertAt = customDays.value.length
   for (let i = 0; i < customDays.value.length; i++) {
     if (ALL_DAYS.indexOf(customDays.value[i].day) > dayIdx) {
@@ -269,8 +270,7 @@ function addDay() {
       break
     }
   }
-  customDays.value.splice(insertAt, 0, { day: addDaySelected.value, muscles: [] })
-  addDaySelected.value = ''
+  customDays.value.splice(insertAt, 0, { day, muscles: [] })
 }
 
 function removeDay(index) {
@@ -807,50 +807,39 @@ onMounted(async () => {
   opacity: 0.35;
 }
 
-/* Add day */
-.add-day-row {
+/* Add day pills */
+.add-day-pills {
   display: flex;
-  gap: 0.5rem;
+  flex-wrap: wrap;
   align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0;
 }
 
-.add-day-select {
-  flex: 1;
-  padding: 0.5rem 0.75rem;
+.add-day-pill {
+  padding: 0.35rem 0.65rem;
   border: 1px dashed var(--border-color);
-  border-radius: 0.75rem;
+  border-radius: var(--radius-full);
   background: transparent;
-  color: var(--text-secondary);
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  appearance: none;
-  -webkit-appearance: none;
-}
-
-.btn-add-day {
-  padding: 0.45rem 0.75rem;
-  border: 1px solid var(--border-color);
-  border-radius: 0.75rem;
-  background: transparent;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
   transition: all 0.15s;
 }
 
-.btn-add-day:hover:not(:disabled) {
+.add-day-pill:hover {
   border-color: var(--color-primary);
   color: var(--color-primary);
+  border-style: solid;
 }
 
-.btn-add-day:disabled {
-  opacity: 0.3;
-  cursor: default;
+.add-day-hint {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 /* Toast */
