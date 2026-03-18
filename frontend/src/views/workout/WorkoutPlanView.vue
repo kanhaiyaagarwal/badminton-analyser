@@ -202,7 +202,7 @@ function openCustomize() {
       .filter(d => d.exercises?.length > 0 || d.status === 'today' || d.status === 'planned')
       .map(d => ({
         day: d.day,
-        muscles: guessMusclesFromExercises(d.exercises || []),
+        muscles: guessMusclesFromLabel(d.label),
       }))
     // If no planned days found, use existing plan days
     if (customDays.value.length === 0 && weekData.exercises?.length) {
@@ -212,17 +212,11 @@ function openCustomize() {
   })
 }
 
-function guessMusclesFromExercises(exercises) {
-  // Extract unique muscle groups from exercise names/data
-  const muscles = new Set()
-  for (const ex of exercises) {
-    if (ex.primary_muscle) muscles.add(ex.primary_muscle)
-    for (const mg of (ex.muscle_groups || [])) {
-      if (ALL_MUSCLE_GROUPS.includes(mg)) muscles.add(mg)
-    }
-  }
-  // Limit to top 2-3 primary ones
-  return [...muscles].filter(m => ALL_MUSCLE_GROUPS.includes(m)).slice(0, 3)
+function guessMusclesFromLabel(label) {
+  // Extract muscle groups from day label like "Upper — Chest & Back"
+  if (!label) return []
+  const lower = label.toLowerCase()
+  return ALL_MUSCLE_GROUPS.filter(m => lower.includes(m))
 }
 
 function usedMuscles(currentDay) {
