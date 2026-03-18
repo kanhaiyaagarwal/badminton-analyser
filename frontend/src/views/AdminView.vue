@@ -775,53 +775,84 @@
 
         <!-- Workout Detail Modal -->
         <div v-if="workoutDetailModal" class="modal-overlay" @click="workoutDetailModal = null">
-          <div class="modal-content" @click.stop>
-            <h2>Workout #{{ workoutDetailModal.id }} — {{ workoutDetailModal.username }}</h2>
-            <p v-if="workoutDetailModal.coach_summary" style="margin-bottom: 0.75rem; font-style: italic; color: var(--text-secondary);">
+          <div class="modal-content modal-wide" @click.stop>
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem;">
+              <div>
+                <h2 style="margin-bottom: 0.25rem;">Workout #{{ workoutDetailModal.id }} — {{ workoutDetailModal.username }}</h2>
+                <div style="font-size: 0.8rem; color: var(--text-muted);">
+                  {{ formatDate(workoutDetailModal.started_at) }}
+                  <template v-if="workoutDetailModal.duration_seconds"> · {{ Math.round(workoutDetailModal.duration_seconds / 60) }}m</template>
+                  · {{ workoutDetailModal.status }}
+                </div>
+              </div>
+              <button @click="workoutDetailModal = null" class="btn-small">Close</button>
+            </div>
+
+            <p v-if="workoutDetailModal.coach_summary" style="margin-bottom: 0.75rem; font-style: italic; color: var(--text-secondary); font-size: 0.85rem;">
               "{{ workoutDetailModal.coach_summary }}"
             </p>
 
-            <h3 style="margin-bottom: 0.5rem;">Planned Exercises</h3>
-            <table class="data-table" style="margin-bottom: 1rem;">
-              <thead><tr><th>#</th><th>Exercise</th><th>Sets x Reps</th></tr></thead>
-              <tbody>
-                <tr v-for="(ex, i) in workoutDetailModal.planned_exercises" :key="i">
-                  <td>{{ i + 1 }}</td>
-                  <td>{{ ex.name }}</td>
-                  <td>{{ ex.sets }}x{{ ex.reps }}</td>
-                </tr>
-              </tbody>
-            </table>
-
-            <h3 style="margin-bottom: 0.5rem;">Completed Sets</h3>
-            <table class="data-table">
-              <thead><tr><th>Exercise</th><th>Set</th><th>Reps</th><th>Weight</th><th>RPE</th><th>Form</th><th>Camera</th></tr></thead>
-              <tbody>
-                <tr v-for="s in workoutDetailModal.sets" :key="s.id">
-                  <td>{{ getExerciseName(workoutDetailModal.planned_exercises, s.exercise_id) }}</td>
-                  <td>{{ s.set_number }}</td>
-                  <td>{{ s.actual_reps }}</td>
-                  <td>{{ s.weight_kg ? s.weight_kg + 'kg' : '-' }}</td>
-                  <td>{{ s.rpe || '-' }}</td>
-                  <td>{{ s.form_score || '-' }}</td>
-                  <td>
-                    <button v-if="s.challenge_session_id" @click="viewScreenshots(s.challenge_session_id, 0)" class="btn-small btn-info">
-                      Screenshots
-                    </button>
-                    <span v-else>-</span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-
-            <div v-if="workoutDetailModal.prs?.length" style="margin-top: 0.75rem;">
-              <h3>PRs</h3>
-              <div v-for="pr in workoutDetailModal.prs" :key="pr.exercise" style="font-size: 0.85rem;">
-                {{ pr.exercise }}: {{ pr.type }} — {{ pr.value }}
-              </div>
+            <!-- Summary stats -->
+            <div v-if="workoutDetailModal.total_sets" style="display: flex; gap: 1.5rem; margin-bottom: 1rem; font-size: 0.85rem;">
+              <div><strong>{{ workoutDetailModal.exercises_completed }}</strong> exercises</div>
+              <div><strong>{{ workoutDetailModal.total_sets }}</strong> sets</div>
+              <div><strong>{{ workoutDetailModal.total_reps }}</strong> reps</div>
+              <div v-if="workoutDetailModal.total_volume_kg"><strong>{{ workoutDetailModal.total_volume_kg.toFixed(1) }}</strong> kg volume</div>
             </div>
 
-            <button @click="workoutDetailModal = null" class="btn-small" style="margin-top: 1rem;">Close</button>
+            <!-- PRs -->
+            <div v-if="workoutDetailModal.prs?.length" style="margin-bottom: 1rem; padding: 0.5rem 0.75rem; background: rgba(242,101,34,0.1); border-radius: 0.5rem;">
+              <strong style="font-size: 0.8rem;">PRs:</strong>
+              <span v-for="(pr, i) in workoutDetailModal.prs" :key="i" style="font-size: 0.8rem; margin-left: 0.5rem;">
+                {{ pr.exercise }} ({{ pr.type }}: {{ pr.value }}){{ i < workoutDetailModal.prs.length - 1 ? ',' : '' }}
+              </span>
+            </div>
+
+            <!-- Planned vs Completed -->
+            <h3 style="margin-bottom: 0.5rem; font-size: 0.85rem;">Exercise Details</h3>
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Exercise</th>
+                  <th>Set</th>
+                  <th>Target</th>
+                  <th>Actual</th>
+                  <th>Weight</th>
+                  <th>RPE</th>
+                  <th>Form</th>
+                  <th>Duration</th>
+                  <th>Debug Data</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template v-for="ex in workoutDetailModal.planned_exercises" :key="ex.exercise_id">
+                  <!-- Show sets for this exercise -->
+                  <tr v-for="s in getSetsForExercise(workoutDetailModal.sets, ex.exercise_id)" :key="s.id">
+                    <td>{{ ex.name }}</td>
+                    <td>{{ s.set_number }}/{{ ex.sets }}</td>
+                    <td>{{ s.target_reps || ex.reps }}</td>
+                    <td><strong>{{ s.actual_reps }}</strong></td>
+                    <td>{{ s.weight_kg ? s.weight_kg + 'kg' : '-' }}</td>
+                    <td>{{ s.rpe || '-' }}</td>
+                    <td>{{ s.form_score != null ? s.form_score + '%' : '-' }}</td>
+                    <td>{{ s.duration_seconds ? s.duration_seconds + 's' : '-' }}</td>
+                    <td class="actions">
+                      <template v-if="s.challenge_session_id">
+                        <button @click="viewScreenshots(s.challenge_session_id, 0)" class="btn-small btn-info">Screenshots</button>
+                        <button @click="downloadPoseData(s.challenge_session_id)" class="btn-small btn-success">Pose</button>
+                        <button @click="downloadRefinedPoseData(s.challenge_session_id)" class="btn-small">Refined</button>
+                      </template>
+                      <span v-else style="color: var(--text-muted); font-size: 0.75rem;">Manual</span>
+                    </td>
+                  </tr>
+                  <!-- Show row for exercises with no completed sets -->
+                  <tr v-if="getSetsForExercise(workoutDetailModal.sets, ex.exercise_id).length === 0">
+                    <td>{{ ex.name }}</td>
+                    <td colspan="8" style="color: var(--text-muted); font-style: italic;">No sets completed</td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -1758,6 +1789,10 @@ function getExerciseName(planned, exerciseId) {
   return ex ? ex.name : `#${exerciseId}`
 }
 
+function getSetsForExercise(sets, exerciseId) {
+  return (sets || []).filter(s => s.exercise_id === exerciseId).sort((a, b) => a.set_number - b.set_number)
+}
+
 async function viewMimicScreenshots(sessionId, count) {
   for (const entries of Object.values(mimicSsPageCache.value)) {
     for (const e of entries) URL.revokeObjectURL(e.src)
@@ -2221,6 +2256,12 @@ h1 {
   width: 100%;
   max-width: 400px;
   box-shadow: var(--shadow-lg);
+}
+
+.modal-wide {
+  max-width: 900px;
+  max-height: 85vh;
+  overflow-y: auto;
 }
 
 .modal-content h2 {
