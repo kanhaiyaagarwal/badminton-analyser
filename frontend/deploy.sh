@@ -59,8 +59,32 @@ ssh -i ${SSH_KEY} -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "rm -rf /t
 scp -i ${SSH_KEY} -o StrictHostKeyChecking=no -r dist/* ${EC2_USER}@${EC2_HOST}:/tmp/frontend-dist/
 ssh -i ${SSH_KEY} -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "sudo rm -rf ${REMOTE_PATH}/* && sudo cp -r /tmp/frontend-dist/* ${REMOTE_PATH}/ && rm -rf /tmp/frontend-dist"
 
-# Step 4: Verify
-echo -e "${GREEN}[4/4] Verifying deployment...${NC}"
+# Step 4: Set Nginx cache headers (no-cache for index.html, long cache for hashed assets)
+echo -e "${GREEN}[4/5] Configuring Nginx cache headers...${NC}"
+ssh -i ${SSH_KEY} -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} 'sudo tee /etc/nginx/conf.d/cache-headers.conf > /dev/null << "NGINX_EOF"
+# Cache hashed assets (JS, CSS) for 1 year — filenames change on rebuild
+location ~* \.(js|css)$ {
+    expires 1y;
+    add_header Cache-Control "public, immutable";
+}
+
+# Never cache index.html — Safari aggressively caches it
+location = /index.html {
+    add_header Cache-Control "no-cache, no-store, must-revalidate";
+    add_header Pragma "no-cache";
+    expires 0;
+}
+
+# Images/fonts cache for 1 week
+location ~* \.(png|jpg|jpeg|gif|ico|svg|woff2?|ttf|eot)$ {
+    expires 7d;
+    add_header Cache-Control "public";
+}
+NGINX_EOF
+sudo nginx -t && sudo systemctl reload nginx' 2>/dev/null || echo "  (Nginx config skipped — may need manual setup)"
+
+# Step 5: Verify
+echo -e "${GREEN}[5/5] Verifying deployment...${NC}"
 ssh -i ${SSH_KEY} -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "ls -la ${REMOTE_PATH}/ | head -10"
 
 echo ""
