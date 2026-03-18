@@ -132,12 +132,15 @@
 
     <!-- Week strip -->
     <section v-if="weekView" class="week-section">
-      <h2
-        v-motion
-        :initial="{ opacity: 0 }"
-        :enter="{ opacity: 1, transition: { delay: 600 } }"
-        class="section-label"
-      >This Week</h2>
+      <div class="week-nav">
+        <button class="week-nav-btn" :disabled="weekOffset <= 0" @click="changeWeek(-1)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span class="week-nav-label">{{ weekOffset === 0 ? 'This Week' : 'Next Week' }}</span>
+        <button class="week-nav-btn" :disabled="weekOffset >= 1" @click="changeWeek(1)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
+        </button>
+      </div>
       <div class="week-strip glass">
         <div
           v-for="(d, index) in weekView.days"
@@ -231,6 +234,7 @@ const toast = ref(null)
 const coachInsight = ref('')
 const insightType = ref('')
 const selectedDay = ref(null)
+const weekOffset = ref(0)
 
 const selectedDayData = computed(() => {
   if (!selectedDay.value || !weekView.value) return null
@@ -276,6 +280,14 @@ const streakProgress = computed(() => {
 function formatVolume(kg) {
   if (kg >= 1000) return Math.round(kg / 100) / 10 + 'k'
   return Math.round(kg) + ''
+}
+
+async function changeWeek(dir) {
+  weekOffset.value = Math.max(0, Math.min(1, weekOffset.value + dir))
+  selectedDay.value = null
+  try {
+    weekView.value = await workoutStore.fetchWeekView(weekOffset.value)
+  } catch { /* ignore */ }
 }
 
 async function handleStartWorkout() {
@@ -600,6 +612,45 @@ onMounted(async () => {
 .week-section {
   padding: 0 1.5rem;
   margin-bottom: 1.5rem;
+}
+
+.week-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.week-nav-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.week-nav-btn:hover:not(:disabled) {
+  color: var(--color-primary);
+  background: var(--color-primary-light);
+}
+
+.week-nav-btn:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+.week-nav-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
 }
 
 .week-strip {

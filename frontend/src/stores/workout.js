@@ -66,9 +66,9 @@ export const useWorkoutStore = defineStore('workout', () => {
     }
   }
 
-  async function fetchWeekView() {
+  async function fetchWeekView(weekOffset = 0) {
     try {
-      const res = await api.get('/api/v1/workout/week')
+      const res = await api.get('/api/v1/workout/week', { params: { week_offset: weekOffset } })
       weekView.value = res.data
       return res.data
     } catch (err) {

@@ -260,11 +260,12 @@ async def get_today_workout(
 
 @router.get("/week")
 async def get_week_view(
+    week_offset: int = Query(0, ge=0, le=1),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Get the week view with day statuses."""
-    return WorkoutService.get_week_view(db, current_user.id)
+    """Get the week view with day statuses. week_offset: 0=this week, 1=next week."""
+    return WorkoutService.get_week_view(db, current_user.id, week_offset)
 
 
 @router.get("/progress/stats")

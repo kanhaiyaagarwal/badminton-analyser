@@ -315,10 +315,10 @@ class WorkoutService:
         }
 
     @staticmethod
-    def get_week_view(db: Session, user_id: int) -> dict:
-        """Get the week view with day statuses."""
+    def get_week_view(db: Session, user_id: int, week_offset: int = 0) -> dict:
+        """Get the week view with day statuses. week_offset: 0=this week, 1=next week."""
         today = date.today()
-        start_of_week = today - timedelta(days=today.weekday())
+        start_of_week = today - timedelta(days=today.weekday()) + timedelta(weeks=week_offset)
 
         plan = db.query(WorkoutPlan).filter(
             WorkoutPlan.user_id == user_id,
