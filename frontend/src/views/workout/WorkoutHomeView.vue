@@ -137,11 +137,11 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
         <span class="week-nav-label">{{ weekOffset === 0 ? 'This Week' : 'Next Week' }}</span>
-        <button class="week-nav-btn week-edit-btn" @click="router.push('/workout?customize=1')" title="Customize weekly plan">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
-        </button>
         <button class="week-nav-btn" :disabled="weekOffset >= 1" @click="changeWeek(1)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
+        </button>
+        <button class="week-nav-btn" @click="router.push('/workout?customize=1')" title="Customize weekly plan">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
         </button>
       </div>
       <div class="week-strip glass">
@@ -620,7 +620,6 @@ onMounted(async () => {
 .week-nav {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   margin-bottom: 0.5rem;
 }
 
@@ -635,6 +634,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   transition: all 0.15s;
 }
 
@@ -649,6 +649,8 @@ onMounted(async () => {
 }
 
 .week-nav-label {
+  flex: 1;
+  text-align: center;
   font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
