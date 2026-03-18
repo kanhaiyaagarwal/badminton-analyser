@@ -304,6 +304,8 @@ def _handle_complete_set(db: Session, user_id: int, session_id: Optional[int], p
         weight_kg=weight_kg,
         duration_seconds=duration_seconds,
         rpe=rpe,
+        form_score=params.get("form_score"),
+        challenge_session_id=params.get("challenge_session_id"),
         exercise_order=ex_info.get("order", ex_index),
         completed_at=datetime.utcnow(),
     )

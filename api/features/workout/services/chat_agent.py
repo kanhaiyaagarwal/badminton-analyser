@@ -229,6 +229,13 @@ def _execute_actions(db, session_id: int, user_id: int, result: dict, session_da
                     planned = new_planned
                     modified = True
 
+        elif action_type == "plan_updated":
+            # Bulk plan replacement (e.g., home workout switch)
+            new_exercises = params.get("exercises")
+            if new_exercises:
+                planned = new_exercises
+                modified = True
+
         elif action_type == "adjust_next_set":
             slug = params.get("slug", "")
             exercise_id = params.get("exercise_id")
@@ -314,8 +321,12 @@ def _is_action_pattern(user_message: str, context: str) -> bool:
             "remove", "delete", "drop", "skip",
             "let's go", "lets go", "start", "begin", "ready",
             "shorter", "less time", "quick", "fewer", "reduce",
+            "longer", "add another", "more exercises", "extend",
         )
         if msg.startswith("confirm_swap "):
+            return True
+        # Home/gym switch
+        if "home workout" in msg or "gym workout" in msg or "bodyweight" in msg:
             return True
         if any(kw in msg for kw in action_keywords):
             return True
@@ -386,9 +397,31 @@ def _template_chat(user_message: str, context: str, session_data: dict) -> dict:
                     for name in ex_names
                 ]
 
+        elif "home workout" in msg_lower or ("bodyweight" in msg_lower and "minimal" in msg_lower):
+            # Switch to home/bodyweight exercises — must check BEFORE swap (message contains "switch")
+            home_exercises = _get_home_alternatives(exercises, session_data)
+            if home_exercises:
+                actions = [{"type": "plan_updated", "params": {"exercises": home_exercises}}]
+                response = f"Switched to a home workout — {len(home_exercises)} bodyweight exercises."
+                buttons = [
+                    {"label": "Let's go!", "action": "begin_workout"},
+                    {"label": "Back to gym", "action": "gym workout with full equipment"},
+                ]
+            else:
+                response = "Couldn't find enough home-friendly alternatives. Try swapping individual exercises."
+                buttons = tmpl["buttons"]
+
+        elif "gym workout" in msg_lower or "full equipment" in msg_lower:
+            # Switch back to gym — reload original plan
+            response = "Switched back to gym mode with full equipment."
+            actions = [{"type": "reload_plan", "params": {}}]
+            buttons = [
+                {"label": "Let's go!", "action": "begin_workout"},
+                {"label": "Switch to home", "action": "home workout bodyweight minimal"},
+            ]
+
         elif msg_lower.startswith("confirm_swap "):
             # User confirmed a swap: "confirm_swap old-slug new-slug"
-            # Must be checked BEFORE swap keywords since the message contains "swap"
             parts = msg_lower.split()
             if len(parts) >= 3:
                 old_slug = parts[1]
@@ -454,6 +487,31 @@ def _template_chat(user_message: str, context: str, session_data: dict) -> dict:
                     {"label": "Fewer sets", "action": "reduce_sets"},
                     {"label": "Keep it", "action": "dismiss"},
                 ]
+
+        elif any(kw in msg_lower for kw in ("longer", "add another", "more exercises", "extend")):
+            # Add an exercise to the plan
+            alternatives = session_data.get("alternatives", [])
+            plan_slugs = {e.get("slug") for e in exercises}
+            available = [a for a in alternatives if a.get("slug") not in plan_slugs]
+            if available:
+                added = available[0]
+                new_ex = {
+                    "slug": added["slug"],
+                    "name": added["name"],
+                    "sets": 3,
+                    "reps": "10",
+                    "order": len(exercises),
+                }
+                updated = exercises + [new_ex]
+                actions = [{"type": "plan_updated", "params": {"exercises": updated}}]
+                response = f"Added {added['name']} to the plan!"
+                buttons = [
+                    {"label": "Let's go!", "action": "begin_workout"},
+                    {"label": "Add more", "action": "add another exercise"},
+                ]
+            else:
+                response = "No more exercises available to add. Use the Edit button to search and add specific exercises."
+                buttons = [{"label": "OK", "action": "dismiss"}]
 
         elif any(kw in msg_lower for kw in ("how do", "how to", "explain", "what is", "show me", "form", "technique", "tips")):
             response = _answer_exercise_question(msg_lower, exercises)
@@ -547,6 +605,106 @@ def _match_exercise_in_message(msg: str, exercises: list) -> Optional[dict]:
             return ex
 
     return None
+
+
+def _get_home_alternatives(current_exercises: list, session_data: dict) -> list:
+    """Replace gym exercises with bodyweight/home-friendly alternatives."""
+    from ..db_models.workout import Exercise
+    from ....database import SessionLocal
+
+    # Equipment that's available at home without a gym
+    HOME_EQUIPMENT = {"none", "bodyweight", "mat", "pull-up bar", "resistance band"}
+
+    # Prefer real exercises over stretches/recovery
+    STRETCH_SLUGS = {
+        "childs-pose", "cat-cow-stretch", "pigeon-pose",
+        "hip-flexor-stretch", "foam-roll",
+    }
+
+    def _is_home_friendly(equip_list):
+        equip = set(equip_list or [])
+        return equip.issubset(HOME_EQUIPMENT)
+
+    def _sort_key(ex):
+        """Prefer compound > bodyweight > isolation, avoid stretches."""
+        score = 0
+        if ex.slug in STRETCH_SLUGS:
+            score += 100
+        if ex.category == "compound":
+            score -= 10
+        elif ex.category == "bodyweight":
+            score -= 5
+        return score
+
+    db = SessionLocal()
+    try:
+        all_exercises = db.query(Exercise).all()
+
+        # Group home-friendly exercises by primary muscle, sorted by quality
+        home_by_muscle = {}
+        for ex in all_exercises:
+            if _is_home_friendly(ex.equipment):
+                home_by_muscle.setdefault(ex.primary_muscle, []).append(ex)
+        for muscle in home_by_muscle:
+            home_by_muscle[muscle].sort(key=_sort_key)
+
+        result = []
+        used_slugs = set()
+        for plan_ex in current_exercises:
+            db_ex = next((e for e in all_exercises if e.id == plan_ex.get("exercise_id")), None)
+            # Keep if already home-friendly
+            if db_ex and _is_home_friendly(db_ex.equipment):
+                result.append(plan_ex)
+                used_slugs.add(plan_ex.get("slug"))
+                continue
+
+            # Find a home-friendly alternative with same primary muscle
+            muscle = db_ex.primary_muscle if db_ex else ""
+            candidates = [
+                e for e in home_by_muscle.get(muscle, [])
+                if e.slug not in used_slugs
+            ]
+            if candidates:
+                alt = candidates[0]
+                used_slugs.add(alt.slug)
+                result.append({
+                    **plan_ex,
+                    "slug": alt.slug,
+                    "name": alt.name,
+                    "exercise_id": alt.id,
+                })
+            else:
+                # Try any muscle group the original hits
+                found = False
+                if db_ex:
+                    for mg in (db_ex.muscle_groups or []):
+                        for e in home_by_muscle.get(mg, []):
+                            if e.slug not in used_slugs:
+                                used_slugs.add(e.slug)
+                                result.append({
+                                    **plan_ex,
+                                    "slug": e.slug,
+                                    "name": e.name,
+                                    "exercise_id": e.id,
+                                })
+                                found = True
+                                break
+                        if found:
+                            break
+                if not found:
+                    # Last resort — keep original
+                    result.append(plan_ex)
+                    used_slugs.add(plan_ex.get("slug"))
+
+        for i, ex in enumerate(result):
+            result[i] = {**ex, "order": i}
+
+        return result
+    except Exception as e:
+        logger.warning("Home alternatives failed: %s", e)
+        return []
+    finally:
+        db.close()
 
 
 def _answer_exercise_question(msg: str, session_exercises: list) -> str:

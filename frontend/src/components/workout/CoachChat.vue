@@ -42,11 +42,22 @@
       <button
         v-for="(opt, i) in latestOptions"
         :key="opt.value"
-        :class="['option-card', 'glass', { 'option-skip': opt.value === '__skip__' }]"
+        :class="['option-card', 'glass', {
+          'option-skip': opt.value === '__skip__',
+          'option-selected': isMultiSelect && multiSelected.has(opt.value),
+        }]"
         @click="handleOptionTap(opt)"
       >
         <span v-if="opt.emoji" class="option-emoji">{{ opt.emoji }}</span>
         {{ opt.label }}
+      </button>
+      <!-- Done button for multi-select -->
+      <button
+        v-if="isMultiSelect && multiSelected.size > 0"
+        class="option-card glass option-done"
+        @click="submitMultiSelect"
+      >
+        Done
       </button>
     </div>
 
@@ -154,6 +165,8 @@ const latestOptions = computed(() => {
 watch(() => messages.value.length, async () => {
   await nextTick()
   scrollToBottom()
+  // Reset multi-select when new options arrive
+  multiSelected.value = new Set()
 })
 
 watch(lastResponse, (resp) => {
@@ -183,9 +196,41 @@ async function handleSend() {
   await sendMessage(text)
 }
 
+// Multi-select support
+const multiSelected = ref(new Set())
+
+const isMultiSelect = computed(() => {
+  return latestOptions.value.some(o => o.multi)
+})
+
 async function handleOptionTap(opt) {
   if (loading.value) return
+
+  // Multi-select mode: toggle selection, don't send yet
+  if (opt.multi) {
+    const s = new Set(multiSelected.value)
+    if (s.has(opt.value)) {
+      s.delete(opt.value)
+    } else {
+      s.add(opt.value)
+    }
+    multiSelected.value = s
+    return
+  }
+
+  // Single-select: send immediately
   await sendOption(opt.value, opt.label)
+}
+
+async function submitMultiSelect() {
+  if (loading.value || multiSelected.value.size === 0) return
+  const values = [...multiSelected.value]
+  const labels = values.map(v => {
+    const opt = latestOptions.value.find(o => o.value === v)
+    return opt ? opt.label : v
+  })
+  multiSelected.value = new Set()
+  await sendOption(values.join(','), labels.join(', '))
 }
 
 function toggleMic() {
@@ -383,6 +428,19 @@ onMounted(() => {
 
 .option-card:active {
   transform: scale(0.95);
+}
+
+.option-selected {
+  border-color: var(--color-primary) !important;
+  background: var(--color-primary) !important;
+  color: var(--text-on-primary) !important;
+}
+
+.option-done {
+  background: var(--gradient-primary) !important;
+  color: var(--text-on-primary) !important;
+  border-color: transparent !important;
+  font-weight: 700 !important;
 }
 
 .option-emoji {

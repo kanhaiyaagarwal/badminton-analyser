@@ -55,19 +55,28 @@ async def reset_onboarding(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Reset workout onboarding — clears profile, goals, preferences, plan, and progressions."""
+    """Reset workout onboarding — soft-deletes sessions/chat, hard-deletes profile/plan/prefs."""
     from ..db_models.workout import (
         UserProfile, UserGoal, CoachPreferences, WorkoutPlan,
         ExerciseProgression, WorkoutSession, ExerciseSet,
+        ChatConversation, ChatMessage,
     )
+    from datetime import datetime
 
     uid = current_user.id
-    db.query(ExerciseSet).filter(
-        ExerciseSet.session_id.in_(
-            db.query(WorkoutSession.id).filter(WorkoutSession.user_id == uid)
-        )
-    ).delete(synchronize_session=False)
-    db.query(WorkoutSession).filter(WorkoutSession.user_id == uid).delete()
+    now = datetime.utcnow()
+
+    # Soft-delete: mark chat conversations as closed (keeps messages for debugging)
+    db.query(ChatConversation).filter(
+        ChatConversation.user_id == uid,
+    ).update({"status": "reset", "closed_at": now}, synchronize_session=False)
+
+    # Soft-delete: mark workout sessions as archived, detach from plan (FK)
+    db.query(WorkoutSession).filter(
+        WorkoutSession.user_id == uid,
+    ).update({"status": "skipped", "plan_id": None}, synchronize_session=False)
+
+    # Hard-delete: profile, goals, preferences, plan, progressions (re-created on onboarding)
     db.query(ExerciseProgression).filter(ExerciseProgression.user_id == uid).delete()
     db.query(WorkoutPlan).filter(WorkoutPlan.user_id == uid).delete()
     db.query(CoachPreferences).filter(CoachPreferences.user_id == uid).delete()
@@ -531,3 +540,82 @@ async def speech_to_text(
         raise HTTPException(status_code=503, detail="STT unavailable")
 
     return {"text": text}
+
+
+# ---------------------------------------------------------------------------
+# Admin: Workout Sessions
+# ---------------------------------------------------------------------------
+
+@router.get("/admin/sessions")
+async def admin_list_workout_sessions(
+    user_id: Optional[int] = Query(None),
+    status: Optional[str] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    admin=Depends(get_current_user),
+):
+    """List workout sessions with summary data (admin only)."""
+    if not getattr(admin, "is_admin", False):
+        raise HTTPException(status_code=403, detail="Admin only")
+
+    from ..db_models.workout import WorkoutSession, ExerciseSet
+    from ....db_models.user import User
+
+    q = db.query(WorkoutSession, User.username, User.email).join(
+        User, User.id == WorkoutSession.user_id
+    )
+    if user_id:
+        q = q.filter(WorkoutSession.user_id == user_id)
+    if status:
+        q = q.filter(WorkoutSession.status == status)
+
+    total = q.count()
+    rows = q.order_by(WorkoutSession.created_at.desc()).offset(skip).limit(limit).all()
+
+    sessions = []
+    for ws, username, email in rows:
+        # Count sets and get challenge_session_ids for screenshot links
+        sets = db.query(ExerciseSet).filter(ExerciseSet.session_id == ws.id).all()
+        challenge_ids = [s.challenge_session_id for s in sets if s.challenge_session_id]
+
+        summary = ws.summary or {}
+        sessions.append({
+            "id": ws.id,
+            "user_id": ws.user_id,
+            "username": username,
+            "email": email,
+            "status": ws.status.value if ws.status else "unknown",
+            "session_type": ws.session_type.value if ws.session_type else "coached",
+            "started_at": ws.started_at,
+            "ended_at": ws.ended_at,
+            "duration_seconds": ws.duration_seconds,
+            "created_at": ws.created_at,
+            "exercises_completed": summary.get("exercises_completed", 0),
+            "total_sets": summary.get("total_sets", 0),
+            "total_reps": summary.get("total_reps", 0),
+            "total_volume_kg": summary.get("total_volume_kg", 0),
+            "prs": summary.get("prs", []),
+            "coach_summary": summary.get("coach_summary", ""),
+            "planned_exercises": ws.planned_exercises or [],
+            "set_count": len(sets),
+            "challenge_session_ids": challenge_ids,
+            "sets": [
+                {
+                    "id": s.id,
+                    "exercise_id": s.exercise_id,
+                    "set_number": s.set_number,
+                    "actual_reps": s.actual_reps,
+                    "target_reps": s.target_reps,
+                    "weight_kg": s.weight_kg,
+                    "rpe": s.rpe,
+                    "form_score": s.form_score,
+                    "challenge_session_id": s.challenge_session_id,
+                    "duration_seconds": s.duration_seconds,
+                    "completed_at": s.completed_at,
+                }
+                for s in sets
+            ],
+        })
+
+    return {"sessions": sessions, "total": total, "skip": skip, "limit": limit}

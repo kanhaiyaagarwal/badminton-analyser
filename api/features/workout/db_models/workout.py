@@ -164,6 +164,7 @@ class ExerciseSet(Base):
     duration_seconds = Column(Integer, nullable=True)
     rpe = Column(Integer, nullable=True)  # rate of perceived exertion 1-10
     form_score = Column(Integer, nullable=True)  # 0-100 from camera tracking
+    challenge_session_id = Column(Integer, nullable=True)  # links to challenge_sessions for screenshots/pose data
     is_warmup = Column(Boolean, default=False)
     completed_at = Column(DateTime, nullable=True)
     exercise_order = Column(Integer, nullable=True)  # position in session

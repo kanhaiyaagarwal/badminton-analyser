@@ -60,8 +60,15 @@ export function useCameraTracking() {
     error.value = null
 
     try {
+      // Match ChallengeSessionView: 640x480, zoom 1x (widest FOV)
       stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+        video: {
+          facingMode: 'user',
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          zoom: { ideal: 1 },
+          focusMode: { ideal: 'continuous' },
+        },
         audio: false,
       })
       videoEl.srcObject = stream
@@ -384,6 +391,10 @@ export function useCameraTracking() {
     destroy()
   })
 
+  function getChallengeSessionId() {
+    return challengeSessionId
+  }
+
   return {
     isReady,
     isActive,
@@ -395,6 +406,7 @@ export function useCameraTracking() {
     poseData,
     autoEnded,
     error,
+    getChallengeSessionId,
     initCamera,
     start,
     stop,

@@ -135,10 +135,11 @@
 
 <script setup>
 import { ref, computed, reactive, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useWorkoutStore } from '../../stores/workout'
 
 const router = useRouter()
+const route = useRoute()
 const workoutStore = useWorkoutStore()
 
 const search = ref('')
@@ -230,6 +231,16 @@ const exerciseNameMap = computed(() => {
   return map
 })
 
+// Map display group names to actual muscle names in the DB
+const muscleGroupMap = {
+  'Chest': ['chest'],
+  'Back': ['back', 'lats', 'rear delts', 'traps', 'upper back', 'lower back'],
+  'Legs': ['quads', 'hamstrings', 'glutes', 'calves', 'hip flexors', 'inner thighs'],
+  'Shoulders': ['shoulders', 'rear delts', 'traps', 'rotator cuff'],
+  'Arms': ['biceps', 'triceps', 'forearms'],
+  'Core': ['core', 'abs', 'obliques'],
+}
+
 const filteredExercises = computed(() => {
   let list = workoutStore.exercises
 
@@ -239,11 +250,11 @@ const filteredExercises = computed(() => {
   }
 
   if (selectedMuscle.value !== 'All') {
-    const mg = selectedMuscle.value.toLowerCase()
-    list = list.filter(e =>
-      (e.muscle_groups || []).some(m => m.toLowerCase().includes(mg)) ||
-      e.primary_muscle.toLowerCase().includes(mg)
-    )
+    const targets = muscleGroupMap[selectedMuscle.value] || [selectedMuscle.value.toLowerCase()]
+    list = list.filter(e => {
+      const muscles = [...(e.muscle_groups || []), e.primary_muscle].map(m => m.toLowerCase())
+      return targets.some(t => muscles.includes(t))
+    })
   }
 
   return list
@@ -320,6 +331,12 @@ async function startQuickWorkout() {
 
 onMounted(() => {
   workoutStore.fetchExercises()
+
+  // Pre-select exercise from query param (e.g., ?add=bench-press)
+  const addSlug = route.query.add
+  if (addSlug) {
+    selectedSlugs.add(addSlug)
+  }
 })
 </script>
 

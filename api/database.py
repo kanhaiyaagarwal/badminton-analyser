@@ -56,6 +56,7 @@ def init_db():
     _migrate_exercise_progression()
     _migrate_exercise_demo_video()
     _migrate_chat_conversations()
+    _migrate_exercise_set_challenge_link()
     seed_default_tuning_data()
     seed_challenge_defaults()
     seed_feature_access()
@@ -956,6 +957,24 @@ def _migrate_exercise_demo_video():
                 logger.info(f"Populated {updated} exercise demo video URLs")
     except Exception as e:
         logger.error(f"exercise demo_video migration failed: {e}")
+
+
+def _migrate_exercise_set_challenge_link():
+    """Add challenge_session_id column to exercise_sets for screenshot/pose data linking."""
+    import logging
+    _logger = logging.getLogger(__name__)
+    from sqlalchemy import text, inspect
+    try:
+        inspector = inspect(engine)
+        if "exercise_sets" not in inspector.get_table_names():
+            return
+        existing = {c["name"] for c in inspector.get_columns("exercise_sets")}
+        if "challenge_session_id" not in existing:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE exercise_sets ADD COLUMN challenge_session_id INTEGER"))
+                _logger.info("Added column exercise_sets.challenge_session_id")
+    except Exception as e:
+        _logger.error("exercise_set_challenge_link migration failed: %s", e)
 
 
 def seed_exercises():

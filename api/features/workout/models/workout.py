@@ -165,6 +165,7 @@ class ChatRequest(BaseModel):
 class SuggestedOption(BaseModel):
     label: str
     value: str
+    multi: bool = False
 
 
 class ChatAction(BaseModel):

@@ -1,6 +1,6 @@
 <template>
   <div class="exercise-detail">
-    <router-link to="/workout/exercises" class="back-link">&larr; Back to Library</router-link>
+    <button class="back-link" @click="$router.back()">&larr; Back</button>
 
     <div v-if="loading" class="loading-state">
       <div class="spinner" />
@@ -12,10 +12,10 @@
         <div v-if="videoId" class="video-wrap" @click="showVideo = !showVideo">
           <template v-if="showVideo">
             <iframe
-              :src="`https://www.youtube.com/embed/${videoId}?autoplay=1&loop=1&mute=1&playsinline=1`"
+              :src="`https://www.youtube.com/embed/${videoId}?autoplay=1&loop=1&mute=1&playsinline=1&rel=0&modestbranding=1&fs=0&iv_load_policy=3&disablekb=0&playlist=${videoId}`"
               frameborder="0"
               allow="autoplay; encrypted-media"
-              allowfullscreen
+              sandbox="allow-scripts allow-same-origin allow-presentation"
               class="video-iframe"
             ></iframe>
           </template>
@@ -138,9 +138,7 @@ const trackingLabel = computed(() => {
 })
 
 function addToQuickStart() {
-  router.push('/workout/quick-start')
-  toast.value = `${exercise.value.name} — select it in Quick Start!`
-  setTimeout(() => { toast.value = null }, 2500)
+  router.push(`/workout/quick-start?add=${exercise.value.slug}`)
 }
 
 onMounted(async () => {
@@ -165,6 +163,11 @@ onMounted(async () => {
   color: var(--text-muted);
   text-decoration: none;
   font-size: 0.85rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
 }
 .back-link:hover { color: var(--color-primary); }
 

@@ -43,9 +43,9 @@ SPLIT_TEMPLATES = {
         "max_days": 3,
         "day_labels": ["Full Body — Push Focus", "Full Body — Pull Focus", "Full Body — Legs Focus"],
         "muscle_map": {
-            "Full Body — Push Focus": ["chest", "back", "quads", "shoulders", "core"],
-            "Full Body — Pull Focus": ["chest", "hamstrings", "back", "biceps", "triceps"],
-            "Full Body — Legs Focus": ["quads", "glutes", "shoulders", "back", "core"],
+            "Full Body — Push Focus": ["chest", "shoulders", "triceps", "quads", "core"],
+            "Full Body — Pull Focus": ["back", "biceps", "hamstrings", "rear delts", "core"],
+            "Full Body — Legs Focus": ["quads", "glutes", "calves", "shoulders", "back"],
         },
     },
 }
@@ -71,6 +71,39 @@ DIFFICULTY_RANK = {
     "intermediate": 1,
     "advanced": 2,
 }
+
+
+# Similarity groups — exercises within a group are too similar to appear together
+# When one is picked, others in the same group are excluded for that day
+SIMILARITY_GROUPS = [
+    {"deadlift", "romanian-deadlift", "sumo-deadlift", "stiff-leg-deadlift"},
+    {"barbell-squat", "front-squat", "hack-squat", "smith-machine-squat"},
+    {"bench-press", "close-grip-bench-press", "decline-bench-press"},
+    {"incline-bench-press", "incline-dumbbell-press"},
+    {"dumbbell-fly", "incline-dumbbell-fly"},
+    {"bicep-curl", "hammer-curl", "preacher-curl", "incline-dumbbell-curl", "concentration-curl", "cable-curl", "reverse-curl"},
+    {"overhead-tricep-extension", "tricep-pushdown", "dumbbell-tricep-kickback", "skull-crusher"},
+    {"lateral-raise", "cable-lateral-raise"},
+    {"barbell-row", "pendlay-row", "t-bar-row"},
+    {"single-arm-dumbbell-row", "chest-supported-row", "seated-cable-row"},
+    {"shoulder-press", "arnold-press"},
+    {"barbell-shrug", "dumbbell-shrug"},
+    {"crunch", "decline-sit-up", "cable-crunch"},
+    {"plank", "side-plank"},
+    {"bodyweight-squat", "jump-squat", "sumo-squat", "sissy-squat"},
+    {"lunges", "bulgarian-split-squat", "step-up"},
+    {"calf-raise", "single-leg-calf-raise"},
+    {"push-up", "diamond-push-up", "wide-grip-push-up"},
+    {"pull-up", "chin-up"},
+    {"glute-bridge", "hip-thrust"},
+    {"good-morning", "hyperextension"},
+]
+
+# Build a slug → group index lookup
+_SLUG_TO_GROUP = {}
+for _i, _group in enumerate(SIMILARITY_GROUPS):
+    for _slug in _group:
+        _SLUG_TO_GROUP[_slug] = _i
 
 
 def _pick_split(days_per_week: int) -> str:
@@ -156,6 +189,7 @@ def _exercises_for_muscles(
         used_slugs = set()
     selected = []
     selected_slugs = set()
+    used_groups = set()  # similarity groups already picked for this day
 
     for muscle in target_muscles:
         if len(selected) >= max_exercises:
@@ -171,6 +205,10 @@ def _exercises_for_muscles(
                 continue
             if not _equipment_available(ex, available_equipment, is_home):
                 continue
+            # Skip if a similar exercise is already selected for this day
+            group_id = _SLUG_TO_GROUP.get(slug)
+            if group_id is not None and group_id in used_groups:
+                continue
             candidates.append(ex)
 
         if not candidates:
@@ -183,6 +221,9 @@ def _exercises_for_muscles(
         best = candidates[0]
         selected.append(best)
         selected_slugs.add(best["slug"])
+        group_id = _SLUG_TO_GROUP.get(best["slug"])
+        if group_id is not None:
+            used_groups.add(group_id)
 
     # If we have room, add more exercises for under-represented muscles
     if len(selected) < max_exercises:
@@ -195,6 +236,10 @@ def _exercises_for_muscles(
                 continue
             if not _equipment_available(ex, available_equipment, is_home):
                 continue
+            # Skip similar exercises
+            group_id = _SLUG_TO_GROUP.get(slug)
+            if group_id is not None and group_id in used_groups:
+                continue
             all_candidates.append(ex)
 
         # Sort remaining by how well they complement what we already have
@@ -205,6 +250,9 @@ def _exercises_for_muscles(
                 break
             selected.append(ex)
             selected_slugs.add(ex["slug"])
+            group_id = _SLUG_TO_GROUP.get(ex["slug"])
+            if group_id is not None:
+                used_groups.add(group_id)
 
     return selected
 

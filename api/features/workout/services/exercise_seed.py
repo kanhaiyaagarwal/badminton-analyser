@@ -1,4 +1,21 @@
-"""Seed data for the exercise library — 120 exercises across all categories."""
+"""Seed data for the exercise library — 120 exercises across all categories.
+
+ADDING A NEW EXERCISE:
+1. Add a dict to EXERCISE_SEED_DATA below with all required fields.
+2. muscle_groups MUST include primary_muscle AND at least one plan-generator
+   target muscle: chest, back, shoulders, biceps, triceps, quads, hamstrings,
+   glutes, calves, core, rear delts. Otherwise the exercise won't appear in
+   generated plans.
+3. If the exercise is similar to an existing one (e.g., another deadlift
+   variant), add its slug to the matching SIMILARITY_GROUPS list in
+   plan_generator.py so both don't appear on the same day.
+4. If the exercise supports camera tracking, add its slug to:
+   - api/features/workout/services/camera_tracking.py (TRACKABLE_EXERCISES)
+   - frontend/src/views/workout/session/ActiveSet.vue (TRACKABLE_SLUGS)
+   - frontend/src/views/workout/session/ExerciseIntro.vue (TRACKABLE_SLUGS)
+5. Optional: add a YouTube demo URL in api/database.py (_migrate_exercise_demo_video).
+6. Optional: add slug to combo pools in frontend QuickStartView.vue.
+"""
 
 import logging
 
@@ -1169,7 +1186,7 @@ EXERCISE_SEED_DATA = [
     },
     {
         "name": "Barbell Shrug", "slug": "barbell-shrug", "category": "isolation",
-        "muscle_groups": ["traps"], "primary_muscle": "traps",
+        "muscle_groups": ["traps", "shoulders", "back"], "primary_muscle": "traps",
         "equipment": ["barbell"], "tracking_mode": "reps", "difficulty": "beginner",
         "description": "Barbell shrug for trap development.",
         "form_cues": ["Hold barbell at hip height", "Shrug shoulders straight up toward ears", "Squeeze and hold at top", "Lower with control"],
@@ -1177,7 +1194,7 @@ EXERCISE_SEED_DATA = [
     },
     {
         "name": "Dumbbell Shrug", "slug": "dumbbell-shrug", "category": "isolation",
-        "muscle_groups": ["traps"], "primary_muscle": "traps",
+        "muscle_groups": ["traps", "shoulders", "back"], "primary_muscle": "traps",
         "equipment": ["dumbbells"], "tracking_mode": "reps", "difficulty": "beginner",
         "description": "Dumbbell shrug. Allows greater range of motion than barbell.",
         "form_cues": ["Hold dumbbells at sides", "Shrug shoulders up toward ears", "Squeeze traps at top", "Lower slowly"],
@@ -1582,7 +1599,22 @@ def seed_exercises(engine):
                 })
                 inserted += 1
 
+            # Update muscle_groups for existing exercises (in case seed data changed)
+            updated = 0
+            for ex in EXERCISE_SEED_DATA:
+                if ex["slug"] in existing_slugs:
+                    conn.execute(text(
+                        "UPDATE exercises SET muscle_groups = :muscle_groups "
+                        "WHERE slug = :slug"
+                    ), {
+                        "slug": ex["slug"],
+                        "muscle_groups": json.dumps(ex["muscle_groups"]),
+                    })
+                    updated += 1
+
             if inserted:
                 logger.info(f"Seeded {inserted} new exercises (total library: {len(EXERCISE_SEED_DATA)})")
+            if updated:
+                logger.info(f"Updated muscle_groups for {updated} existing exercises")
     except Exception as e:
         logger.warning(f"Failed to seed exercises: {e}")

@@ -3,7 +3,12 @@
     <!-- Header -->
     <header class="plan-header">
       <h1 class="plan-title font-display">{{ todayWorkout?.day_label || 'Workout' }}</h1>
-      <span v-if="todayWorkout?.estimated_minutes" class="plan-duration">{{ todayWorkout.estimated_minutes }} min</span>
+      <div class="plan-header-right">
+        <span v-if="todayWorkout?.estimated_minutes" class="plan-duration">{{ todayWorkout.estimated_minutes }} min</span>
+        <button v-if="todayWorkout?.has_plan" class="btn-edit-header" @click="handleEditWorkout" title="Edit workout">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+        </button>
+      </div>
     </header>
 
     <!-- Progress bar -->
@@ -43,6 +48,7 @@
           :initial="{ opacity: 0, x: -20 }"
           :enter="{ opacity: 1, x: 0, transition: { delay: i * 80 } }"
           class="exercise-row glass"
+          @click="router.push(`/workout/exercises/${ex.slug}`)"
         >
           <div class="exercise-number">{{ i + 1 }}</div>
           <div class="exercise-info">
@@ -126,10 +132,25 @@ async function handleStartWorkout() {
     const result = await workoutStore.startSession({})
     const sid = result.data?.session_id
     if (sid) {
+      // Skip pre-workout chat — go straight to first exercise
+      await workoutStore.sendAction(sid, 'begin_workout', {})
       router.push(`/workout/session/${sid}`)
     }
   } catch {
     toast.value = 'Failed to start workout'
+    setTimeout(() => { toast.value = null }, 3000)
+  }
+}
+
+async function handleEditWorkout() {
+  try {
+    const result = await workoutStore.startSession({})
+    const sid = result.data?.session_id
+    if (sid) {
+      router.push(`/workout/session/${sid}?edit=1`)
+    }
+  } catch {
+    toast.value = 'Failed to load workout'
     setTimeout(() => { toast.value = null }, 3000)
   }
 }
@@ -167,10 +188,35 @@ onMounted(async () => {
   color: var(--text-primary);
 }
 
+.plan-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .plan-duration {
   font-size: 0.875rem;
   color: var(--text-muted);
   font-weight: 600;
+}
+
+.btn-edit-header {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.btn-edit-header:hover {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
 }
 
 /* Progress */
@@ -263,6 +309,16 @@ onMounted(async () => {
   gap: 1rem;
   padding: 1.25rem;
   border-radius: 1rem;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.exercise-row:hover {
+  border-color: var(--color-primary);
+}
+
+.exercise-row:active {
+  transform: scale(0.99);
 }
 
 .exercise-number {

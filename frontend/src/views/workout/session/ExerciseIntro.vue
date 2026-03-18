@@ -60,10 +60,10 @@
           <div class="video-wrap" @click="showVideo = !showVideo">
             <template v-if="showVideo">
               <iframe
-                :src="`https://www.youtube.com/embed/${videoId}?autoplay=1&loop=1&mute=1&playsinline=1`"
+                :src="`https://www.youtube.com/embed/${videoId}?autoplay=1&loop=1&mute=1&playsinline=1&rel=0&modestbranding=1&fs=0&iv_load_policy=3&disablekb=0&playlist=${videoId}`"
                 frameborder="0"
                 allow="autoplay; encrypted-media"
-                allowfullscreen
+                sandbox="allow-scripts allow-same-origin allow-presentation"
                 class="video-iframe"
               ></iframe>
             </template>
@@ -259,15 +259,14 @@ function skipExercise() {
 
 /* Content */
 .intro-content {
-  flex: 1;
-  padding: 1.5rem;
+  padding: 1rem 1.5rem;
 }
 
 /* Exercise card */
 .exercise-card {
-  padding: 1.5rem;
+  padding: 1rem 1.25rem;
   border-radius: 1rem;
-  margin-bottom: 1.5rem;
+  margin-bottom: 0.75rem;
 }
 
 .tracking-row {
@@ -342,7 +341,7 @@ function skipExercise() {
 
 /* Demo video */
 .demo-video {
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
 }
 
 .video-wrap {
@@ -386,7 +385,7 @@ function skipExercise() {
 
 /* Form cues */
 .form-cues {
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
 }
 
 .cues-title {
@@ -423,20 +422,20 @@ function skipExercise() {
 
 /* Coach bubble */
 .coach-bubble {
-  padding: 1rem;
-  border-radius: 1rem;
-  margin-bottom: 1rem;
+  padding: 0.75rem;
+  border-radius: 0.75rem;
+  margin-bottom: 0.5rem;
 }
 
 .coach-bubble-inner {
   display: flex;
   align-items: flex-start;
-  gap: 0.75rem;
+  gap: 0.5rem;
 }
 
 .coach-avatar-ring {
-  width: 40px;
-  height: 40px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   background: var(--gradient-secondary);
   display: flex;

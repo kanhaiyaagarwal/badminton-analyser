@@ -91,6 +91,7 @@ TEMPLATE_STEPS = [
     {
         "response": "What are you training for? Pick all that apply.",
         "field": "goals",
+        "multi": True,
         "options": [
             {"label": "Build Muscle", "value": "build_muscle"},
             {"label": "Lose Fat", "value": "lose_fat"},
@@ -99,13 +100,17 @@ TEMPLATE_STEPS = [
         ],
     },
     {
-        "response": "How many days a week do you want to train?",
+        "response": "Which days do you want to train?",
         "field": "preferred_days",
+        "multi": True,
         "options": [
-            {"label": "3 days (Mon/Wed/Fri)", "value": "mon,wed,fri"},
-            {"label": "4 days (Mon/Tue/Thu/Fri)", "value": "mon,tue,thu,fri"},
-            {"label": "5 days (Mon-Fri)", "value": "mon,tue,wed,thu,fri"},
-            {"label": "6 days (Mon-Sat)", "value": "mon,tue,wed,thu,fri,sat"},
+            {"label": "Mon", "value": "mon"},
+            {"label": "Tue", "value": "tue"},
+            {"label": "Wed", "value": "wed"},
+            {"label": "Thu", "value": "thu"},
+            {"label": "Fri", "value": "fri"},
+            {"label": "Sat", "value": "sat"},
+            {"label": "Sun", "value": "sun"},
         ],
     },
     {
@@ -177,13 +182,30 @@ async def process_turn(conversation_id: Optional[str], user_message: str) -> dic
     # from every message, regardless of which step we're on
     _extract_freeform(state, user_message)
 
-    # Try LLM first
-    result = await _try_llm_turn(state, user_message)
-    if result:
-        logger.info("Onboarding LLM result: collected=%s, complete=%s", result.get("data_collected"), result.get("onboarding_complete"))
-        return result
+    # For multi-select steps (goals, days), skip LLM — templates handle
+    # these with proper multi-select pills that the LLM can't replicate
+    use_template = False
+    if state.step < len(TEMPLATE_STEPS) and TEMPLATE_STEPS[state.step].get("multi"):
+        use_template = True
 
-    # Template fallback
+    if not use_template:
+        # Try LLM first
+        result = await _try_llm_turn(state, user_message)
+        if result:
+            logger.info("Onboarding LLM result: collected=%s, complete=%s", result.get("data_collected"), result.get("onboarding_complete"))
+            # Safety net: if LLM didn't extract the current step's field,
+            # try template extraction so we don't lose the user's input
+            if state.step < len(TEMPLATE_STEPS):
+                current = TEMPLATE_STEPS[state.step]
+                field = current.get("field")
+                if field and field not in state.collected:
+                    _extract_template_data(state, current, user_message)
+                    if field in state.collected:
+                        logger.info("Template extraction rescued field '%s' from LLM miss", field)
+                        result["data_collected"] = state.collected
+            return result
+
+    # Template fallback (or forced for multi-select steps)
     result = _template_turn(state, user_message)
     logger.info("Onboarding template result: collected=%s, complete=%s", result.get("data_collected"), result.get("onboarding_complete"))
     return result
@@ -258,6 +280,17 @@ async def _try_llm_turn(state: ConversationState, user_message: str) -> Optional
         response_text = result.get("response", "")
         state.messages.append({"role": "assistant", "content": response_text})
 
+        # Advance step to match what the LLM collected
+        while state.step < len(TEMPLATE_STEPS):
+            field = TEMPLATE_STEPS[state.step].get("field")
+            if field and field in state.collected:
+                state.step += 1
+            elif not field:
+                # Skip non-field steps (freeform) if LLM already passed them
+                state.step += 1
+            else:
+                break
+
         all_done = state.all_collected or result.get("all_collected", False)
         if all_done:
             # Fill defaults for any still-missing required fields
@@ -272,9 +305,16 @@ async def _try_llm_turn(state: ConversationState, user_message: str) -> Optional
                 if key not in state.collected:
                     state.collected[key] = val
 
+        # If the next step is multi-select, override LLM options with template pills
+        suggested = result.get("suggested_options", [])
+        if not all_done and state.step < len(TEMPLATE_STEPS):
+            next_step = TEMPLATE_STEPS[state.step]
+            if next_step.get("multi"):
+                suggested = [{"label": o["label"], "value": o["value"], "multi": True} for o in next_step["options"]]
+
         return {
             "response": response_text,
-            "suggested_options": result.get("suggested_options", []),
+            "suggested_options": suggested,
             "data_collected": state.collected,
             "onboarding_complete": all_done,
             "conversation_id": state.id,
@@ -314,9 +354,13 @@ def _template_turn(state: ConversationState, user_message: str) -> dict:
 
     next_step = TEMPLATE_STEPS[state.step]
     state.messages.append({"role": "assistant", "content": next_step["response"]})
+    opts = [{"label": o["label"], "value": o["value"]} for o in next_step["options"]]
+    if next_step.get("multi"):
+        for o in opts:
+            o["multi"] = True
     return {
         "response": next_step["response"],
-        "suggested_options": [{"label": o["label"], "value": o["value"]} for o in next_step["options"]],
+        "suggested_options": opts,
         "data_collected": state.collected,
         "onboarding_complete": False,
         "conversation_id": state.id,
@@ -356,12 +400,7 @@ def _extract_template_data(state: ConversationState, step: dict, user_message: s
         state.collected["goals"] = goals if goals else ["stay_active"]
 
     elif field == "preferred_days":
-        # First try predefined options
-        for opt in step["options"]:
-            if opt["value"] == msg or opt["label"].lower() in msg:
-                state.collected["preferred_days"] = opt["value"].split(",")
-                return
-        # Parse day names from natural language
+        # Parse day names from natural language / abbreviations / comma-separated
         day_map = {
             "monday": "mon", "mon": "mon",
             "tuesday": "tue", "tue": "tue", "tues": "tue",
@@ -371,17 +410,20 @@ def _extract_template_data(state: ConversationState, step: dict, user_message: s
             "saturday": "sat", "sat": "sat",
             "sunday": "sun", "sun": "sun",
         }
+        valid_days = {"mon", "tue", "wed", "thu", "fri", "sat", "sun"}
         found_days = []
+
+        # Check for full/short day names in the message
         for name, abbr in day_map.items():
             if name in msg and abbr not in found_days:
                 found_days.append(abbr)
-        if found_days:
-            state.collected["preferred_days"] = found_days
-        else:
-            # Try comma-separated abbreviations
+
+        # Also try comma-separated values (e.g., "mon,wed,fri" from multi-select)
+        if not found_days:
             parts = [d.strip() for d in msg.split(",") if d.strip()]
-            valid = [p for p in parts if p in ("mon", "tue", "wed", "thu", "fri", "sat", "sun")]
-            state.collected["preferred_days"] = valid if valid else ["mon", "wed", "fri"]
+            found_days = [p for p in parts if p in valid_days]
+
+        state.collected["preferred_days"] = found_days if found_days else ["mon", "wed", "fri"]
 
     elif field == "session_duration_minutes":
         if "flexible" in msg or "flex" in msg:

@@ -106,18 +106,19 @@
         </div>
 
         <div class="workout-card-body">
-          <!-- Exercise pills -->
+          <!-- Exercise pills (clickable → exercise detail) -->
           <div class="exercise-pills">
-            <span
+            <router-link
               v-for="(ex, i) in displayedExercises"
               :key="ex.slug"
+              :to="`/workout/exercises/${ex.slug}`"
               v-motion
               :initial="{ opacity: 0, scale: 0.9 }"
               :enter="{ opacity: 1, scale: 1, transition: { delay: 600 + i * 100, duration: 300 } }"
               class="ex-pill"
             >
               {{ ex.name }}
-            </span>
+            </router-link>
           </div>
 
           <!-- Start button -->
@@ -534,6 +535,14 @@ onMounted(async () => {
   color: var(--text-primary);
   font-size: 0.8rem;
   font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.ex-pill:hover {
+  background: var(--color-primary);
+  color: var(--text-on-primary);
 }
 
 .btn-start {

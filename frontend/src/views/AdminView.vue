@@ -712,6 +712,120 @@
         </div>
       </div>
 
+      <!-- Workout Sessions Tab -->
+      <div v-if="activeTab === 'workout-sessions'" class="tab-content">
+        <div class="section-header">
+          <h2>Workout Sessions</h2>
+        </div>
+
+        <div v-if="loadingWorkoutSessions" class="loading">Loading...</div>
+
+        <div v-else class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>User</th>
+              <th>Status</th>
+              <th>Exercises</th>
+              <th>Sets</th>
+              <th>Reps</th>
+              <th>Volume</th>
+              <th>Duration</th>
+              <th>Date</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="ws in workoutSessions" :key="ws.id">
+              <td>{{ ws.id }}</td>
+              <td>{{ ws.username }}</td>
+              <td>
+                <span :class="['status', ws.status === 'completed' ? 'active' : 'pending']">
+                  {{ ws.status }}
+                </span>
+              </td>
+              <td>{{ ws.exercises_completed || ws.planned_exercises?.length || 0 }}</td>
+              <td>{{ ws.total_sets || ws.set_count }}</td>
+              <td>{{ ws.total_reps }}</td>
+              <td>{{ ws.total_volume_kg ? ws.total_volume_kg.toFixed(1) + 'kg' : '-' }}</td>
+              <td>{{ ws.duration_seconds ? Math.round(ws.duration_seconds / 60) + 'm' : '-' }}</td>
+              <td>{{ formatDate(ws.created_at) }}</td>
+              <td class="actions">
+                <button @click="viewWorkoutDetails(ws)" class="btn-small">Details</button>
+                <template v-for="cid in ws.challenge_session_ids" :key="cid">
+                  <button @click="viewScreenshots(cid, 0)" class="btn-small btn-info">
+                    Set #{{ cid }}
+                  </button>
+                </template>
+              </td>
+            </tr>
+            <tr v-if="workoutSessions.length === 0">
+              <td colspan="10" class="empty">No workout sessions found</td>
+            </tr>
+          </tbody>
+        </table>
+        </div>
+
+        <div v-if="workoutSessionsTotal > PAGE_SIZE" class="pagination">
+          <button @click="workoutSessionsPage--; loadWorkoutSessions()" :disabled="workoutSessionsPage === 0" class="btn-small">Prev</button>
+          <span class="page-info">{{ workoutSessionsPage * PAGE_SIZE + 1 }}–{{ Math.min((workoutSessionsPage + 1) * PAGE_SIZE, workoutSessionsTotal) }} of {{ workoutSessionsTotal }}</span>
+          <button @click="workoutSessionsPage++; loadWorkoutSessions()" :disabled="(workoutSessionsPage + 1) * PAGE_SIZE >= workoutSessionsTotal" class="btn-small">Next</button>
+        </div>
+
+        <!-- Workout Detail Modal -->
+        <div v-if="workoutDetailModal" class="modal-overlay" @click="workoutDetailModal = null">
+          <div class="modal-content" @click.stop>
+            <h2>Workout #{{ workoutDetailModal.id }} — {{ workoutDetailModal.username }}</h2>
+            <p v-if="workoutDetailModal.coach_summary" style="margin-bottom: 0.75rem; font-style: italic; color: var(--text-secondary);">
+              "{{ workoutDetailModal.coach_summary }}"
+            </p>
+
+            <h3 style="margin-bottom: 0.5rem;">Planned Exercises</h3>
+            <table class="data-table" style="margin-bottom: 1rem;">
+              <thead><tr><th>#</th><th>Exercise</th><th>Sets x Reps</th></tr></thead>
+              <tbody>
+                <tr v-for="(ex, i) in workoutDetailModal.planned_exercises" :key="i">
+                  <td>{{ i + 1 }}</td>
+                  <td>{{ ex.name }}</td>
+                  <td>{{ ex.sets }}x{{ ex.reps }}</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <h3 style="margin-bottom: 0.5rem;">Completed Sets</h3>
+            <table class="data-table">
+              <thead><tr><th>Exercise</th><th>Set</th><th>Reps</th><th>Weight</th><th>RPE</th><th>Form</th><th>Camera</th></tr></thead>
+              <tbody>
+                <tr v-for="s in workoutDetailModal.sets" :key="s.id">
+                  <td>{{ getExerciseName(workoutDetailModal.planned_exercises, s.exercise_id) }}</td>
+                  <td>{{ s.set_number }}</td>
+                  <td>{{ s.actual_reps }}</td>
+                  <td>{{ s.weight_kg ? s.weight_kg + 'kg' : '-' }}</td>
+                  <td>{{ s.rpe || '-' }}</td>
+                  <td>{{ s.form_score || '-' }}</td>
+                  <td>
+                    <button v-if="s.challenge_session_id" @click="viewScreenshots(s.challenge_session_id, 0)" class="btn-small btn-info">
+                      Screenshots
+                    </button>
+                    <span v-else>-</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div v-if="workoutDetailModal.prs?.length" style="margin-top: 0.75rem;">
+              <h3>PRs</h3>
+              <div v-for="pr in workoutDetailModal.prs" :key="pr.exercise" style="font-size: 0.85rem;">
+                {{ pr.exercise }}: {{ pr.type }} — {{ pr.value }}
+              </div>
+            </div>
+
+            <button @click="workoutDetailModal = null" class="btn-small" style="margin-top: 1rem;">Close</button>
+          </div>
+        </div>
+      </div>
+
       <!-- Create Code Modal -->
       <div v-if="showCreateCode" class="modal-overlay" @click="showCreateCode = false">
         <div class="modal-content" @click.stop>
@@ -980,6 +1094,7 @@ const tabs = [
   { id: 'badminton', label: 'Badminton Sessions' },
   { id: 'mimic-challenges', label: 'MoveMatch Challenges' },
   { id: 'mimic-sessions', label: 'MoveMatch Sessions' },
+  { id: 'workout-sessions', label: 'Workout Sessions' },
 ]
 const activeTab = ref('codes')
 
@@ -1050,6 +1165,13 @@ const loadingMimicSessions = ref(false)
 const mimicSessionsPage = ref(0)
 const mimicSessionsTotal = ref(0)
 
+// Workout sessions
+const workoutSessions = ref([])
+const loadingWorkoutSessions = ref(false)
+const workoutSessionsPage = ref(0)
+const workoutSessionsTotal = ref(0)
+const workoutDetailModal = ref(null)
+
 // MoveMatch video modal
 const mimicVideoModal = ref({ open: false, sessionId: null, username: '', src: null, loading: false })
 const mimicVideoEl = ref(null)
@@ -1096,6 +1218,9 @@ watch(activeTab, (tab) => {
   }
   if (tab === 'mimic-sessions' && mimicSessions.value.length === 0) {
     loadMimicSessions()
+  }
+  if (tab === 'workout-sessions' && workoutSessions.value.length === 0) {
+    loadWorkoutSessions()
   }
 })
 
@@ -1607,6 +1732,30 @@ async function loadMimicSessions() {
 function mimicSessionsPageChange(dir) {
   mimicSessionsPage.value += dir
   loadMimicSessions()
+}
+
+// --- Workout Sessions ---
+async function loadWorkoutSessions() {
+  loadingWorkoutSessions.value = true
+  try {
+    const params = { skip: workoutSessionsPage.value * PAGE_SIZE, limit: PAGE_SIZE }
+    const response = await api.get('/api/v1/workout/admin/sessions', { params })
+    workoutSessions.value = response.data.sessions
+    workoutSessionsTotal.value = response.data.total
+  } catch (err) {
+    console.error('Failed to load workout sessions:', err)
+  } finally {
+    loadingWorkoutSessions.value = false
+  }
+}
+
+function viewWorkoutDetails(ws) {
+  workoutDetailModal.value = ws
+}
+
+function getExerciseName(planned, exerciseId) {
+  const ex = (planned || []).find(e => e.exercise_id === exerciseId)
+  return ex ? ex.name : `#${exerciseId}`
 }
 
 async function viewMimicScreenshots(sessionId, count) {
