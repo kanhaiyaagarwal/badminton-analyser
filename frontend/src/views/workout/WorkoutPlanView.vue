@@ -133,9 +133,6 @@
               {{ mg }}
             </button>
           </div>
-          <div v-if="secondaryMuscles(cd.muscles).size > 0" class="secondary-hint">
-            <span class="secondary-dot"></span> also worked via compounds
-          </div>
         </div>
 
         <!-- Add day pills -->
@@ -152,6 +149,9 @@
         </div>
       </div>
 
+      <div v-if="hasAnySecondary" class="secondary-hint">
+        <span class="secondary-dot"></span> also worked via compounds
+      </div>
       <button class="btn-start" @click="saveCustomPlan" :disabled="savingCustom">
         {{ savingCustom ? 'Saving...' : 'Save Plan' }}
       </button>
@@ -270,6 +270,10 @@ function secondaryMuscles(selectedMuscles) {
   }
   return secondary
 }
+
+const hasAnySecondary = computed(() => {
+  return customDays.value.some(cd => secondaryMuscles(cd.muscles).size > 0)
+})
 
 const ALL_DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
 const SHORT_DAY_NAMES = { mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun' }
