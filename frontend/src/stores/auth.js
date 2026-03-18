@@ -14,10 +14,21 @@ function getTokenExpiration(token) {
   }
 }
 
+// Safe localStorage wrapper — Safari private mode throws on access
+function safeGetItem(key) {
+  try { return localStorage.getItem(key) } catch { return null }
+}
+function safeSetItem(key, value) {
+  try { localStorage.setItem(key, value) } catch { /* Safari private mode */ }
+}
+function safeRemoveItem(key) {
+  try { localStorage.removeItem(key) } catch { /* Safari private mode */ }
+}
+
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
-  const accessToken = ref(localStorage.getItem('accessToken'))
-  const refreshToken = ref(localStorage.getItem('refreshToken'))
+  const accessToken = ref(safeGetItem('accessToken'))
+  const refreshToken = ref(safeGetItem('refreshToken'))
 
   // Pending verification state (for signup flow)
   const pendingVerification = ref(null) // { userId, email }
@@ -183,15 +194,15 @@ export const useAuthStore = defineStore('auth', () => {
     refreshToken.value = refresh
 
     if (access) {
-      localStorage.setItem('accessToken', access)
+      safeSetItem('accessToken', access)
     } else {
-      localStorage.removeItem('accessToken')
+      safeRemoveItem('accessToken')
     }
 
     if (refresh) {
-      localStorage.setItem('refreshToken', refresh)
+      safeSetItem('refreshToken', refresh)
     } else {
-      localStorage.removeItem('refreshToken')
+      safeRemoveItem('refreshToken')
     }
   }
 

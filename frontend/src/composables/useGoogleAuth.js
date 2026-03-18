@@ -34,17 +34,24 @@ function waitForLayout() {
 export function useGoogleAuth() {
   const isAvailable = !!GOOGLE_CLIENT_ID
 
-  async function renderButton(containerEl, callback) {
+  async function renderButton(containerEl, callback, onError) {
     if (!isAvailable || !containerEl) return
 
     await loadGsiScript()
     await waitForLayout()
 
-    window.google.accounts.id.initialize({
+    const initOptions = {
       client_id: GOOGLE_CLIENT_ID,
       callback: (response) => callback(response.credential),
       ux_mode: 'popup',
-    })
+    }
+
+    // Catch popup blocks, user dismissals, and other GSI errors
+    if (onError) {
+      initOptions.error_callback = onError
+    }
+
+    window.google.accounts.id.initialize(initOptions)
 
     // Google button max is 400px; measure actual container width
     const width = Math.max(200, Math.min(containerEl.clientWidth || 300, 400))

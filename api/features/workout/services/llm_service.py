@@ -24,8 +24,13 @@ async def chat(
     json_mode: bool = True,
     temperature: float = 0.7,
     max_tokens: int = 2048,
+    messages: Optional[list[dict]] = None,
 ) -> Optional[dict]:
     """Send a chat request to the configured LLM provider.
+
+    When *messages* is provided (list of {role, content} dicts), they are used
+    as the conversation history instead of a single user_prompt.  The last
+    entry should be the current user turn.
 
     Returns parsed JSON dict on success, None on failure (callers fall back to templates).
     """
@@ -40,11 +45,11 @@ async def chat(
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             if provider == "openai":
-                return await _chat_openai(system_prompt, user_prompt, json_mode, temperature, max_tokens)
+                return await _chat_openai(system_prompt, user_prompt, json_mode, temperature, max_tokens, messages)
             elif provider == "anthropic":
-                return await _chat_anthropic(system_prompt, user_prompt, json_mode, temperature, max_tokens)
+                return await _chat_anthropic(system_prompt, user_prompt, json_mode, temperature, max_tokens, messages)
             elif provider == "ollama":
-                return await _chat_ollama(system_prompt, user_prompt, json_mode, temperature, max_tokens)
+                return await _chat_ollama(system_prompt, user_prompt, json_mode, temperature, max_tokens, messages)
             else:
                 logger.warning(f"Unknown LLM provider: {provider}")
                 return None
@@ -80,6 +85,7 @@ async def _chat_openai(
     json_mode: bool,
     temperature: float,
     max_tokens: int,
+    messages: Optional[list[dict]] = None,
 ) -> Optional[dict]:
     """Call OpenAI Chat Completions API."""
     settings = get_settings()
@@ -91,12 +97,17 @@ async def _chat_openai(
 
     client = AsyncOpenAI(api_key=settings.openai_api_key)
 
-    kwargs = {
-        "model": settings.llm_model,
-        "messages": [
+    if messages:
+        chat_messages = [{"role": "system", "content": system_prompt}] + messages
+    else:
+        chat_messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
-        ],
+        ]
+
+    kwargs = {
+        "model": settings.llm_model,
+        "messages": chat_messages,
         "temperature": temperature,
         "max_tokens": max_tokens,
     }
@@ -122,6 +133,7 @@ async def _chat_anthropic(
     json_mode: bool,
     temperature: float,
     max_tokens: int,
+    messages: Optional[list[dict]] = None,
 ) -> Optional[dict]:
     """Call Anthropic Messages API."""
     settings = get_settings()
@@ -142,11 +154,13 @@ async def _chat_anthropic(
     if json_mode:
         suffix = "\n\nRespond with valid JSON only, no markdown or explanation."
 
+    chat_messages = messages if messages else [{"role": "user", "content": user_prompt}]
+
     response = await client.messages.create(
         model=model,
         max_tokens=max_tokens,
         system=system_prompt + suffix,
-        messages=[{"role": "user", "content": user_prompt}],
+        messages=chat_messages,
         temperature=temperature,
     )
     content = response.content[0].text
@@ -167,6 +181,7 @@ async def _chat_ollama(
     json_mode: bool,
     temperature: float,
     max_tokens: int,
+    messages: Optional[list[dict]] = None,
 ) -> Optional[dict]:
     """Call local Ollama API via HTTP."""
     settings = get_settings()
@@ -174,12 +189,17 @@ async def _chat_ollama(
 
     url = f"{settings.ollama_base_url.rstrip('/')}/api/chat"
 
-    payload = {
-        "model": settings.llm_model if not settings.llm_model.startswith("gpt") else "llama3",
-        "messages": [
+    if messages:
+        chat_messages = [{"role": "system", "content": system_prompt}] + messages
+    else:
+        chat_messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
-        ],
+        ]
+
+    payload = {
+        "model": settings.llm_model if not settings.llm_model.startswith("gpt") else "llama3",
+        "messages": chat_messages,
         "stream": False,
         "options": {
             "temperature": temperature,

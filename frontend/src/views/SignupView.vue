@@ -297,6 +297,12 @@ const storedGoogleEmail = ref('')
 const storedGoogleName = ref('')
 const gwLoading = ref(false)
 
+function handleGoogleError(err) {
+  if (err?.type === 'popup_closed') return
+  console.warn('Google Sign-In error:', err)
+  error.value = 'Google sign-in was blocked or dismissed. Please try again or use email signup.'
+}
+
 onMounted(async () => {
   if (authStore.pendingVerification) {
     pendingUserId.value = authStore.pendingVerification.userId
@@ -306,7 +312,7 @@ onMounted(async () => {
   if (googleAvailable && !showOtpStep.value) {
     await nextTick()
     if (googleBtnContainer.value) {
-      renderButton(googleBtnContainer.value, handleGoogleCallback)
+      renderButton(googleBtnContainer.value, handleGoogleCallback, handleGoogleError)
     }
   }
 })
@@ -497,7 +503,7 @@ function resetGoogleState() {
   error.value = ''
   nextTick(() => {
     if (googleAvailable && googleBtnContainer.value) {
-      renderButton(googleBtnContainer.value, handleGoogleCallback)
+      renderButton(googleBtnContainer.value, handleGoogleCallback, handleGoogleError)
     }
   })
 }
@@ -641,6 +647,15 @@ async function handleWaitlist() {
 
 .field-group input::placeholder {
   color: rgba(255, 255, 255, 0.35);
+}
+
+.field-group input:-webkit-autofill,
+.field-group input:-webkit-autofill:hover,
+.field-group input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px rgba(20, 20, 30, 0.6) inset;
+  -webkit-text-fill-color: #fff;
+  transition: background-color 5000s ease-in-out 0s;
+  border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 .otp-input {

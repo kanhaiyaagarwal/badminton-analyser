@@ -167,11 +167,18 @@ const storedGoogleEmail = ref('')
 const storedGoogleName = ref('')
 const waitlistLoading = ref(false)
 
+function handleGoogleError(err) {
+  // GSI error_callback fires on popup block, user dismiss, etc.
+  if (err?.type === 'popup_closed') return // user intentionally closed
+  console.warn('Google Sign-In error:', err)
+  error.value = 'Google sign-in was blocked or dismissed. Please try again or use email login.'
+}
+
 onMounted(async () => {
   if (googleAvailable) {
     await nextTick()
     if (googleBtnContainer.value) {
-      renderButton(googleBtnContainer.value, handleGoogleCallback)
+      renderButton(googleBtnContainer.value, handleGoogleCallback, handleGoogleError)
     }
   }
 })
@@ -381,6 +388,15 @@ function resetGoogleState() {
 
 .field-group input::placeholder {
   color: rgba(255, 255, 255, 0.35);
+}
+
+.field-group input:-webkit-autofill,
+.field-group input:-webkit-autofill:hover,
+.field-group input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px rgba(20, 20, 30, 0.6) inset;
+  -webkit-text-fill-color: #fff;
+  transition: background-color 5000s ease-in-out 0s;
+  border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 /* ---- Forgot link ---- */

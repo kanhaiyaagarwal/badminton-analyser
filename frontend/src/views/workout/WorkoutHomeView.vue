@@ -97,7 +97,12 @@
         <!-- Orange gradient header -->
         <div class="workout-card-header">
           <h3 class="workout-card-title font-display">{{ todayWorkout.day_label }}</h3>
-          <span class="workout-card-duration">{{ todayWorkout.estimated_minutes }}m</span>
+          <div class="workout-card-header-right">
+            <span class="workout-card-duration">{{ todayWorkout.estimated_minutes }}m</span>
+            <button class="btn-edit-header" @click.stop="handleEditWorkout" title="Edit workout">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+            </button>
+          </div>
         </div>
 
         <div class="workout-card-body">
@@ -189,13 +194,11 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { useWorkoutStore } from '../../stores/workout'
-import { useVoiceOutput } from '../../composables/useVoiceOutput'
 import ProgressRing from '../../components/ProgressRing.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const workoutStore = useWorkoutStore()
-const voiceOutput = useVoiceOutput()
 
 const loading = ref(true)
 const todayWorkout = ref(null)
@@ -255,10 +258,29 @@ async function handleStartWorkout() {
     })
     const sid = result.data?.session_id
     if (sid) {
+      // Skip the pre-workout chat — go straight to first exercise
+      await workoutStore.sendAction(sid, 'begin_workout', {})
       router.push(`/workout/session/${sid}`)
     }
   } catch {
     toast.value = 'Failed to start workout'
+    setTimeout(() => { toast.value = null }, 3000)
+  }
+}
+
+async function handleEditWorkout() {
+  try {
+    const timeBudget = selectedTime.value > 0 ? selectedTime.value : undefined
+    const result = await workoutStore.startSession({
+      time_budget_minutes: timeBudget,
+    })
+    const sid = result.data?.session_id
+    if (sid) {
+      // Go to pre-workout chat for editing/modifying the plan
+      router.push(`/workout/session/${sid}?edit=1`)
+    }
+  } catch {
+    toast.value = 'Failed to load workout'
     setTimeout(() => { toast.value = null }, 3000)
   }
 }
@@ -273,12 +295,6 @@ onMounted(async () => {
         if (r?.insight) {
           coachInsight.value = r.insight
           insightType.value = r.insight_type || ''
-        }
-        const todayKey = `coach_greeted_${new Date().toDateString()}`
-        if (!sessionStorage.getItem(todayKey) && r?.greeting) {
-          const spokenText = r.greeting + (r.insight ? '. ' + r.insight : '')
-          voiceOutput.speak(spokenText)
-          sessionStorage.setItem(todayKey, '1')
         }
       }),
       workoutStore.fetchWeekView().then(r => { weekView.value = r }),
@@ -470,10 +486,34 @@ onMounted(async () => {
   color: var(--text-on-primary);
 }
 
+.workout-card-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .workout-card-duration {
   font-size: 0.875rem;
   color: var(--text-on-primary);
   opacity: 0.8;
+}
+
+.btn-edit-header {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  color: var(--text-on-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+
+.btn-edit-header:hover {
+  background: rgba(255, 255, 255, 0.35);
 }
 
 .workout-card-body {

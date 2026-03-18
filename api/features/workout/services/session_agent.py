@@ -91,6 +91,7 @@ class SessionAgent:
         "skip_rest",
         "end_workout",
         "modify_exercise",
+        "update_plan",
     }
 
     @staticmethod
@@ -113,6 +114,7 @@ class SessionAgent:
             "skip_rest": _handle_skip_rest,
             "end_workout": _handle_end_workout,
             "modify_exercise": _handle_modify_exercise,
+            "update_plan": _handle_update_plan,
         }[action]
 
         return handler(db, user_id, session_id, params)
@@ -539,6 +541,54 @@ def _handle_modify_exercise(db: Session, user_id: int, session_id: Optional[int]
         coach_says=f"Updated to {target_ex.get('sets', 3)} sets x {target_ex.get('reps', '10')}.",
         available_actions=["complete_set", "skip_exercise", "end_workout"],
         progress=_build_progress(updated, updated.index(target_ex), 1),
+    )
+
+
+def _handle_update_plan(db: Session, user_id: int, session_id: Optional[int], params: dict) -> dict:
+    """Bulk update the exercise plan: reorder, edit sets/reps, delete exercises.
+
+    params.exercises: list of {exercise_id, slug, name, sets, reps, ...} in desired order.
+    Only exercises present in the list are kept (deletions = omitted exercises).
+    """
+    session = _get_session(db, user_id, session_id)
+
+    new_exercises = params.get("exercises", [])
+    if not new_exercises:
+        raise ValueError("Cannot have an empty exercise plan")
+
+    # Rebuild planned_exercises preserving all original fields, updating sets/reps/order
+    old_by_id = {}
+    for ex in (session.planned_exercises or []):
+        key = ex.get("exercise_id") or ex.get("slug")
+        old_by_id[key] = ex
+
+    updated = []
+    for i, incoming in enumerate(new_exercises):
+        key = incoming.get("exercise_id") or incoming.get("slug")
+        base = old_by_id.get(key, incoming)
+        merged = {**base}
+        if "sets" in incoming:
+            merged["sets"] = int(incoming["sets"])
+        if "reps" in incoming:
+            merged["reps"] = str(incoming["reps"])
+        merged["order"] = i
+        updated.append(merged)
+
+    session.planned_exercises = updated
+    db.commit()
+
+    day_label = _get_day_label(db, user_id, session)
+
+    return _agent_response(
+        view="brief",
+        data={
+            "session_id": session.id,
+            "day_label": day_label,
+            "exercises": updated,
+            "estimated_minutes": len(updated) * 5,
+        },
+        coach_says=f"Plan updated — {len(updated)} exercises. Ready when you are!",
+        available_actions=["adjust_time", "begin_workout", "end_workout"],
     )
 
 

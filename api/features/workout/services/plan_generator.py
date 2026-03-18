@@ -41,11 +41,11 @@ SPLIT_TEMPLATES = {
         "name": "Full Body",
         "min_days": 2,
         "max_days": 3,
-        "day_labels": ["Full Body A", "Full Body B", "Full Body C"],
+        "day_labels": ["Full Body — Push Focus", "Full Body — Pull Focus", "Full Body — Legs Focus"],
         "muscle_map": {
-            "Full Body A": ["chest", "back", "quads", "shoulders", "core"],
-            "Full Body B": ["chest", "hamstrings", "back", "biceps", "triceps"],
-            "Full Body C": ["quads", "glutes", "shoulders", "back", "core"],
+            "Full Body — Push Focus": ["chest", "back", "quads", "shoulders", "core"],
+            "Full Body — Pull Focus": ["chest", "hamstrings", "back", "biceps", "triceps"],
+            "Full Body — Legs Focus": ["quads", "glutes", "shoulders", "back", "core"],
         },
     },
 }

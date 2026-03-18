@@ -147,6 +147,38 @@ function _playAudioUrl(url) {
   })
 }
 
+// Cache the best available voice so we only search once
+let _cachedVoice = null
+let _voiceSearched = false
+
+function _pickNaturalVoice() {
+  if (_voiceSearched) return _cachedVoice
+  _voiceSearched = true
+
+  const voices = window.speechSynthesis?.getVoices() || []
+  if (!voices.length) return null
+
+  // Prefer natural/premium English voices (ranked by quality)
+  const preferred = [
+    'Samantha', 'Karen', 'Daniel', 'Moira', 'Rishi',      // macOS premium
+    'Google UK English Female', 'Google UK English Male',    // Chrome
+    'Google US English',                                     // Chrome
+    'Microsoft Zira', 'Microsoft David',                     // Windows
+  ]
+
+  for (const name of preferred) {
+    const match = voices.find(v => v.name.includes(name) && v.lang.startsWith('en'))
+    if (match) {
+      _cachedVoice = match
+      return match
+    }
+  }
+
+  // Fallback: any English voice
+  _cachedVoice = voices.find(v => v.lang.startsWith('en')) || null
+  return _cachedVoice
+}
+
 function _browserSpeak(text) {
   return new Promise((resolve) => {
     if (!window.speechSynthesis) {
@@ -155,8 +187,13 @@ function _browserSpeak(text) {
     }
 
     const utterance = new SpeechSynthesisUtterance(text)
-    utterance.rate = 1.0
-    utterance.pitch = 1.0
+
+    // Pick a natural-sounding voice
+    const voice = _pickNaturalVoice()
+    if (voice) utterance.voice = voice
+
+    utterance.rate = 0.95   // Slightly slower = more natural
+    utterance.pitch = 1.05  // Slightly higher = warmer tone
     utterance.volume = 0.8
     utterance.onend = resolve
     utterance.onerror = resolve
@@ -169,4 +206,11 @@ function _browserSpeak(text) {
       resolve()
     }, 8000)
   })
+}
+
+// Pre-load voices (some browsers load them async)
+if (typeof window !== 'undefined' && window.speechSynthesis) {
+  window.speechSynthesis.onvoiceschanged = () => {
+    _voiceSearched = false  // Re-search when voices load
+  }
 }

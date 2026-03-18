@@ -187,3 +187,35 @@ class ExerciseProgression(Base):
     progression_history = Column(JSON, nullable=True)  # [{date, type, weight_kg, reps, rationale}]
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+# ---------------------------------------------------------------------------
+# Chat Conversations & Messages (conversation memory + debug logs)
+# ---------------------------------------------------------------------------
+
+class ChatConversation(Base):
+    __tablename__ = "chat_conversations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    conversation_id = Column(String(64), unique=True, nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    session_id = Column(Integer, ForeignKey("workout_sessions.id"), nullable=True)
+    context = Column(String(32), nullable=False)  # pre_workout, rest, post_set, etc.
+    status = Column(String(16), default="active")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    closed_at = Column(DateTime, nullable=True)
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    conversation_id = Column(String(64), ForeignKey("chat_conversations.conversation_id"), nullable=False, index=True)
+    role = Column(String(16), nullable=False)  # "user" or "assistant"
+    content = Column(Text, nullable=False)
+    context = Column(String(32), nullable=True)
+    source = Column(String(16), nullable=True)  # "llm", "template", "system"
+    actions = Column(JSON, nullable=True)
+    metadata_json = Column(JSON, nullable=True)  # token counts, latency, etc.
+    created_at = Column(DateTime, default=datetime.utcnow)

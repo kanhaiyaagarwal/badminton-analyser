@@ -55,6 +55,7 @@ def init_db():
     _migrate_workout_session_m1()
     _migrate_exercise_progression()
     _migrate_exercise_demo_video()
+    _migrate_chat_conversations()
     seed_default_tuning_data()
     seed_challenge_defaults()
     seed_feature_access()
@@ -961,6 +962,54 @@ def seed_exercises():
     """Seed the exercises table from exercise_seed module."""
     from .features.workout.services.exercise_seed import seed_exercises as _seed
     _seed(engine)
+
+
+def _migrate_chat_conversations():
+    """Create chat_conversations and chat_messages tables if they don't exist."""
+    import logging
+    _logger = logging.getLogger(__name__)
+
+    from sqlalchemy import text, inspect
+    try:
+        inspector = inspect(engine)
+        existing = inspector.get_table_names()
+        if "chat_conversations" not in existing:
+            with engine.begin() as conn:
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS chat_conversations (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        conversation_id VARCHAR(64) NOT NULL UNIQUE,
+                        user_id INTEGER NOT NULL,
+                        session_id INTEGER,
+                        context VARCHAR(32) NOT NULL,
+                        status VARCHAR(16) DEFAULT 'active',
+                        created_at DATETIME,
+                        updated_at DATETIME,
+                        closed_at DATETIME,
+                        FOREIGN KEY (user_id) REFERENCES users(id),
+                        FOREIGN KEY (session_id) REFERENCES workout_sessions(id)
+                    )
+                """))
+                _logger.info("Created table chat_conversations")
+        if "chat_messages" not in existing:
+            with engine.begin() as conn:
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS chat_messages (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        conversation_id VARCHAR(64) NOT NULL,
+                        role VARCHAR(16) NOT NULL,
+                        content TEXT NOT NULL,
+                        context VARCHAR(32),
+                        source VARCHAR(16),
+                        actions JSON,
+                        metadata_json JSON,
+                        created_at DATETIME,
+                        FOREIGN KEY (conversation_id) REFERENCES chat_conversations(conversation_id)
+                    )
+                """))
+                _logger.info("Created table chat_messages")
+    except Exception as e:
+        _logger.error("chat_conversations migration failed: %s", e)
 
 
 def seed_default_tuning_data():

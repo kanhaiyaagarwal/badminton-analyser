@@ -12,6 +12,7 @@
       :data="data"
       :coach-says="coachSays"
       :session-id="sid"
+      :start-in-edit="route.query.edit === '1'"
       @action="handleAction"
     />
 

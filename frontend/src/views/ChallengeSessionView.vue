@@ -65,10 +65,10 @@
 
     <!-- Setup phase — fullscreen camera with overlay controls -->
     <div v-if="phase === 'setup'" class="setup-phase">
-      <div class="camera-preview-wrap maximized" @click="cameraReady && !starting && startSession()">
+      <div class="camera-preview-wrap maximized" @click="(cameraReady || isWorkoutMode) && !starting && startSession()">
         <video ref="previewVideo" autoplay playsinline muted class="camera-preview"></video>
         <div v-if="!cameraReady" class="camera-placeholder">
-          <p>{{ cameraError || 'Initialising camera...' }}</p>
+          <p>{{ cameraError || (isWorkoutMode ? 'Tap to start set' : 'Initialising camera...') }}</p>
         </div>
 
         <!-- Top bar: back, title, info -->
@@ -104,7 +104,7 @@
         </transition>
 
         <!-- Tap to start hint -->
-        <div v-if="cameraReady && !starting" class="tap-start-hint">
+        <div v-if="(cameraReady || isWorkoutMode) && !starting" class="tap-start-hint">
           Tap anywhere to start
         </div>
       </div>
@@ -552,6 +552,16 @@ let _firstFrameSent = false
 async function startSession() {
   starting.value = true
   try {
+    // In workout mode, camera init was deferred — do it now
+    if (isWorkoutMode.value && !cameraReady.value) {
+      await enumerateCameras()
+      if (!cameraReady.value) {
+        cameraError.value = 'Camera access denied'
+        starting.value = false
+        return
+      }
+    }
+
     const sessionCreateStart = performance.now()
     let sid
     if (isWorkoutMode.value) {
@@ -1041,14 +1051,19 @@ function cleanup() {
 onBeforeRouteLeave((to, from, next) => {
   if (phase.value === 'active' || phase.value === 'connecting') {
     gracefulEnd()
-    cleanup()
   }
+  // Always clean up camera stream, even during setup phase
+  cleanup()
   next()
 })
 
 onMounted(() => {
   checkPlacementGuide()
-  enumerateCameras()
+  // In workout mode, defer camera init until user clicks "Start" —
+  // camera should only turn on when the user actively begins a set.
+  if (!isWorkoutMode.value) {
+    enumerateCameras()
+  }
 })
 
 onUnmounted(() => {

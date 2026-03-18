@@ -103,6 +103,12 @@ async def workout_chat(
         )
 
     # All other contexts: pre_workout, post_set, rest, post_workout
+    sid_int = None
+    try:
+        sid_int = int(body.session_id) if body.session_id else None
+    except (ValueError, TypeError):
+        pass
+
     session_data = _build_chat_session_data(db, body.session_id, current_user)
     user_context = {"name": current_user.username or ""}
 
@@ -111,13 +117,17 @@ async def workout_chat(
         context=body.context,
         session_data=session_data,
         user_context=user_context,
+        db=db,
+        session_id=sid_int,
+        user_id=current_user.id,
+        conversation_id=body.conversation_id,
     )
 
     return ChatResponse(
         response=result.get("response", ""),
         actions=[ChatAction(**a) for a in result.get("actions", [])],
         suggested_options=[SuggestedOption(**o) for o in result.get("suggested_options", [])],
-        conversation_id=body.conversation_id,
+        conversation_id=result.get("conversation_id") or body.conversation_id,
     )
 
 
@@ -127,17 +137,51 @@ def _build_chat_session_data(db: Session, session_id: Optional[str], user) -> di
         return {"exercises": [], "day_label": "Today's workout", "estimated_minutes": 45}
 
     try:
-        from ..db_models.workout import WorkoutSession
+        from ..db_models.workout import WorkoutSession, Exercise
         sid = int(session_id)
         session = db.query(WorkoutSession).filter(
             WorkoutSession.id == sid,
             WorkoutSession.user_id == user.id,
         ).first()
         if session and session.planned_exercises:
+            planned = session.planned_exercises
+            plan_slugs = {e.get("slug") for e in planned}
+
+            # Fetch all exercises to enrich planned with primary_muscle and find alternatives
+            all_exercises = db.query(Exercise).all()
+            slug_to_ex = {ex.slug: ex for ex in all_exercises}
+
+            # Enrich planned exercises with primary_muscle
+            plan_muscles = set()
+            for ex in planned:
+                db_ex = slug_to_ex.get(ex.get("slug"))
+                if db_ex:
+                    ex["primary_muscle"] = db_ex.primary_muscle
+                    plan_muscles.add(db_ex.primary_muscle)
+
+            # Find alternative exercises (same muscle groups, not already in plan)
+            alternatives = []
+            for ex in all_exercises:
+                if ex.slug in plan_slugs:
+                    continue
+                if ex.primary_muscle in plan_muscles:
+                    alternatives.append({
+                        "slug": ex.slug,
+                        "name": ex.name,
+                        "primary_muscle": ex.primary_muscle,
+                    })
+
+            # Build text summary for LLM
+            alt_lines = []
+            for a in alternatives[:20]:
+                alt_lines.append(f"- {a['name']} (slug: {a['slug']}, muscle: {a['primary_muscle']})")
+
             return {
-                "exercises": session.planned_exercises,
+                "exercises": planned,
                 "day_label": "Today's workout",
-                "estimated_minutes": len(session.planned_exercises) * 5,
+                "estimated_minutes": len(planned) * 5,
+                "alternatives": alternatives,
+                "alternatives_text": "\n".join(alt_lines) if alt_lines else "No alternatives available.",
             }
     except (ValueError, TypeError):
         pass
