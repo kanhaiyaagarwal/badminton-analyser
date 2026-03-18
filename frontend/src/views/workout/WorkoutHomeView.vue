@@ -151,11 +151,11 @@
         >
           <span
             class="week-dot"
-            :class="[d.status, { 'week-dot-selected': selectedDay === d.day }]"
+            :class="[d.exercises?.length ? (d.status === 'completed' ? 'completed' : d.status === 'today' ? 'today' : 'planned') : d.status, { 'week-dot-selected': selectedDay === d.day }]"
           >
             <template v-if="d.status === 'completed'">&#10003;</template>
             <template v-else-if="d.status === 'today'">&bull;</template>
-            <template v-else-if="d.status === 'planned'">&#9675;</template>
+            <template v-else-if="d.exercises?.length">&#9675;</template>
           </span>
           <span class="week-day-label">{{ d.day.charAt(0).toUpperCase() }}</span>
         </div>
