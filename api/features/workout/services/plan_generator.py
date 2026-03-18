@@ -48,10 +48,10 @@ SPLIT_TEMPLATES = {
             "Lower — Hamstrings & Core",
         ],
         "muscle_map": {
-            "Upper — Chest & Back": ["chest", "back", "shoulders", "biceps", "triceps"],
-            "Upper — Shoulders & Arms": ["shoulders", "back", "biceps", "triceps", "chest"],
-            "Lower — Quads & Glutes": ["quads", "glutes", "hamstrings", "calves"],
-            "Lower — Hamstrings & Core": ["hamstrings", "glutes", "core", "calves", "quads"],
+            "Upper — Chest & Back": ["chest", "back", "triceps"],
+            "Upper — Shoulders & Arms": ["shoulders", "biceps", "triceps"],
+            "Lower — Quads & Glutes": ["quads", "glutes", "calves"],
+            "Lower — Hamstrings & Core": ["hamstrings", "core", "glutes"],
         },
     },
     "full_body": {
@@ -133,25 +133,36 @@ def _pick_split(days_per_week: int) -> str:
         return "full_body"
 
 
+# Muscles where we want isolation exercises (not compounds that happen to hit them)
+_ISOLATION_PREFERRED = {"biceps", "triceps", "calves", "core", "rear delts"}
+
+
 def _score_exercise(ex: dict, target_muscle: str, user_level: str) -> float:
     """Score an exercise for selection priority. Lower = better.
 
     Priorities:
     1. Primary muscle match (exact primary_muscle match scores best)
-    2. Compound > bodyweight > isolation > cardio
+    2. For small muscles (biceps, triceps, etc.): prefer isolation targeting them
+       For large muscles (chest, back, etc.): prefer compounds
     3. Difficulty matches user level (exact match best, ±1 ok, ±2 worst)
     4. Small random factor for variety across regenerations
     """
     score = 0.0
 
     # Primary muscle match: 0 if primary matches, 5 if only in muscle_groups
-    if ex.get("primary_muscle") == target_muscle:
+    is_primary = ex.get("primary_muscle") == target_muscle
+    if is_primary:
         score += 0
     else:
         score += 5
 
-    # Category priority
-    score += CATEGORY_PRIORITY.get(ex.get("category", "cardio"), 3) * 10
+    # Category priority — but for isolation-preferred muscles, flip the preference
+    if target_muscle in _ISOLATION_PREFERRED and is_primary:
+        # For biceps/triceps/etc: isolation with primary match is best
+        cat_scores = {"isolation": 0, "bodyweight": 1, "compound": 2, "cardio": 3}
+    else:
+        cat_scores = CATEGORY_PRIORITY
+    score += cat_scores.get(ex.get("category", "cardio"), 3) * 10
 
     # Difficulty match
     user_rank = DIFFICULTY_RANK.get(user_level, 0)
