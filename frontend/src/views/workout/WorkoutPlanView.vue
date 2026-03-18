@@ -111,7 +111,12 @@
         >
           <div class="customize-day-header">
             <span class="customize-day-name">{{ fullDayName(cd.day) }}</span>
-            <span v-if="cd.muscles.length" class="customize-day-count">{{ cd.muscles.length }} groups</span>
+            <div class="customize-day-right">
+              <span v-if="cd.muscles.length" class="customize-day-count">{{ cd.muscles.length }} groups</span>
+              <button class="btn-remove-day" @click="removeDay(di)" title="Remove day">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
           </div>
           <div class="muscle-pills">
             <button
@@ -123,11 +128,22 @@
                 'muscle-used': !cd.muscles.includes(mg) && usedMuscles(cd.day).has(mg),
               }"
               @click="toggleMuscle(di, mg)"
-              :disabled="!cd.muscles.includes(mg) && usedMuscles(cd.day).has(mg)"
             >
               {{ mg }}
             </button>
           </div>
+        </div>
+
+        <!-- Add day -->
+        <div v-if="availableDays.length > 0" class="add-day-row">
+          <select v-model="addDaySelected" class="add-day-select">
+            <option value="" disabled>Add a day...</option>
+            <option v-for="d in availableDays" :key="d" :value="d">{{ fullDayName(d) }}</option>
+          </select>
+          <button class="btn-add-day" @click="addDay" :disabled="!addDaySelected">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add
+          </button>
         </div>
       </div>
 
@@ -143,11 +159,12 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useWorkoutStore } from '../../stores/workout'
 import api from '../../api/client'
 
 const router = useRouter()
+const route = useRoute()
 const workoutStore = useWorkoutStore()
 
 const loading = ref(true)
@@ -233,12 +250,47 @@ function sortedMuscleGroups(currentDay) {
   })
 }
 
+const addDaySelected = ref('')
+const ALL_DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+
+const availableDays = computed(() => {
+  const used = new Set(customDays.value.map(d => d.day))
+  return ALL_DAYS.filter(d => !used.has(d))
+})
+
+function addDay() {
+  if (!addDaySelected.value) return
+  // Insert in weekday order
+  const dayIdx = ALL_DAYS.indexOf(addDaySelected.value)
+  let insertAt = customDays.value.length
+  for (let i = 0; i < customDays.value.length; i++) {
+    if (ALL_DAYS.indexOf(customDays.value[i].day) > dayIdx) {
+      insertAt = i
+      break
+    }
+  }
+  customDays.value.splice(insertAt, 0, { day: addDaySelected.value, muscles: [] })
+  addDaySelected.value = ''
+}
+
+function removeDay(index) {
+  customDays.value.splice(index, 1)
+}
+
+const repeatWarningShown = ref(false)
+
 function toggleMuscle(dayIndex, muscle) {
   const day = customDays.value[dayIndex]
   const idx = day.muscles.indexOf(muscle)
   if (idx >= 0) {
     day.muscles.splice(idx, 1)
   } else {
+    // Show one-time warning if this muscle is used on another day
+    if (!repeatWarningShown.value && usedMuscles(day.day).has(muscle)) {
+      repeatWarningShown.value = true
+      toast.value = 'This muscle group is already on another day — exercises will vary'
+      setTimeout(() => { toast.value = null }, 3000)
+    }
     day.muscles.push(muscle)
   }
 }
@@ -309,6 +361,10 @@ onMounted(async () => {
   try {
     await workoutStore.fetchProfile()
     todayWorkout.value = await workoutStore.fetchTodayWorkout()
+    // Auto-open customizer if ?customize=1
+    if (route.query.customize === '1' && todayWorkout.value?.has_plan) {
+      openCustomize()
+    }
   } catch {
     // May fail for new users
   } finally {
@@ -687,9 +743,34 @@ onMounted(async () => {
   color: var(--text-primary);
 }
 
+.customize-day-right {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
 .customize-day-count {
   font-size: 0.7rem;
   color: var(--text-muted);
+}
+
+.btn-remove-day {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.btn-remove-day:hover {
+  color: var(--color-destructive, #dc2626);
+  background: rgba(220, 38, 38, 0.1);
 }
 
 .muscle-pills {
@@ -723,8 +804,53 @@ onMounted(async () => {
 }
 
 .muscle-used {
+  opacity: 0.35;
+}
+
+/* Add day */
+.add-day-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.add-day-select {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: 1px dashed var(--border-color);
+  border-radius: 0.75rem;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.btn-add-day {
+  padding: 0.45rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0.75rem;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  transition: all 0.15s;
+}
+
+.btn-add-day:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.btn-add-day:disabled {
   opacity: 0.3;
-  cursor: not-allowed;
+  cursor: default;
 }
 
 /* Toast */
