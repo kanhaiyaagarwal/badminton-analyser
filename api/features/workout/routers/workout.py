@@ -341,12 +341,16 @@ async def customize_weekly_plan(
         for ex in day_exercises:
             global_used.add(ex["slug"])
 
+        # Look up exercise IDs from DB
+        slug_to_id = {e.slug: e.id for e in all_exercises}
+
         new_days.append({
             "day": day_name,
             "label": label,
             "exercises": [
                 {
                     "slug": ex["slug"], "name": ex["name"],
+                    "exercise_id": slug_to_id.get(ex["slug"]),
                     "sets": sets_per_exercise,
                     "reps": volume["reps"] if ex.get("tracking_mode") == "reps" else "30s",
                     "equipment": ex.get("equipment", ["none"]),
@@ -356,9 +360,11 @@ async def customize_weekly_plan(
             "estimated_minutes": max(15, len(day_exercises) * (7 if sets_per_exercise <= 3 else 9)),
         })
 
+    from sqlalchemy.orm.attributes import flag_modified
     plan_data["days"] = new_days
     plan.plan_data = plan_data
     plan.name = "Custom Plan"
+    flag_modified(plan, "plan_data")
     db.commit()
 
     return {"status": "ok", "days": new_days}

@@ -328,9 +328,10 @@ async function saveCustomPlan() {
   }
   savingCustom.value = true
   try {
-    await api.put('/api/v1/workout/plan/customize', { days })
+    const result = await api.put('/api/v1/workout/plan/customize', { days })
+    // Force refresh — fetch fresh today workout and week view
     todayWorkout.value = await workoutStore.fetchTodayWorkout()
-    workoutStore.fetchWeekView(0)  // refresh week view for home page
+    await workoutStore.fetchWeekView(0)
     showCustomize.value = false
     toast.value = 'Plan updated!'
     setTimeout(() => { toast.value = null }, 2000)
