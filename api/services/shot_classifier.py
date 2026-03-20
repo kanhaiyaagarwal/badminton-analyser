@@ -1051,18 +1051,77 @@ class ShotClassifier:
             n_pose = len(wrist_ys)
             max_vel = max(velocities) if velocities else 0.0
 
-            # Player attribution: if the tracked player's wrist was barely
-            # moving, the opponent hit the shuttle, not our player.
-            is_opponent = max_vel < T["movement"]
+            # --- Player attribution ---
+            # Signal 1: Wrist velocity (was the player swinging?)
+            wrist_active = max_vel >= T["movement"]
+
+            # Signal 2: Shuttle direction relative to player
+            # After the hit, is the shuttle moving TOWARD or AWAY from our player?
+            shuttle_direction_score = 0.0  # positive = toward player (opponent), negative = away (player)
+            shuttle_dir_computed = False
+
+            # Get player position in pixel space at hit frame
+            hit_fd = raw_frame_data[hit_idx]
+            ct = hit_fd.get("court_transform")
+            ps_at_hit = hit_fd.get("pose_state")
+            if ct and ps_at_hit and ps_at_hit.get("wrist"):
+                player_px_x = ps_at_hit["wrist"][0] * ct["court_w"] + ct["x1"]
+                player_px_y = ps_at_hit["wrist"][1] * ct["court_h"] + ct["y1"]
+
+                # Compute shuttle velocity vector after hit (next 10 visible frames)
+                shuttle_after = []
+                for j in range(hit_idx + 1, min(hit_idx + 30, len(raw_frame_data))):
+                    s = raw_frame_data[j].get("shuttle")
+                    if s and s.get("visible") and s.get("x") is not None:
+                        shuttle_after.append((s["x"], s["y"], raw_frame_data[j].get("timestamp", 0)))
+                        if len(shuttle_after) >= 5:
+                            break
+
+                if len(shuttle_after) >= 2:
+                    # Average shuttle velocity vector
+                    total_dx = shuttle_after[-1][0] - shuttle_after[0][0]
+                    total_dy = shuttle_after[-1][1] - shuttle_after[0][1]
+
+                    # Shuttle position at hit
+                    hit_shuttle = hit.get("hit_position", {})
+                    sx = hit_shuttle.get("x")
+                    sy = hit_shuttle.get("y")
+                    if sx is not None and sy is not None:
+                        # Vector from shuttle to player
+                        to_player_x = player_px_x - sx
+                        to_player_y = player_px_y - sy
+
+                        # Dot product: positive = shuttle moving toward player
+                        dot = total_dx * to_player_x + total_dy * to_player_y
+                        # Normalize by magnitudes to get cosine similarity
+                        mag_vel = math.sqrt(total_dx**2 + total_dy**2)
+                        mag_dir = math.sqrt(to_player_x**2 + to_player_y**2)
+                        if mag_vel > 0 and mag_dir > 0:
+                            shuttle_direction_score = dot / (mag_vel * mag_dir)
+                            shuttle_dir_computed = True
+
+            # Combine signals for attribution
+            # wrist_active=True + shuttle away (score<0) = strong player hit
+            # wrist_active=False + shuttle toward (score>0) = strong opponent hit
+            if shuttle_dir_computed:
+                # Both signals available — use weighted combination
+                is_opponent = (
+                    (not wrist_active and shuttle_direction_score > -0.3) or  # wrist still + not clearly away
+                    (shuttle_direction_score > 0.3 and not wrist_active)      # clearly toward + wrist still
+                )
+            else:
+                # Only wrist velocity available — fall back to original logic
+                is_opponent = not wrist_active
 
             if is_opponent:
                 shots.append({
                     "frame": hit_frame,
                     "timestamp": hit_ts,
                     "shot_type": "opponent",
-                    "confidence": round(1.0 - max_vel / T["movement"], 3),
+                    "confidence": round(1.0 - max_vel / T["movement"], 3) if max_vel < T["movement"] else 0.5,
                     "swing_type": "opponent_hit",
                     "wrist_velocity": round(max_vel, 3),
+                    "shuttle_direction_score": round(shuttle_direction_score, 3) if shuttle_dir_computed else None,
                     "shuttle_speed_px_per_sec": hit.get("speed_px_per_sec"),
                     "shuttle_hit_matched": True,
                     "hit_by": "opponent",
@@ -1148,6 +1207,7 @@ class ShotClassifier:
                 "confidence": round(confidence, 3),
                 "swing_type": f"window_{shot_type}",
                 "wrist_velocity": round(max_vel, 3),
+                "shuttle_direction_score": round(shuttle_direction_score, 3) if shuttle_dir_computed else None,
                 "shuttle_speed_px_per_sec": hit.get("speed_px_per_sec"),
                 "shuttle_hit_matched": True,
                 "hit_by": "player",
