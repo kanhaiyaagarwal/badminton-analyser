@@ -324,6 +324,47 @@ def detect_shuttle_hits_windowed(
             "reversal_type": "multi_signal",
         })
 
+    # --- Infer opponent hits from shuttle gaps ---
+    # When the shuttle disappears (opponent's side) and reappears, there
+    # was likely an opponent hit. Insert inferred hits at reappearance points.
+    min_gap_frames = int(fps * 0.3) if fps > 0 else 10  # min 0.3s gap
+    max_gap_frames = int(fps * 3.0) if fps > 0 else 90  # max 3s gap
+    hit_frame_set = {h["frame"] for h in result}
+
+    last_visible_idx = None
+    for i in range(n):
+        shuttle = raw_frames[i].get("shuttle")
+        visible = shuttle and shuttle.get("visible")
+
+        if visible and last_visible_idx is not None:
+            gap = i - last_visible_idx
+            if min_gap_frames < gap < max_gap_frames:
+                # Shuttle reappeared after a gap — infer an opponent hit
+                # Place it at the reappearance frame
+                fn = raw_frames[i].get("frame_number", i)
+                if fn not in hit_frame_set and not any(
+                    abs(fn - hf) < cooldown_frames for hf in hit_frame_set
+                ):
+                    result.append({
+                        "frame": fn,
+                        "timestamp": raw_frames[i].get("timestamp", 0),
+                        "hit_position": {
+                            "x": shuttle.get("x"),
+                            "y": shuttle.get("y"),
+                        },
+                        "speed_px_per_sec": None,
+                        "direction_before": None,
+                        "direction_after": None,
+                        "confidence": 0.4,  # lower confidence for inferred hits
+                        "reversal_type": "gap_inferred",
+                    })
+                    hit_frame_set.add(fn)
+
+        if visible:
+            last_visible_idx = i
+
+    # Re-sort by frame order
+    result.sort(key=lambda h: h["frame"])
     return result
 
 
@@ -1053,7 +1094,8 @@ class ShotClassifier:
 
             # Player attribution: if the tracked player's wrist was barely
             # moving, the opponent hit the shuttle, not our player.
-            is_opponent = max_vel < T["movement"]
+            # Gap-inferred hits are always opponent (shuttle was out of view).
+            is_opponent = max_vel < T["movement"] or hit.get("reversal_type") == "gap_inferred"
 
             if is_opponent:
                 shots.append({
