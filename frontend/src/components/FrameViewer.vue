@@ -90,18 +90,32 @@
                 <span v-if="isNearCurrentFrame(rallyEnd.index)" class="rally-end-tooltip">Rally {{ rallyEnd.rallyNumber }} End</span>
               </div>
             </template>
-            <!-- Shuttle hit markers -->
+            <!-- Player hit markers (gold circles) -->
             <template v-if="showHitMarkers">
               <div
-                v-for="hit in shuttleHitMarkers"
+                v-for="hit in playerHitMarkers"
                 :key="'hit-' + hit.index"
-                class="hit-marker"
+                class="hit-marker hit-player"
                 :class="{ 'at-position': isNearCurrentFrame(hit.index) }"
                 :style="{ left: getMarkerPosition(hit.index) + '%' }"
-                :title="`Shuttle Hit @ ${formatTime(hit.timestamp)}`"
+                :title="`Player Hit @ ${formatTime(hit.timestamp)}`"
                 @click="goToFrameIndex(hit.index)"
               >
-                <span v-if="isNearCurrentFrame(hit.index)" class="hit-tooltip">Hit</span>
+                <span v-if="isNearCurrentFrame(hit.index)" class="hit-tooltip">Player</span>
+              </div>
+            </template>
+            <!-- Opponent hit markers (white circles) -->
+            <template v-if="showOpponentMarkers">
+              <div
+                v-for="hit in opponentHitMarkers"
+                :key="'opp-' + hit.index"
+                class="hit-marker hit-opponent"
+                :class="{ 'at-position': isNearCurrentFrame(hit.index) }"
+                :style="{ left: getMarkerPosition(hit.index) + '%' }"
+                :title="`Opponent Hit @ ${formatTime(hit.timestamp)}`"
+                @click="goToFrameIndex(hit.index)"
+              >
+                <span v-if="isNearCurrentFrame(hit.index)" class="hit-tooltip">Opponent</span>
               </div>
             </template>
             <!-- Manual hit markers -->
@@ -236,13 +250,22 @@
           Rally Breaks ({{ rallyEndFrames.length }})
         </div>
         <div
-          v-if="hasShuttleData && shuttleHitCount > 0"
+          v-if="hasShuttleData && playerHitMarkers.length > 0"
           class="overlay-toggle"
           :class="{ active: showHitMarkers }"
           @click="showHitMarkers = !showHitMarkers"
         >
           <span class="toggle-dot hit-dot"></span>
-          Shuttle Hits ({{ shuttleHitCount }})
+          Player Hits ({{ playerHitMarkers.length }})
+        </div>
+        <div
+          v-if="hasShuttleData && opponentHitMarkers.length > 0"
+          class="overlay-toggle"
+          :class="{ active: showOpponentMarkers }"
+          @click="showOpponentMarkers = !showOpponentMarkers"
+        >
+          <span class="toggle-dot opponent-dot"></span>
+          Opponent Hits ({{ opponentHitMarkers.length }})
         </div>
         <div
           v-if="manualHitCount > 0"
@@ -845,6 +868,8 @@ const shuttleHitFrameIndices = computed(() => {
   return result
 })
 
+const showOpponentMarkers = ref(true)
+
 const shuttleHitMarkers = computed(() => {
   const gapSet = gapFrameIndices.value
   const result = []
@@ -852,12 +877,15 @@ const shuttleHitMarkers = computed(() => {
     if (gapSet.has(idx)) continue
     const f = props.frames[idx]
     if (f) {
-      result.push({ index: idx, timestamp: f.timestamp || 0 })
+      result.push({ index: idx, timestamp: f.timestamp || 0, hit_by: f.hit_by || 'player' })
     }
   }
   result.sort((a, b) => a.index - b.index)
   return result
 })
+
+const playerHitMarkers = computed(() => shuttleHitMarkers.value.filter(h => h.hit_by !== 'opponent'))
+const opponentHitMarkers = computed(() => shuttleHitMarkers.value.filter(h => h.hit_by === 'opponent'))
 
 const shuttleHitCount = computed(() => shuttleHitMarkers.value.length)
 
@@ -1497,6 +1525,7 @@ watch(showShuttleStrip, (v) => { if (v) nextTick(drawShuttleStrip) })
 watch(() => props.rallyThresholds, () => nextTick(drawShuttleStrip), { deep: true })
 watch(() => props.hitThresholds, () => nextTick(drawShuttleStrip), { deep: true })
 watch(showHitMarkers, () => nextTick(drawShuttleStrip))
+watch(showOpponentMarkers, () => nextTick(drawShuttleStrip))
 watch(manualHitFrameIndices, () => nextTick(drawShuttleStrip))
 watch(showManualHitMarkers, () => nextTick(drawShuttleStrip))
 
@@ -1821,14 +1850,14 @@ function getShotClass(shotType) {
   box-shadow: var(--shadow-md);
 }
 
-/* Shuttle hit markers on seek bar -- gold diamonds */
+/* Shuttle hit markers on seek bar -- circles */
 .hit-marker {
   position: absolute;
-  top: -2px;
-  width: 8px;
-  height: 8px;
-  background: #ffd700;
-  transform: translateX(-50%) rotate(45deg);
+  top: -3px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  transform: translateX(-50%);
   cursor: pointer;
   pointer-events: auto;
   opacity: 0.85;
@@ -1836,18 +1865,41 @@ function getShotClass(shotType) {
   transition: transform 0.15s, opacity 0.15s, box-shadow 0.15s;
 }
 
+.hit-player {
+  background: #ffd700;
+}
+
+.hit-opponent {
+  background: #ffffff;
+  border: 1px solid #999;
+}
+
 .hit-marker:hover {
-  transform: translateX(-50%) rotate(45deg) scale(1.3);
+  transform: translateX(-50%) scale(1.3);
   opacity: 1;
   z-index: 10;
+}
+
+.hit-player:hover {
   box-shadow: 0 0 6px #ffd700;
 }
 
+.hit-opponent:hover {
+  box-shadow: 0 0 6px #ffffff;
+}
+
 .hit-marker.at-position {
-  transform: translateX(-50%) rotate(45deg) scale(1.5);
+  transform: translateX(-50%) scale(1.5);
   opacity: 1;
   z-index: 15;
+}
+
+.hit-player.at-position {
   box-shadow: 0 0 10px #ffd700;
+}
+
+.hit-opponent.at-position {
+  box-shadow: 0 0 10px #ffffff;
 }
 
 .hit-tooltip {
@@ -1933,7 +1985,11 @@ function getShotClass(shotType) {
 
 .toggle-dot.hit-dot {
   background: #ffd700;
-  clip-path: polygon(50% 100%, 0 0, 100% 0);
+}
+
+.toggle-dot.opponent-dot {
+  background: #ffffff;
+  border: 1px solid #999;
 }
 
 .shot-summary-section {

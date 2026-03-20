@@ -1999,6 +1999,7 @@ class CourtBoundedAnalyzer:
                     "shot_type": shot["shot_type"],
                     "confidence": shot["confidence"],
                     "cooldown_active": False,
+                    "hit_by": shot.get("hit_by", "player"),
                 }
 
         P = self.POSITION_THRESHOLDS
@@ -2098,8 +2099,12 @@ class CourtBoundedAnalyzer:
 
         # Post-pass: compute shuttle velocity/speed/direction and detect hits
         hit_frames = set()
+        hit_by_map = {}  # frame -> "player" or "opponent"
         for hit in classified.get("shuttle_hits", []):
             hit_frames.add(hit.get("frame"))
+        for shot in classified.get("shots", []):
+            if shot.get("shuttle_hit_matched"):
+                hit_by_map[shot["frame"]] = shot.get("hit_by", "player")
 
         prev_shuttle_frame = None
         for entry in tuning:
@@ -2131,7 +2136,9 @@ class CourtBoundedAnalyzer:
             entry["shuttle_dx"] = round(sdx, 1) if sdx is not None else None
             entry["shuttle_dy"] = round(sdy, 1) if sdy is not None else None
             entry["shuttle_direction"] = direction
-            entry["shuttle_is_hit"] = entry.get("frame_number") in hit_frames
+            fn = entry.get("frame_number")
+            entry["shuttle_is_hit"] = fn in hit_frames
+            entry["hit_by"] = hit_by_map.get(fn)  # "player", "opponent", or None
             if entry.get("shuttle_visible"):
                 prev_shuttle_frame = entry
 
