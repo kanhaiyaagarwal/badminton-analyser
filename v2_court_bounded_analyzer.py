@@ -1779,7 +1779,6 @@ class CourtBoundedAnalyzer:
                         pose_color = (0, 255, 0)
 
                     self.draw_skeleton(frame, pose_landmarks, pose_color)
-                    self.draw_body_part_labels(frame, pose_landmarks)
 
                 # Build shuttle trail entry
                 shuttle_data = frame_data.get("shuttle")
@@ -1805,20 +1804,23 @@ class CourtBoundedAnalyzer:
 
                 # Draw shot label (persists for ~1 second)
                 if current_shot_display and shot_display_frames < max_display_frames:
-                    shot_text = f"{current_shot_display['shot_type'].upper()} ({current_shot_display['confidence']:.0%})"
-                    speed = current_shot_display.get("shuttle_speed_px_per_sec")
-                    if speed is not None:
-                        shot_text += f" | {speed:.0f} px/s"
-                    text_size = cv2.getTextSize(shot_text, cv2.FONT_HERSHEY_SIMPLEX, 1.0, 2)[0]
-                    cv2.rectangle(frame, (5, 10), (15 + text_size[0], 50), (0, 0, 0), -1)
+                    shot_type = current_shot_display['shot_type']
+                    hit_by = current_shot_display.get('hit_by', 'player')
+                    if shot_type == "opponent":
+                        shot_text = "OPPONENT"
+                    else:
+                        shot_text = shot_type.upper().replace("_", " ")
+                    text_size = cv2.getTextSize(shot_text, cv2.FONT_HERSHEY_SIMPLEX, 0.9, 2)[0]
+                    cv2.rectangle(frame, (5, 10), (15 + text_size[0], 48), (0, 0, 0), -1)
                     colors = {
                         'smash': (0, 0, 255), 'clear': (0, 255, 0),
                         'drop_shot': (255, 165, 0), 'net_shot': (255, 255, 0),
                         'drive': (255, 0, 255), 'lift': (255, 200, 100),
+                        'opponent': (128, 128, 128),
                     }
-                    color = colors.get(current_shot_display["shot_type"], (255, 255, 255))
+                    color = colors.get(shot_type, (255, 255, 255))
                     cv2.putText(frame, shot_text, (10, 40),
-                                cv2.FONT_HERSHEY_SIMPLEX, 1.0, color, 2)
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
                     shot_display_frames += 1
 
                 # Draw shuttle hit marker
@@ -1831,12 +1833,6 @@ class CourtBoundedAnalyzer:
 
                 # Draw stats panel (use classified summary)
                 self._draw_classified_stats(frame, classified)
-
-                # Draw player bbox
-                bbox = frame_data.get("player_bbox")
-                if bbox and pose_landmarks:
-                    x1, y1, x2, y2 = bbox
-                    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
 
                 out.write(frame)
 
@@ -1879,16 +1875,14 @@ class CourtBoundedAnalyzer:
                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
 
         y_offset = panel_y + 50
+        player_shots = summary.get('player_shots', summary.get('total_shots', 0))
+        opponent_shots = summary.get('opponent_shots', 0)
         stats_text = [
-            f"Shots: {summary.get('total_shots', 0)} | Rallies: {summary.get('total_rallies', 0)}",
+            f"Player: {player_shots} | Opponent: {opponent_shots} | Rallies: {summary.get('total_rallies', 0)}",
             f"Smash: {dist.get('smash', 0)} | Clear: {dist.get('clear', 0)}",
             f"Drop: {dist.get('drop_shot', 0)} | Drive: {dist.get('drive', 0)}",
             f"Net: {dist.get('net_shot', 0)} | Lift: {dist.get('lift', 0)}",
         ]
-
-        shuttle_rate = summary.get("shuttle_detection_rate")
-        if shuttle_rate is not None:
-            stats_text.append(f"Shuttle: {shuttle_rate:.0%} | Hits: {summary.get('shuttle_hits_detected', 0)}")
 
         for text in stats_text:
             cv2.putText(frame, text, (panel_x + 10, y_offset),

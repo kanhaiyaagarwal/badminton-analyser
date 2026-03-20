@@ -529,10 +529,16 @@ class ShotClassifier:
                 raw_frame_data, shuttle_hits, velocity_data, fps
             )
             session_stats: Dict[str, int] = {}
+            player_stats: Dict[str, int] = {}
+            opponent_count = 0
             for s in enriched_shots:
                 st = s["shot_type"]
-                if st in self.ACTUAL_SHOTS:
+                if s.get("hit_by") == "opponent":
+                    opponent_count += 1
+                elif st in self.ACTUAL_SHOTS:
                     session_stats[st] = session_stats.get(st, 0) + 1
+                    player_stats[st] = player_stats.get(st, 0) + 1
+            session_stats["opponent"] = opponent_count
         else:
             # Legacy: per-frame classify + match
             shots = []
@@ -657,16 +663,22 @@ class ShotClassifier:
             if f.get("shuttle") and f["shuttle"].get("visible")
         )
 
+        # Per-player shot counts
+        player_shots = [s for s in enriched_shots if s.get("hit_by") == "player"]
+        opponent_shots = [s for s in enriched_shots if s.get("hit_by") == "opponent"]
+
         summary = {
             "total_shots": len(enriched_shots),
+            "player_shots": len(player_shots),
+            "opponent_shots": len(opponent_shots),
             "total_rallies": len(rallies),
             "frames_processed": total_frames,
             "player_detection_rate": (
                 player_detected_frames / total_frames if total_frames > 0 else 0
             ),
             "avg_confidence": (
-                sum(s["confidence"] for s in enriched_shots) / len(enriched_shots)
-                if enriched_shots else 0
+                sum(s["confidence"] for s in player_shots) / len(player_shots)
+                if player_shots else 0
             ),
             "shuttle_detection_rate": (
                 shuttle_detected_frames / total_frames if total_frames > 0 and has_shuttle else None
@@ -1039,9 +1051,22 @@ class ShotClassifier:
             n_pose = len(wrist_ys)
             max_vel = max(velocities) if velocities else 0.0
 
-            # Activity gate: skip hits where the player's wrist was
-            # barely moving — likely an opponent shot, not ours.
-            if max_vel < T["movement"]:
+            # Player attribution: if the tracked player's wrist was barely
+            # moving, the opponent hit the shuttle, not our player.
+            is_opponent = max_vel < T["movement"]
+
+            if is_opponent:
+                shots.append({
+                    "frame": hit_frame,
+                    "timestamp": hit_ts,
+                    "shot_type": "opponent",
+                    "confidence": round(1.0 - max_vel / T["movement"], 3),
+                    "swing_type": "opponent_hit",
+                    "wrist_velocity": round(max_vel, 3),
+                    "shuttle_speed_px_per_sec": hit.get("speed_px_per_sec"),
+                    "shuttle_hit_matched": True,
+                    "hit_by": "opponent",
+                })
                 continue
 
             if n_pose == 0:
@@ -1055,6 +1080,7 @@ class ShotClassifier:
                     "wrist_velocity": round(max_vel, 3),
                     "shuttle_speed_px_per_sec": hit.get("speed_px_per_sec"),
                     "shuttle_hit_matched": True,
+                    "hit_by": "player",
                 })
                 continue
 
@@ -1124,6 +1150,7 @@ class ShotClassifier:
                 "wrist_velocity": round(max_vel, 3),
                 "shuttle_speed_px_per_sec": hit.get("speed_px_per_sec"),
                 "shuttle_hit_matched": True,
+                "hit_by": "player",
             })
 
         return shots
@@ -1155,6 +1182,9 @@ class ShotClassifier:
                         ),
                         "shot_count": len(current_rally_shots),
                         "shots": [s["shot_type"] for s in current_rally_shots],
+                        "hit_by": [s.get("hit_by", "player") for s in current_rally_shots],
+                        "player_shots": sum(1 for s in current_rally_shots if s.get("hit_by") == "player"),
+                        "opponent_shots": sum(1 for s in current_rally_shots if s.get("hit_by") == "opponent"),
                     })
                     rally_id += 1
                 current_rally_shots = [shots[i]]
@@ -1170,6 +1200,9 @@ class ShotClassifier:
                 ),
                 "shot_count": len(current_rally_shots),
                 "shots": [s["shot_type"] for s in current_rally_shots],
+                "hit_by": [s.get("hit_by", "player") for s in current_rally_shots],
+                "player_shots": sum(1 for s in current_rally_shots if s.get("hit_by") == "player"),
+                "opponent_shots": sum(1 for s in current_rally_shots if s.get("hit_by") == "opponent"),
             })
 
         return rallies
