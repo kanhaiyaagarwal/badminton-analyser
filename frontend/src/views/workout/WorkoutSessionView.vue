@@ -161,7 +161,9 @@ watch(activeSession, (session, oldSession) => {
   if (oldSession && oldSession.view !== session?.view) {
     voiceOutput.stop()
   }
-  if (session?.coach_says) {
+  // Only speak during active workout phases (not brief/edit page)
+  const activeViews = ['exercise_intro', 'active_set', 'rest_timer', 'cooldown', 'summary']
+  if (session?.coach_says && activeViews.includes(session.view)) {
     voiceOutput.speak(session.coach_says, session.audio_url || null)
   }
 })

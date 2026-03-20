@@ -62,8 +62,9 @@ export function useCoachChat(context, sessionId = null) {
           timestamp: Date.now(),
         })
 
-        // Auto-play coach response via TTS (skip for onboarding)
-        if (context !== 'onboarding') {
+        // Auto-play coach response via TTS — only during active workout phases
+        // Skip: onboarding, pre_workout (edit page)
+        if (context === 'rest' || context === 'post_set' || context === 'post_workout') {
           voiceOutput.speak(data.response, data.audio_url || null)
         }
       }
@@ -121,7 +122,7 @@ export function useCoachChat(context, sessionId = null) {
           actions: data.actions || [],
           timestamp: Date.now(),
         })
-        if (context !== 'onboarding') {
+        if (context === 'rest' || context === 'post_set' || context === 'post_workout') {
           voiceOutput.speak(data.response, data.audio_url || null)
         }
       }
