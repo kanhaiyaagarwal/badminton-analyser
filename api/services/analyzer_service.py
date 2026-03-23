@@ -362,7 +362,7 @@ class AnalyzerService:
         velocity_thresholds: Optional[Dict[str, float]] = None,
         position_thresholds: Optional[Dict[str, float]] = None,
         shot_cooldown_seconds: Optional[float] = None,
-        save_frame_data: bool = False
+        save_frame_data: bool = True
     ) -> Dict[str, Any]:
         """
         Run video analysis.

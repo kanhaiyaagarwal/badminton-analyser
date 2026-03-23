@@ -41,7 +41,7 @@ def _run_analysis_process(
     output_dir: str,
     speed_preset: str,
     background_frame_path: str = None,
-    save_frame_data: bool = False
+    save_frame_data: bool = True
 ) -> Dict[str, Any]:
     """Run analysis in a separate process."""
     return AnalyzerService.run_analysis(
@@ -108,7 +108,7 @@ class JobManager:
         db: Session,
         job: Job,
         speed_preset: str = "balanced",
-        save_frame_data: bool = False
+        save_frame_data: bool = True
     ) -> bool:
         """Start an analysis job."""
         if job.status != JobStatus.PENDING:
@@ -165,7 +165,7 @@ class JobManager:
         speed_preset: str,
         background_frame_path: str = None,
         s3_video_key: str = None,
-        save_frame_data: bool = False
+        save_frame_data: bool = True
     ):
         """Run analysis job asynchronously."""
         from ..database import SessionLocal

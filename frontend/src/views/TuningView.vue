@@ -149,7 +149,7 @@
               />
             </template>
 
-            <div v-if="hasChanges" class="apply-section">
+            <div v-if="hasChanges || sourceMode === 'video'" class="apply-section">
               <button
                 v-if="sourceMode === 'video'"
                 @click="reclassify"
@@ -157,6 +157,14 @@
                 :disabled="reclassifying || !selectedJobId"
               >
                 {{ reclassifying ? 'Re-classifying...' : 'Apply & Re-classify' }}
+              </button>
+              <button
+                v-if="sourceMode === 'video'"
+                @click="reanalyze"
+                class="btn-secondary"
+                :disabled="reanalyzing || !selectedJobId"
+              >
+                {{ reanalyzing ? 'Re-analyzing...' : 'Re-analyze (Full Classification)' }}
               </button>
               <button
                 v-else-if="sourceMode === 'live'"
@@ -316,6 +324,8 @@ const originalThresholds = ref({})
 // Re-classification
 const reclassifying = ref(false)
 const reclassifyResults = ref(null)
+const reanalyzing = ref(false)
+const reanalyzeResults = ref(null)
 
 // Save preset modal
 const showSavePreset = ref(false)
@@ -735,6 +745,22 @@ async function reclassify() {
     console.error('Failed to reclassify:', err)
   } finally {
     reclassifying.value = false
+  }
+}
+
+async function reanalyze() {
+  if (!selectedJobId.value) return
+  reanalyzing.value = true
+  reanalyzeResults.value = null
+  try {
+    const response = await api.post(`/api/v1/tuning/jobs/${selectedJobId.value}/reanalyze`)
+    reanalyzeResults.value = response.data
+    alert(`Re-analysis complete!\nPlayer shots: ${response.data.player_shots}\nOpponent shots: ${response.data.opponent_shots}\nRallies: ${response.data.total_rallies}\n\nReload the page to see updated frame data.`)
+  } catch (err) {
+    console.error('Failed to reanalyze:', err)
+    alert('Re-analysis failed: ' + (err.response?.data?.detail || err.message))
+  } finally {
+    reanalyzing.value = false
   }
 }
 

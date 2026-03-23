@@ -710,6 +710,138 @@ async def reclassify_job(
     return results
 
 
+@router.post("/jobs/{job_id}/reanalyze")
+async def reanalyze_job(
+    job_id: int,
+    current_user: User = Depends(get_tuning_user),
+    db: Session = Depends(get_db)
+):
+    """Re-run Phase 2 (classification) on cached frame data.
+
+    Skips Phase 1 (detection) entirely — uses the saved frame_data_*.json
+    which has all pose + shuttle positions from the original analysis.
+    Runs the full ShotClassifier.classify_all() with hit-centric classification
+    and player/opponent attribution.
+
+    Saves updated frame data back to the same location.
+    """
+    job = db.query(Job).filter(Job.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    _check_job_access(job, current_user)
+
+    frame_data = _load_job_frame_data(job)
+    if not frame_data:
+        raise HTTPException(
+            status_code=400,
+            detail="Frame data not available. Re-run analysis with tuning data enabled."
+        )
+
+    frames = frame_data.get("frames", [])
+    video_info = frame_data.get("video_info", {})
+    fps = video_info.get("fps", 29.97)
+
+    # Rebuild raw_frame_data format that ShotClassifier expects
+    raw_frame_data = []
+    for f in frames:
+        fd = {
+            "frame_number": f.get("frame_number", 0),
+            "timestamp": f.get("timestamp", 0),
+            "player_detected": f.get("player_detected", False),
+            "pose_state": None,
+            "shuttle": None,
+            "court_transform": None,
+        }
+
+        # Rebuild pose_state
+        if f.get("player_detected") and f.get("wrist_x") is not None:
+            fd["pose_state"] = {
+                "wrist": (f["wrist_x"], f["wrist_y"]),
+                "shoulder": (f.get("shoulder_x", 0), f.get("shoulder_y", 0)),
+                "elbow": (f.get("elbow_x", 0), f.get("elbow_y", 0)),
+                "shoulder_center": (f.get("shoulder_x", 0), f.get("shoulder_y", 0)),
+                "hip_center": (f.get("hip_x", 0), f.get("hip_y", 0)),
+                "timestamp": f.get("timestamp", 0),
+            }
+
+        # Rebuild shuttle
+        if f.get("shuttle_visible") and f.get("shuttle_x") is not None:
+            fd["shuttle"] = {
+                "x": f["shuttle_x"],
+                "y": f["shuttle_y"],
+                "confidence": f.get("shuttle_confidence", 0.5),
+                "visible": True,
+            }
+
+        # Rebuild court_transform
+        if f.get("court_transform_x1") is not None:
+            fd["court_transform"] = {
+                "x1": f["court_transform_x1"],
+                "y1": f["court_transform_y1"],
+                "court_w": f["court_transform_w"],
+                "court_h": f["court_transform_h"],
+            }
+
+        raw_frame_data.append(fd)
+
+    # Run full classification (Phase 2)
+    try:
+        from ..services.shot_classifier import ShotClassifier
+        sc = ShotClassifier(effective_fps=fps)
+        classified = sc.classify_all(raw_frame_data, fps)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Classification failed: {e}")
+
+    # Update frame data with new classifications
+    shot_by_frame = {}
+    for shot in classified.get("shots", []):
+        shot_by_frame[shot["frame"]] = shot
+
+    for f in frames:
+        fn = f.get("frame_number")
+        if fn in shot_by_frame:
+            s = shot_by_frame[fn]
+            f["shot_type"] = s["shot_type"]
+            f["confidence"] = s["confidence"]
+            f["hit_by"] = s.get("hit_by")
+            f["shuttle_is_hit"] = True
+        else:
+            f["hit_by"] = None
+
+    # Save updated frame data
+    settings = get_settings()
+    output_dir = settings.output_path / str(job.user_id) / str(job.id)
+    if output_dir.exists():
+        frame_data_files = list(output_dir.glob("frame_data_*.json"))
+        if frame_data_files:
+            with open(frame_data_files[0], 'w') as fp:
+                json.dump(frame_data, fp)
+            logger.info(f"Re-analysis saved to {frame_data_files[0]}")
+
+    # Also upload to S3
+    from ..services.storage_service import get_storage_service
+    storage = get_storage_service()
+    if storage.is_s3():
+        try:
+            video_stem = job.video_filename.rsplit('.', 1)[0] if job.video_filename else "video"
+            s3_key = f"analysis_output/{job.id}/frame_data_{video_stem}.json"
+            storage.outputs.save(s3_key, json.dumps(frame_data).encode('utf-8'),
+                               content_type="application/json")
+            logger.info(f"Re-analysis uploaded to S3: {s3_key}")
+        except Exception as e:
+            logger.warning(f"Failed to upload re-analysis to S3: {e}")
+
+    summary = classified.get("summary", {})
+    return {
+        "status": "ok",
+        "total_shots": summary.get("total_shots", 0),
+        "player_shots": summary.get("player_shots", 0),
+        "opponent_shots": summary.get("opponent_shots", 0),
+        "total_rallies": summary.get("total_rallies", 0),
+        "shot_distribution": classified.get("shot_distribution", {}),
+    }
+
+
 @router.get("/jobs/{job_id}/video/url")
 async def get_job_video_url(
     job_id: int,
