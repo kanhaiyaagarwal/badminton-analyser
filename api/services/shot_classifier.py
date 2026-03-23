@@ -1101,14 +1101,19 @@ class ShotClassifier:
                             shuttle_dir_computed = True
 
             # Combine signals for attribution
-            # wrist_active=True + shuttle away (score<0) = strong player hit
-            # wrist_active=False + shuttle toward (score>0) = strong opponent hit
+            # Shuttle toward player (positive score) = opponent hit
+            # Shuttle away from player (negative score) = player hit
             if shuttle_dir_computed:
-                # Both signals available — use weighted combination
-                is_opponent = (
-                    (not wrist_active and shuttle_direction_score > -0.3) or  # wrist still + not clearly away
-                    (shuttle_direction_score > 0.3 and not wrist_active)      # clearly toward + wrist still
-                )
+                if shuttle_direction_score > 0.2:
+                    # Shuttle coming toward player — opponent hit
+                    # Unless wrist velocity is very high (player hitting an incoming shuttle)
+                    is_opponent = max_vel < 1.2
+                elif shuttle_direction_score < -0.2:
+                    # Shuttle going away from player — player hit
+                    is_opponent = False
+                else:
+                    # Ambiguous direction — fall back to wrist velocity
+                    is_opponent = not wrist_active
             else:
                 # Only wrist velocity available — fall back to original logic
                 is_opponent = not wrist_active
