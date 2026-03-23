@@ -719,28 +719,10 @@ async function reclassify() {
     })
 
     reclassifyResults.value = response.data
+    console.log(`Re-classified: Player=${response.data.player_shots}, Opponent=${response.data.opponent_shots}`)
 
-    // Update frame data with new classifications from reanalyze
-    if (frameData.value && response.data.updated_frames) {
-      for (const [fn, update] of Object.entries(response.data.updated_frames)) {
-        const frame = frameData.value.frames.find(f => f.frame_number === parseInt(fn))
-        if (frame) {
-          frame.shot_type = update.shot_type
-          frame.confidence = update.confidence
-          frame.hit_by = update.hit_by
-          frame.shuttle_is_hit = update.shuttle_is_hit
-        }
-      }
-      // Clear hit_by and shuttle_is_hit on frames not in updated set
-      const updatedFns = new Set(Object.keys(response.data.updated_frames).map(Number))
-      for (const frame of frameData.value.frames) {
-        if (!updatedFns.has(frame.frame_number)) {
-          frame.hit_by = null
-          frame.shuttle_is_hit = false
-        }
-      }
-      console.log(`Re-classified: Player=${response.data.player_shots}, Opponent=${response.data.opponent_shots}`)
-    }
+    // Reload frame data to pick up new classifications
+    await loadJobFrameData()
   } catch (err) {
     console.error('Failed to reclassify:', err)
   } finally {
