@@ -873,13 +873,27 @@ const showOpponentMarkers = ref(true)
 const shuttleHitMarkers = computed(() => {
   const gapSet = gapFrameIndices.value
   const result = []
-  for (const idx of shuttleHitFrameIndices.value) {
-    if (gapSet.has(idx)) continue
-    const f = props.frames[idx]
-    if (f) {
-      result.push({ index: idx, timestamp: f.timestamp || 0, hit_by: f.hit_by || 'player' })
+
+  // If backend has already classified hits (shuttle_is_hit + hit_by), use those
+  const hasBackendHits = props.frames.some(f => f.shuttle_is_hit && f.hit_by)
+  if (hasBackendHits) {
+    for (let idx = 0; idx < props.frames.length; idx++) {
+      const f = props.frames[idx]
+      if (f.shuttle_is_hit) {
+        result.push({ index: idx, timestamp: f.timestamp || 0, hit_by: f.hit_by || 'player' })
+      }
+    }
+  } else {
+    // Fallback: use client-side hit detection
+    for (const idx of shuttleHitFrameIndices.value) {
+      if (gapSet.has(idx)) continue
+      const f = props.frames[idx]
+      if (f) {
+        result.push({ index: idx, timestamp: f.timestamp || 0, hit_by: f.hit_by || 'player' })
+      }
     }
   }
+
   result.sort((a, b) => a.index - b.index)
   return result
 })
