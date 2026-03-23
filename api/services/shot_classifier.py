@@ -1218,6 +1218,53 @@ class ShotClassifier:
                 "hit_by": "player",
             })
 
+        # Post-processing: enforce hit alternation within rallies.
+        # In badminton, hits must alternate player/opponent. When consecutive
+        # hits are attributed to the same side, flip the one with weaker evidence.
+        shots = self._enforce_alternation(shots)
+
+        return shots
+
+    @staticmethod
+    def _enforce_alternation(shots: List[dict]) -> List[dict]:
+        """Enforce player/opponent alternation — flip weaker-evidence duplicates."""
+        if len(shots) < 2:
+            return shots
+
+        # Multiple passes until stable
+        for _ in range(5):
+            flipped = False
+            for i in range(1, len(shots)):
+                prev_hb = shots[i - 1].get("hit_by")
+                curr_hb = shots[i].get("hit_by")
+
+                if not prev_hb or not curr_hb:
+                    continue
+                if prev_hb not in ("player", "opponent") or curr_hb not in ("player", "opponent"):
+                    continue
+                if prev_hb != curr_hb:
+                    continue
+
+                # Same side — flip the one with weaker wrist velocity evidence
+                prev_vel = shots[i - 1].get("wrist_velocity", 0)
+                curr_vel = shots[i].get("wrist_velocity", 0)
+
+                if curr_hb == "player":
+                    # Two player hits — lower velocity one is likely opponent
+                    flip_idx = i if curr_vel < prev_vel else i - 1
+                else:
+                    # Two opponent hits — higher velocity one is likely player
+                    flip_idx = i if curr_vel > prev_vel else i - 1
+
+                new_hb = "opponent" if shots[flip_idx]["hit_by"] == "player" else "player"
+                shots[flip_idx]["hit_by"] = new_hb
+                if new_hb == "opponent":
+                    shots[flip_idx]["shot_type"] = "opponent"
+                flipped = True
+
+            if not flipped:
+                break
+
         return shots
 
     # ------------------------------------------------------------------
