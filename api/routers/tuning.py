@@ -713,18 +713,18 @@ async def reclassify_job(
 @router.post("/jobs/{job_id}/reanalyze")
 async def reanalyze_job(
     job_id: int,
+    request: dict = None,
     current_user: User = Depends(get_tuning_user),
     db: Session = Depends(get_db)
 ):
-    """Re-run Phase 2 (classification) on cached frame data.
+    """Re-run full classification on cached frame data with current thresholds.
 
-    Skips Phase 1 (detection) entirely — uses the saved frame_data_*.json
-    which has all pose + shuttle positions from the original analysis.
-    Runs the full ShotClassifier.classify_all() with hit-centric classification
-    and player/opponent attribution.
-
-    Saves updated frame data back to the same location.
+    Skips Phase 1 (detection) — uses saved frame_data_*.json with all
+    pose + shuttle positions. Runs ShotClassifier.classify_all() with
+    hit-centric classification and player/opponent attribution.
+    Accepts optional threshold overrides from the tuning sliders.
     """
+    request = request or {}
     job = db.query(Job).filter(Job.id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -753,7 +753,6 @@ async def reanalyze_job(
             "court_transform": None,
         }
 
-        # Rebuild pose_state
         if f.get("player_detected") and f.get("wrist_x") is not None:
             fd["pose_state"] = {
                 "wrist": (f["wrist_x"], f["wrist_y"]),
@@ -764,7 +763,6 @@ async def reanalyze_job(
                 "timestamp": f.get("timestamp", 0),
             }
 
-        # Rebuild shuttle
         if f.get("shuttle_visible") and f.get("shuttle_x") is not None:
             fd["shuttle"] = {
                 "x": f["shuttle_x"],
@@ -773,7 +771,6 @@ async def reanalyze_job(
                 "visible": True,
             }
 
-        # Rebuild court_transform
         if f.get("court_transform_x1") is not None:
             fd["court_transform"] = {
                 "x1": f["court_transform_x1"],
@@ -784,16 +781,33 @@ async def reanalyze_job(
 
         raw_frame_data.append(fd)
 
-    # Run full classification (Phase 2)
+    # Build ShotClassifier with threshold overrides from sliders
     try:
         from ..services.shot_classifier import ShotClassifier
-        sc = ShotClassifier(effective_fps=fps)
+        sc_kwargs = {"effective_fps": fps}
+        if request.get("velocity_thresholds"):
+            sc_kwargs["velocity_thresholds"] = request["velocity_thresholds"]
+        if request.get("window_thresholds"):
+            sc_kwargs["window_thresholds"] = request["window_thresholds"]
+        if request.get("shot_cooldown_seconds"):
+            sc_kwargs["shot_cooldown_seconds"] = request["shot_cooldown_seconds"]
+
+        # Hit detection threshold overrides
+        hit_t = request.get("hit_thresholds", {})
+        for key in ["hit_threshold", "hit_cooldown", "hit_disp_window", "hit_speed_window",
+                     "hit_break_window", "hit_norm_percentile", "hit_gate_min",
+                     "hit_wrist_bonus", "hit_wrist_window"]:
+            if key in hit_t:
+                sc_kwargs[key] = hit_t[key]
+
+        sc = ShotClassifier(**sc_kwargs)
         classified = sc.classify_all(raw_frame_data, fps)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Classification failed: {e}")
 
     # Update frame data with new classifications
     shot_by_frame = {}
+    updated_frames = {}  # frame_number -> update dict for frontend
     for shot in classified.get("shots", []):
         shot_by_frame[shot["frame"]] = shot
 
@@ -805,10 +819,17 @@ async def reanalyze_job(
             f["confidence"] = s["confidence"]
             f["hit_by"] = s.get("hit_by")
             f["shuttle_is_hit"] = True
+            updated_frames[fn] = {
+                "shot_type": s["shot_type"],
+                "confidence": s["confidence"],
+                "hit_by": s.get("hit_by"),
+                "shuttle_is_hit": True,
+            }
         else:
             f["hit_by"] = None
+            f["shuttle_is_hit"] = False
 
-    # Save updated frame data
+    # Save updated frame data locally
     settings = get_settings()
     output_dir = settings.output_path / str(job.user_id) / str(job.id)
     if output_dir.exists():
@@ -816,7 +837,6 @@ async def reanalyze_job(
         if frame_data_files:
             with open(frame_data_files[0], 'w') as fp:
                 json.dump(frame_data, fp)
-            logger.info(f"Re-analysis saved to {frame_data_files[0]}")
 
     # Also upload to S3
     from ..services.storage_service import get_storage_service
@@ -827,9 +847,8 @@ async def reanalyze_job(
             s3_key = f"analysis_output/{job.id}/frame_data_{video_stem}.json"
             storage.outputs.save(s3_key, json.dumps(frame_data).encode('utf-8'),
                                content_type="application/json")
-            logger.info(f"Re-analysis uploaded to S3: {s3_key}")
-        except Exception as e:
-            logger.warning(f"Failed to upload re-analysis to S3: {e}")
+        except Exception:
+            pass
 
     summary = classified.get("summary", {})
     return {
@@ -839,6 +858,7 @@ async def reanalyze_job(
         "opponent_shots": summary.get("opponent_shots", 0),
         "total_rallies": summary.get("total_rallies", 0),
         "shot_distribution": classified.get("shot_distribution", {}),
+        "updated_frames": updated_frames,
     }
 
 

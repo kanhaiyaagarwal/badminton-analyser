@@ -159,14 +159,6 @@
                 {{ reclassifying ? 'Re-classifying...' : 'Apply & Re-classify' }}
               </button>
               <button
-                v-if="sourceMode === 'video'"
-                @click="reanalyze"
-                class="btn-secondary"
-                :disabled="reanalyzing || !selectedJobId"
-              >
-                {{ reanalyzing ? 'Re-analyzing...' : 'Re-analyze (Full Classification)' }}
-              </button>
-              <button
                 v-else-if="sourceMode === 'live'"
                 @click="updateLiveThresholds"
                 class="btn-primary"
@@ -692,75 +684,67 @@ async function reclassify() {
   reclassifying.value = true
 
   try {
-    // Extract velocity thresholds
+    // Extract thresholds from sliders to pass to reanalyze
     const velocityThresholds = {}
-    const velocityKeys = ['static', 'movement', 'power_overhead', 'gentle_overhead', 'drive', 'net_min', 'net_max', 'lift', 'smash_vs_clear']
+    const velocityKeys = ['static', 'movement', 'power_overhead', 'gentle_overhead', 'drive', 'net_min', 'net_max', 'lift', 'smash_vs_clear', 'drop_min']
     for (const key of velocityKeys) {
       if (currentThresholds.value[key] !== undefined) {
         velocityThresholds[key] = currentThresholds.value[key]
       }
     }
 
-    // Extract position thresholds
-    const positionThresholds = {}
-    const positionKeys = ['overhead_offset', 'low_position_offset', 'arm_extension_min']
-    for (const key of positionKeys) {
+    // Hit detection thresholds
+    const hitThresholds = {}
+    const hitKeys = ['hit_threshold', 'hit_cooldown', 'hit_disp_window', 'hit_speed_window', 'hit_break_window', 'hit_norm_percentile', 'hit_gate_min', 'hit_wrist_bonus', 'hit_wrist_window']
+    for (const key of hitKeys) {
       if (currentThresholds.value[key] !== undefined) {
-        positionThresholds[key] = currentThresholds.value[key]
+        hitThresholds[key] = currentThresholds.value[key]
       }
     }
 
-    const response = await api.post(`/api/v1/tuning/jobs/${selectedJobId.value}/reclassify`, {
+    // Window classification thresholds
+    const windowThresholds = {}
+    const windowKeys = ['overhead_offset_window', 'overhead_pct_min', 'net_height_max', 'net_body_max', 'lift_hip_min', 'lift_hip_secondary', 'lift_gap_max', 'lift_wrist_min']
+    for (const key of windowKeys) {
+      if (currentThresholds.value[key] !== undefined) {
+        windowThresholds[key] = currentThresholds.value[key]
+      }
+    }
+
+    const response = await api.post(`/api/v1/tuning/jobs/${selectedJobId.value}/reanalyze`, {
       velocity_thresholds: velocityThresholds,
-      position_thresholds: Object.keys(positionThresholds).length > 0 ? positionThresholds : null,
-      shot_cooldown_seconds: currentThresholds.value.shot_cooldown_seconds || 0.4
+      hit_thresholds: hitThresholds,
+      window_thresholds: windowThresholds,
+      shot_cooldown_seconds: currentThresholds.value.shot_cooldown_seconds || 0.4,
     })
 
     reclassifyResults.value = response.data
 
-    // Update frame data with new classifications
-    if (frameData.value && response.data.results) {
-      const resultsMap = new Map()
-      for (const result of response.data.results) {
-        resultsMap.set(result.frame_number, result)
-      }
-
-      // Update each frame with new classification
-      frameData.value.frames = frameData.value.frames.map(frame => {
-        const result = resultsMap.get(frame.frame_number)
-        if (result && result.player_detected) {
-          return {
-            ...frame,
-            shot_type: result.new_shot_type,
-            confidence: result.new_confidence,
-            cooldown_active: result.cooldown_active || false
-          }
+    // Update frame data with new classifications from reanalyze
+    if (frameData.value && response.data.updated_frames) {
+      for (const [fn, update] of Object.entries(response.data.updated_frames)) {
+        const frame = frameData.value.frames.find(f => f.frame_number === parseInt(fn))
+        if (frame) {
+          frame.shot_type = update.shot_type
+          frame.confidence = update.confidence
+          frame.hit_by = update.hit_by
+          frame.shuttle_is_hit = update.shuttle_is_hit
         }
-        return frame
-      })
-
-      console.log(`Updated ${response.data.frames_changed} frame classifications`)
+      }
+      // Clear hit_by and shuttle_is_hit on frames not in updated set
+      const updatedFns = new Set(Object.keys(response.data.updated_frames).map(Number))
+      for (const frame of frameData.value.frames) {
+        if (!updatedFns.has(frame.frame_number)) {
+          frame.hit_by = null
+          frame.shuttle_is_hit = false
+        }
+      }
+      console.log(`Re-classified: Player=${response.data.player_shots}, Opponent=${response.data.opponent_shots}`)
     }
   } catch (err) {
     console.error('Failed to reclassify:', err)
   } finally {
     reclassifying.value = false
-  }
-}
-
-async function reanalyze() {
-  if (!selectedJobId.value) return
-  reanalyzing.value = true
-  reanalyzeResults.value = null
-  try {
-    const response = await api.post(`/api/v1/tuning/jobs/${selectedJobId.value}/reanalyze`)
-    reanalyzeResults.value = response.data
-    alert(`Re-analysis complete!\nPlayer shots: ${response.data.player_shots}\nOpponent shots: ${response.data.opponent_shots}\nRallies: ${response.data.total_rallies}\n\nReload the page to see updated frame data.`)
-  } catch (err) {
-    console.error('Failed to reanalyze:', err)
-    alert('Re-analysis failed: ' + (err.response?.data?.detail || err.message))
-  } finally {
-    reanalyzing.value = false
   }
 }
 
