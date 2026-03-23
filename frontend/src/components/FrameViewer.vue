@@ -19,6 +19,9 @@
         <button @click="togglePlay" class="play-btn">
           {{ isPlaying ? '⏸' : '▶' }}
         </button>
+        <button @click="cycleSpeed" class="speed-btn" :title="`Playback speed: ${playbackSpeed}x`">
+          {{ playbackSpeed }}x
+        </button>
         <span class="video-time">{{ formatTime(videoCurrentTime) }}</span>
       </div>
     </div>
@@ -1361,6 +1364,18 @@ function syncVideoToFrame() {
   }, 100)
 }
 
+const SPEED_OPTIONS = [1, 0.75, 0.5, 0.3, 0.1]
+const playbackSpeed = ref(1)
+
+function cycleSpeed() {
+  const idx = SPEED_OPTIONS.indexOf(playbackSpeed.value)
+  const nextIdx = (idx + 1) % SPEED_OPTIONS.length
+  playbackSpeed.value = SPEED_OPTIONS[nextIdx]
+  if (videoRef.value) {
+    videoRef.value.playbackRate = playbackSpeed.value
+  }
+}
+
 async function togglePlay() {
   if (!videoRef.value) return
   try {
@@ -1368,6 +1383,7 @@ async function togglePlay() {
       videoRef.value.pause()
       isPlaying.value = false
     } else {
+      videoRef.value.playbackRate = playbackSpeed.value
       await videoRef.value.play()
       isPlaying.value = true
     }
@@ -1634,6 +1650,25 @@ function getShotClass(shotType) {
 
 .play-btn:hover {
   background: var(--color-primary-hover);
+}
+
+.speed-btn {
+  padding: 0.25rem 0.5rem;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: var(--radius-md, 6px);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-family: monospace;
+  cursor: pointer;
+  transition: background 0.15s;
+  min-width: 42px;
+  text-align: center;
+}
+
+.speed-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
 }
 
 .video-time {
