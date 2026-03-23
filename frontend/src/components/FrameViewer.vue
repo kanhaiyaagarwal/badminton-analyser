@@ -1071,7 +1071,7 @@ const reclassifiedShotType = computed(() => {
 })
 
 // Compute frames that have actual shots detected
-const ACTUAL_SHOTS = ['smash', 'clear', 'drop_shot', 'net_shot', 'drive', 'lift']
+const ACTUAL_SHOTS = ['smash', 'clear', 'drop_shot', 'net_shot', 'drive', 'lift', 'opponent']
 
 // Shot type filter state - all enabled by default
 const shotTypeFilter = ref({})
@@ -1154,6 +1154,9 @@ const rallyEndFrames = computed(() => {
 
 // All shot frames (unfiltered) — excludes cooldown, low-confidence, and gap zone frames
 const allShotFrames = computed(() => {
+  // If backend has hit-centric data (hit_by present), only show hit frames
+  const hasBackendHits = props.frames.some(f => f.shuttle_is_hit && f.hit_by)
+
   return props.frames
     .map((frame, index) => ({
       index,
@@ -1161,16 +1164,18 @@ const allShotFrames = computed(() => {
       timestamp: frame.timestamp,
       confidence: frame.confidence || 0,
       cooldown: frame.cooldown_active || false,
-      isHit: frame.shuttle_is_hit || false
+      isHit: frame.shuttle_is_hit || false,
+      hitBy: frame.hit_by || null,
     }))
-    .filter(f =>
-      ACTUAL_SHOTS.includes(f.type) &&
-      !f.cooldown &&
-      !gapFrameIndices.value.has(f.index) &&
-      // Hit-centric shots (at shuttle hit frames) bypass confidence gate
-      // since shuttle hit NMS already prevents duplicates
-      (f.isHit || f.confidence > 0.5)
-    )
+    .filter(f => {
+      if (!ACTUAL_SHOTS.includes(f.type)) return false
+      if (hasBackendHits) {
+        // Only show shots at hit frames — single point per shot
+        return f.isHit
+      }
+      // Legacy: per-frame classification
+      return !f.cooldown && !gapFrameIndices.value.has(f.index) && (f.isHit || f.confidence > 0.5)
+    })
 })
 
 // Filtered shot frames (respects toggle state)
