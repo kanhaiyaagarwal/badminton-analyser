@@ -1101,19 +1101,11 @@ class ShotClassifier:
                             shuttle_dir_computed = True
 
             # Combine signals for attribution
-            # Shuttle toward player (positive score) = opponent hit
-            # Shuttle away from player (negative score) = player hit
+            # Shuttle direction is the primary signal (physics-based):
+            #   Positive = toward player = opponent hit
+            #   Negative = away from player = player hit
             if shuttle_dir_computed:
-                if shuttle_direction_score > 0.2:
-                    # Shuttle coming toward player — opponent hit
-                    # Unless wrist velocity is very high (player hitting an incoming shuttle)
-                    is_opponent = max_vel < 1.2
-                elif shuttle_direction_score < -0.2:
-                    # Shuttle going away from player — player hit
-                    is_opponent = False
-                else:
-                    # Ambiguous direction — fall back to wrist velocity
-                    is_opponent = not wrist_active
+                is_opponent = shuttle_direction_score > 0
             else:
                 # Only wrist velocity available — fall back to original logic
                 is_opponent = not wrist_active
@@ -1227,9 +1219,31 @@ class ShotClassifier:
 
     @staticmethod
     def _enforce_alternation(shots: List[dict]) -> List[dict]:
-        """Enforce player/opponent alternation — flip weaker-evidence duplicates."""
+        """Enforce player/opponent alternation — flip weaker-evidence duplicates.
+
+        Uses shuttle direction as primary tiebreaker (physics-based), falls
+        back to wrist velocity when direction is unavailable.
+        """
         if len(shots) < 2:
             return shots
+
+        def _attribution_strength(shot):
+            """Score how confident we are in this shot's attribution.
+            Positive = confident player, Negative = confident opponent.
+            """
+            hb = shot.get("hit_by", "player")
+            sign = 1 if hb == "player" else -1
+
+            # Shuttle direction is the strongest signal
+            dir_score = shot.get("shuttle_direction_score")
+            if dir_score is not None:
+                # dir < 0 = away from player (player hit), dir > 0 = toward (opponent)
+                # Flip sign so positive = player evidence
+                return -dir_score * sign
+
+            # Fall back to velocity
+            vel = shot.get("wrist_velocity", 0)
+            return vel * sign
 
         # Multiple passes until stable
         for _ in range(5):
@@ -1245,16 +1259,11 @@ class ShotClassifier:
                 if prev_hb != curr_hb:
                     continue
 
-                # Same side — flip the one with weaker wrist velocity evidence
-                prev_vel = shots[i - 1].get("wrist_velocity", 0)
-                curr_vel = shots[i].get("wrist_velocity", 0)
+                # Same side — flip the one with weaker evidence
+                prev_str = abs(_attribution_strength(shots[i - 1]))
+                curr_str = abs(_attribution_strength(shots[i]))
 
-                if curr_hb == "player":
-                    # Two player hits — lower velocity one is likely opponent
-                    flip_idx = i if curr_vel < prev_vel else i - 1
-                else:
-                    # Two opponent hits — higher velocity one is likely player
-                    flip_idx = i if curr_vel > prev_vel else i - 1
+                flip_idx = i if curr_str < prev_str else i - 1
 
                 new_hb = "opponent" if shots[flip_idx]["hit_by"] == "player" else "player"
                 shots[flip_idx]["hit_by"] = new_hb
