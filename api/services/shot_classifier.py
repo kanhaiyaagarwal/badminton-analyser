@@ -666,11 +666,15 @@ class ShotClassifier:
         # Per-player shot counts
         player_shots = [s for s in enriched_shots if s.get("hit_by") == "player"]
         opponent_shots = [s for s in enriched_shots if s.get("hit_by") == "opponent"]
+        forehand_shots = sum(1 for s in enriched_shots if s.get("stroke_side") == "forehand")
+        backhand_shots = sum(1 for s in enriched_shots if s.get("stroke_side") == "backhand")
 
         summary = {
             "total_shots": len(enriched_shots),
             "player_shots": len(player_shots),
             "opponent_shots": len(opponent_shots),
+            "forehand_shots": forehand_shots,
+            "backhand_shots": backhand_shots,
             "total_rallies": len(rallies),
             "frames_processed": total_frames,
             "player_detection_rate": (
@@ -1033,7 +1037,9 @@ class ShotClassifier:
 
             # Collect window features from pose data
             wrist_ys: List[float] = []
+            wrist_xs: List[float] = []
             shoulder_ys: List[float] = []
+            shoulder_xs: List[float] = []
             hip_ys: List[float] = []
             velocities: List[float] = []
 
@@ -1045,7 +1051,9 @@ class ShotClassifier:
                 if fd.get("player_detected") and fd.get("pose_state"):
                     ps = fd["pose_state"]
                     wrist_ys.append(ps["wrist"][1])
+                    wrist_xs.append(ps["wrist"][0])
                     shoulder_ys.append(ps["shoulder"][1])
+                    shoulder_xs.append(ps["shoulder_center"][0] if "shoulder_center" in ps else ps["shoulder"][0])
                     hip_ys.append(ps["hip_center"][1])
 
             n_pose = len(wrist_ys)
@@ -1197,6 +1205,12 @@ class ShotClassifier:
                     else 0.4
                 )
 
+            # Compute wrist-shoulder X offset for forehand/backhand detection
+            stroke_diff = None
+            if wrist_xs and shoulder_xs:
+                diffs = [wx - sx for wx, sx in zip(wrist_xs, shoulder_xs)]
+                stroke_diff = max(diffs, key=abs)
+
             shots.append({
                 "frame": hit_frame,
                 "timestamp": hit_ts,
@@ -1208,7 +1222,30 @@ class ShotClassifier:
                 "shuttle_speed_px_per_sec": hit.get("speed_px_per_sec"),
                 "shuttle_hit_matched": True,
                 "hit_by": "player",
+                "stroke_diff": round(stroke_diff, 4) if stroke_diff is not None else None,
             })
+
+        # Detect dominant side from player shots, then label forehand/backhand.
+        # The side with more positive stroke_diffs is the forehand side.
+        player_diffs = [s["stroke_diff"] for s in shots if s.get("hit_by") == "player" and s.get("stroke_diff") is not None]
+        if player_diffs:
+            positive_count = sum(1 for d in player_diffs if d > 0.02)
+            negative_count = sum(1 for d in player_diffs if d < -0.02)
+            # Dominant side = whichever side the wrist goes to more often
+            forehand_is_positive = positive_count >= negative_count
+
+            for s in shots:
+                if s.get("stroke_diff") is not None and s.get("hit_by") == "player":
+                    diff = s["stroke_diff"]
+                    if abs(diff) > 0.02:
+                        if forehand_is_positive:
+                            s["stroke_side"] = "forehand" if diff > 0 else "backhand"
+                        else:
+                            s["stroke_side"] = "backhand" if diff > 0 else "forehand"
+                    else:
+                        s["stroke_side"] = None
+                else:
+                    s.setdefault("stroke_side", None)
 
         # Post-processing: enforce hit alternation within rallies.
         # In badminton, hits must alternate player/opponent. When consecutive
