@@ -34,16 +34,24 @@
       <!-- Summary Cards -->
       <div class="summary-cards">
         <div class="card">
-          <h3>Total Shots</h3>
-          <div class="value">{{ report.summary?.total_shots || 0 }}</div>
+          <h3>Player Shots</h3>
+          <div class="value">{{ report.summary?.player_shots || report.summary?.total_shots || 0 }}</div>
+        </div>
+        <div class="card">
+          <h3>Opponent Shots</h3>
+          <div class="value">{{ report.summary?.opponent_shots || 0 }}</div>
         </div>
         <div class="card" v-if="report.post_analysis?.rallies">
           <h3>Rallies</h3>
           <div class="value">{{ report.post_analysis.rallies }}</div>
         </div>
-        <div class="card" v-if="report.post_analysis?.shuttle_hits">
-          <h3>Shuttle Hits</h3>
-          <div class="value">{{ report.post_analysis.shuttle_hits }}</div>
+        <div class="card">
+          <h3>Forehand</h3>
+          <div class="value">{{ report.summary?.forehand_shots || 0 }}</div>
+        </div>
+        <div class="card">
+          <h3>Backhand</h3>
+          <div class="value">{{ report.summary?.backhand_shots || 0 }}</div>
         </div>
         <div class="card">
           <h3>Duration</h3>

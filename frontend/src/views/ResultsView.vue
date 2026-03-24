@@ -13,20 +13,24 @@
       <!-- Summary Cards -->
       <div class="summary-cards">
         <div class="card">
-          <h3>Total Shots</h3>
-          <div class="value">{{ report.summary?.total_shots || 0 }}</div>
+          <h3>Player Shots</h3>
+          <div class="value">{{ report.summary?.player_shots || report.summary?.total_shots || 0 }}</div>
+        </div>
+        <div class="card">
+          <h3>Opponent Shots</h3>
+          <div class="value">{{ report.summary?.opponent_shots || 0 }}</div>
         </div>
         <div class="card">
           <h3>Rallies</h3>
           <div class="value">{{ report.summary?.total_rallies || 0 }}</div>
         </div>
         <div class="card">
-          <h3>Detection Rate</h3>
-          <div class="value">{{ formatPercent(report.summary?.player_detection_rate) }}</div>
+          <h3>Forehand</h3>
+          <div class="value">{{ report.summary?.forehand_shots || 0 }}</div>
         </div>
         <div class="card">
-          <h3>Avg Confidence</h3>
-          <div class="value">{{ formatPercent(report.summary?.avg_confidence) }}</div>
+          <h3>Backhand</h3>
+          <div class="value">{{ report.summary?.backhand_shots || 0 }}</div>
         </div>
         <div v-if="shuttleAvailable" class="card">
           <h3>Shuttle Detection</h3>

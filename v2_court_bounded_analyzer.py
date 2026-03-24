@@ -1877,11 +1877,13 @@ class CourtBoundedAnalyzer:
         y_offset = panel_y + 50
         player_shots = summary.get('player_shots', summary.get('total_shots', 0))
         opponent_shots = summary.get('opponent_shots', 0)
+        forehand = summary.get('forehand_shots', 0)
+        backhand = summary.get('backhand_shots', 0)
         stats_text = [
             f"Player: {player_shots} | Opponent: {opponent_shots} | Rallies: {summary.get('total_rallies', 0)}",
-            f"Smash: {dist.get('smash', 0)} | Clear: {dist.get('clear', 0)}",
-            f"Drop: {dist.get('drop_shot', 0)} | Drive: {dist.get('drive', 0)}",
-            f"Net: {dist.get('net_shot', 0)} | Lift: {dist.get('lift', 0)}",
+            f"Forehand: {forehand} | Backhand: {backhand}",
+            f"Smash: {dist.get('smash', 0)} | Clear: {dist.get('clear', 0)} | Drive: {dist.get('drive', 0)}",
+            f"Drop: {dist.get('drop_shot', 0)} | Net: {dist.get('net_shot', 0)} | Lift: {dist.get('lift', 0)}",
         ]
 
         for text in stats_text:
