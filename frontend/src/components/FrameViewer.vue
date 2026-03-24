@@ -99,13 +99,10 @@
                 v-for="hit in playerHitMarkers"
                 :key="'hit-' + hit.index"
                 class="hit-marker hit-player"
-                :class="{ 'at-position': isNearCurrentFrame(hit.index) }"
                 :style="{ left: getMarkerPosition(hit.index) + '%' }"
                 :title="`Player Hit @ ${formatTime(hit.timestamp)}`"
                 @click="goToFrameIndex(hit.index)"
-              >
-                <span v-if="isNearCurrentFrame(hit.index)" class="hit-tooltip">Player</span>
-              </div>
+              ></div>
             </template>
             <!-- Opponent hit markers (white circles) -->
             <template v-if="showOpponentMarkers">
@@ -113,13 +110,10 @@
                 v-for="hit in opponentHitMarkers"
                 :key="'opp-' + hit.index"
                 class="hit-marker hit-opponent"
-                :class="{ 'at-position': isNearCurrentFrame(hit.index) }"
                 :style="{ left: getMarkerPosition(hit.index) + '%' }"
                 :title="`Opponent Hit @ ${formatTime(hit.timestamp)}`"
                 @click="goToFrameIndex(hit.index)"
-              >
-                <span v-if="isNearCurrentFrame(hit.index)" class="hit-tooltip">Opponent</span>
-              </div>
+              ></div>
             </template>
             <!-- Manual hit markers -->
             <template v-if="showManualHitMarkers">
@@ -154,13 +148,11 @@
               v-for="shot in filteredShotFrames"
               :key="'shot-' + shot.index"
               class="shot-marker"
-              :class="[getShotMarkerClass(shot.type), { 'at-position': isNearCurrentFrame(shot.index) }]"
+              :class="[getShotMarkerClass(shot.type)]"
               :style="{ left: getMarkerPosition(shot.index) + '%' }"
-              :title="`${formatShotType(shot.type)} @ ${formatTime(shot.timestamp)} (${(shot.confidence * 100).toFixed(0)}%)`"
+              :title="`${formatShotType(shot.type)} @ ${formatTime(shot.timestamp)}`"
               @click="goToFrameIndex(shot.index)"
-            >
-              <span v-if="isNearCurrentFrame(shot.index)" class="shot-label">{{ formatShotType(shot.type) }}</span>
-            </div>
+            ></div>
           </div>
 
           <!-- Shuttle visibility strip -->
@@ -1802,30 +1794,20 @@ function getShotClass(shotType) {
 
 .shot-marker {
   position: absolute;
-  top: -4px;
-  width: 6px;
-  height: 16px;
-  border-radius: 2px;
+  top: -2px;
+  width: 3px;
+  height: 12px;
+  border-radius: 1px;
   transform: translateX(-50%);
   cursor: pointer;
   pointer-events: auto;
-  opacity: 0.85;
-  transition: transform 0.15s, opacity 0.15s, box-shadow 0.15s;
+  opacity: 0.9;
   z-index: 2;
 }
 
 .shot-marker:hover {
-  transform: translateX(-50%) scaleY(1.2);
   opacity: 1;
   z-index: 10;
-}
-
-/* When shot marker is at/near current position */
-.shot-marker.at-position {
-  transform: translateX(-50%) scaleY(1.4);
-  opacity: 1;
-  z-index: 15;
-  box-shadow: 0 0 8px currentColor;
 }
 
 .shot-label {

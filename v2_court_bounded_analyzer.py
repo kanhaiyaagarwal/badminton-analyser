@@ -1735,7 +1735,7 @@ class CourtBoundedAnalyzer:
         # Keep track of "current shot" for display persistence
         current_shot_display = None
         shot_display_frames = 0
-        max_display_frames = fps  # Show shot label for ~1 second
+        max_display_frames = int(fps * 0.5)  # Show shot label for ~0.5 seconds
 
         # Also build shuttle hit lookup
         hit_by_frame = {}
