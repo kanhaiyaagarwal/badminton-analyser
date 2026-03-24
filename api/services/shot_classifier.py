@@ -451,7 +451,7 @@ class ShotClassifier:
         shot_cooldown_seconds: float = 0.4,
         effective_fps: float = 30.0,
         rally_gap_seconds: float = 3.0,
-        shuttle_gap_frames: int = 90,
+        shuttle_gap_frames: int = 45,
         shuttle_gap_miss_pct: float = 80.0,
         hit_disp_window: int = 15,
         hit_speed_window: int = 8,

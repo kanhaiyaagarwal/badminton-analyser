@@ -534,7 +534,7 @@ const props = defineProps({
   rallyThresholds: {
     type: Object,
     default: () => ({
-      shuttle_gap_frames: 90,
+      shuttle_gap_frames: 45,
       shuttle_gap_miss_pct: 80
     })
   },
@@ -1082,7 +1082,7 @@ watch(() => props.frames, () => {
 // Mark every frame as "in gap" if any window covering it has >= miss_pct% missing.
 // This produces continuous gap zones with no duplicate break markers.
 const shuttleGapZones = computed(() => {
-  const gapFrames = props.rallyThresholds?.shuttle_gap_frames ?? 90
+  const gapFrames = props.rallyThresholds?.shuttle_gap_frames ?? 45
   const missPct = (props.rallyThresholds?.shuttle_gap_miss_pct ?? 80) / 100
   const window = Math.max(1, gapFrames)
   const n = props.frames.length
