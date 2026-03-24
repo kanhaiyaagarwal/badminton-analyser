@@ -148,9 +148,9 @@
               v-for="shot in filteredShotFrames"
               :key="'shot-' + shot.index"
               class="shot-marker"
-              :class="[getShotMarkerClass(shot.type)]"
+              :class="[getShotMarkerClass(shot.type), shot.strokeSide ? `stroke-${shot.strokeSide}` : '']"
               :style="{ left: getMarkerPosition(shot.index) + '%' }"
-              :title="`${formatShotType(shot.type)} @ ${formatTime(shot.timestamp)}`"
+              :title="`${formatShotType(shot.type)}${shot.strokeSide ? ' (' + shot.strokeSide + ')' : ''} @ ${formatTime(shot.timestamp)}`"
               @click="goToFrameIndex(shot.index)"
             ></div>
           </div>
@@ -1158,6 +1158,7 @@ const allShotFrames = computed(() => {
       cooldown: frame.cooldown_active || false,
       isHit: frame.shuttle_is_hit || false,
       hitBy: frame.hit_by || null,
+      strokeSide: frame.stroke_side || null,
     }))
     .filter(f => {
       if (!ACTUAL_SHOTS.includes(f.type)) return false
@@ -1808,6 +1809,14 @@ function getShotClass(shotType) {
 .shot-marker:hover {
   opacity: 1;
   z-index: 10;
+}
+
+.shot-marker.stroke-forehand {
+  border-top: 3px solid #4ecca3;
+}
+
+.shot-marker.stroke-backhand {
+  border-top: 3px solid #e74c3c;
 }
 
 .shot-label {

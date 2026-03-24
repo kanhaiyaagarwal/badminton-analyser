@@ -819,15 +819,18 @@ async def reanalyze_job(
             f["confidence"] = s["confidence"]
             f["hit_by"] = s.get("hit_by")
             f["shuttle_is_hit"] = True
+            f["stroke_side"] = s.get("stroke_side")
             updated_frames[fn] = {
                 "shot_type": s["shot_type"],
                 "confidence": s["confidence"],
                 "hit_by": s.get("hit_by"),
                 "shuttle_is_hit": True,
+                "stroke_side": s.get("stroke_side"),
             }
         else:
             f["hit_by"] = None
             f["shuttle_is_hit"] = False
+            f["stroke_side"] = None
 
     # Save updated frame data locally
     settings = get_settings()
