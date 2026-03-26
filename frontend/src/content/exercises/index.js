@@ -23,7 +23,7 @@ export const exercises = [
     difficulty: 'beginner',
     trackingMode: 'reps',
     aiTracked: true,
-    videoId: 'xj9YFVEYaVA',
+    videoId: 'x-BStnplCYg',
     intro: 'The dead bug is one of the best core exercises most people have never tried. Unlike crunches and sit-ups that repeatedly flex your spine, the dead bug teaches your core to resist movement — which is how your abs actually work in real life. Physical therapists prescribe it for back pain because it strengthens your core without putting any stress on your lumbar spine.',
     formCues: [
       'Lie on your back with arms reaching toward the ceiling',
@@ -49,7 +49,7 @@ export const exercises = [
     difficulty: 'intermediate',
     trackingMode: 'hold',
     aiTracked: true,
-    videoId: 'FQqNz3GhJvk',
+    videoId: 'Mjeur54Z0wI',
     intro: 'The hollow body hold is the single most important core exercise in gymnastics — and one of the most underrated in general fitness. It trains your entire anterior chain (abs, hip flexors, quads) to work as one unit. If you can hold a solid hollow body for 30 seconds, you have real core strength. Most people who claim strong abs can barely manage 10 seconds with proper form.',
     formCues: [
       'Lie flat on your back, arms overhead, legs straight',
@@ -75,7 +75,7 @@ export const exercises = [
     difficulty: 'intermediate',
     trackingMode: 'reps',
     aiTracked: true,
-    videoId: 'Ee28BRzsmAg',
+    videoId: 'BNIPC_HaXWQ',
     intro: 'The V-up combines a crunch and a leg raise into one explosive movement. It targets your rectus abdominis (the six-pack muscles) through their full range of motion — something most ab exercises fail to do. V-ups are tough. If you can do 15 with good form, your core is legitimately strong.',
     formCues: [
       'Lie flat on your back with arms extended overhead',
@@ -101,7 +101,7 @@ export const exercises = [
     difficulty: 'advanced',
     trackingMode: 'reps',
     aiTracked: true,
-    videoId: 'rqiTPVJCmGQ',
+    videoId: 'MinlHnG7j4k',
     intro: 'The ab wheel rollout is a humbling exercise. It looks simple — roll out, roll back. But it demands extreme anti-extension strength from your core, and most people\'s lower backs give out long before their abs do. Done right, it\'s one of the most effective core exercises that exist. Done wrong, it\'s a fast track to back pain.',
     formCues: [
       'Start on your knees with the wheel in front of you',
@@ -127,7 +127,7 @@ export const exercises = [
     difficulty: 'beginner',
     trackingMode: 'hold',
     aiTracked: true,
-    videoId: 'Oyw_zbxEAJo',
+    videoId: 'wP7xBF-LZxs',
     intro: 'Side planks are the most effective oblique exercise you can do — and one of the most commonly butchered. While regular planks train anti-extension (resisting your back from arching), side planks train anti-lateral-flexion (resisting sideways bending). This is critical for spine health, athletic performance, and actually building a strong midsection.',
     formCues: [
       'Lie on your side with elbow directly under shoulder',
@@ -155,7 +155,7 @@ export const exercises = [
     difficulty: 'intermediate',
     trackingMode: 'reps',
     aiTracked: true,
-    videoId: 'xDmFkJxPzeM',
+    videoId: '8BPi7X21BhA',
     intro: 'The hip thrust is the single best exercise for glute development. EMG studies consistently show it activates the glutes more than squats, deadlifts, or lunges. If you want stronger, bigger glutes — for aesthetics, athletics, or back pain prevention — hip thrusts should be in your program.',
     formCues: [
       'Sit on the floor with your upper back against a bench',
@@ -181,7 +181,7 @@ export const exercises = [
     difficulty: 'intermediate',
     trackingMode: 'reps',
     aiTracked: true,
-    videoId: 'TKt_VlMGBSc',
+    videoId: 'Q20qIs79tJc',
     intro: 'The Bulgarian split squat is the exercise everyone loves to hate. It\'s awkward, it burns, and the balance challenge is humbling. But it\'s one of the most effective lower body exercises because it forces each leg to work independently — exposing and fixing the strength imbalances that bilateral squats hide.',
     formCues: [
       'Stand about 2 feet in front of a bench, one foot elevated behind you',
@@ -207,7 +207,7 @@ export const exercises = [
     difficulty: 'beginner',
     trackingMode: 'reps',
     aiTracked: true,
-    videoId: 'OUgsJ8-Vi0E',
+    videoId: 'R6n608M3czU',
     intro: 'The glute bridge is where glute training starts. If you sit at a desk all day, your glutes are probably weak and underactive — a condition called "gluteal amnesia." Glute bridges wake them up. They\'re also one of the safest hip extension exercises, making them perfect for beginners and people recovering from back issues.',
     formCues: [
       'Lie on your back with knees bent, feet flat and hip-width apart',
@@ -233,7 +233,7 @@ export const exercises = [
     difficulty: 'beginner',
     trackingMode: 'reps',
     aiTracked: true,
-    videoId: 'La3xr495eRk',
+    videoId: 'BLx5wSzafxg',
     intro: 'The fire hydrant looks like a simple exercise — and it is. But it targets the gluteus medius (your side glute), which is one of the most neglected muscles in fitness. A weak glute med is the root cause of knee cave during squats, IT band syndrome in runners, and hip instability. If your knees collapse inward during squats, fire hydrants should be in your warm-up.',
     formCues: [
       'Start on all fours — hands under shoulders, knees under hips',
@@ -259,7 +259,7 @@ export const exercises = [
     difficulty: 'beginner',
     trackingMode: 'reps',
     aiTracked: true,
-    videoId: 'JGyTMu-CJGs',
+    videoId: 'YoOlLusFMYU',
     intro: 'Donkey kicks isolate the gluteus maximus — the biggest muscle in your body — without any equipment. They\'re a staple in physical therapy and glute activation warm-ups because they teach your brain to fire your glutes independently. The catch: most people do them wrong and feel it in their lower back instead of their butt.',
     formCues: [
       'Start on all fours — hands under shoulders, knees under hips',
@@ -285,7 +285,7 @@ export const exercises = [
     difficulty: 'advanced',
     trackingMode: 'reps',
     aiTracked: true,
-    videoId: 'BtJSwrslzNc',
+    videoId: '1IIavrSbEvo',
     intro: 'The nordic curl is the single most effective hamstring exercise. Research consistently shows it reduces hamstring injury rates by 51-70% in athletes. It builds eccentric hamstring strength — the ability to control deceleration — which is exactly what prevents pulls and tears. Fair warning: the first time you try it, you will likely face-plant. That\'s normal.',
     formCues: [
       'Kneel on a pad with someone holding your ankles (or hook under something solid)',
@@ -311,7 +311,7 @@ export const exercises = [
     difficulty: 'advanced',
     trackingMode: 'reps',
     aiTracked: true,
-    videoId: 'P6NEO9nj_bM',
+    videoId: 'AYN-U5nZieY',
     intro: 'Don\'t let the name fool you — the sissy squat is brutally hard. Named after King Sisyphus from Greek mythology, it puts your quads through an extreme range of motion that most exercises can\'t touch. It\'s one of the few bodyweight movements that can genuinely build quad size and strength without any equipment.',
     formCues: [
       'Stand with feet hip-width apart, hold something for balance',
@@ -339,7 +339,7 @@ export const exercises = [
     difficulty: 'beginner',
     trackingMode: 'reps',
     aiTracked: true,
-    videoId: 'ZSjvpTdzLIc',
+    videoId: 'qEyoBOpvqR4',
     intro: 'Face pulls are the most important exercise nobody does enough of. They strengthen your rear deltoids, rotator cuff, and mid-back — the exact muscles that prevent rounded shoulders, shoulder impingement, and the posture problems that come from too much pressing and sitting. If you bench press or sit at a desk, you need face pulls.',
     formCues: [
       'Set a cable to face height with a rope attachment',
@@ -365,7 +365,7 @@ export const exercises = [
     difficulty: 'beginner',
     trackingMode: 'reps',
     aiTracked: true,
-    videoId: 'ttvfGg9d76c',
+    videoId: '-TKqxK7-ehc',
     intro: 'The reverse fly targets your rear deltoids and upper back muscles — the same group that face pulls hit, but with a different angle and load. If your shoulders round forward or you get shoulder pain from pressing, reverse flyes are a direct fix. They\'re simple, safe, and effective with light dumbbells.',
     formCues: [
       'Hinge forward at the hips, keeping your back flat',
@@ -391,7 +391,7 @@ export const exercises = [
     difficulty: 'beginner',
     trackingMode: 'reps',
     aiTracked: true,
-    videoId: 'h7EBpMgfues',
+    videoId: 'w5WIZ-rY9NQ',
     intro: 'The superman is a bodyweight exercise that targets your lower back, glutes, and posterior chain. It\'s the opposite of a crunch — instead of flexing your spine forward, you extend it backward. This makes it one of the best exercises for people with weak lower backs, desk workers who need to counteract slouching, and anyone building a balanced core.',
     formCues: [
       'Lie face down with arms extended overhead and legs straight',
@@ -417,7 +417,7 @@ export const exercises = [
     difficulty: 'beginner',
     trackingMode: 'reps',
     aiTracked: true,
-    videoId: 'MkSOH2JJlsE',
+    videoId: 'EBui4Bt5N7o',
     intro: 'Hyperextensions (also called back extensions) strengthen your spinal erectors, glutes, and hamstrings. Despite the name, the goal isn\'t to hyperextend your spine — it\'s to extend your hips while keeping your back in a safe, neutral position. This makes it excellent for building a resilient lower back and preventing the back pain that plagues desk workers and lifters alike.',
     formCues: [
       'Set the pad at hip height so you can hinge freely',
@@ -445,7 +445,7 @@ export const exercises = [
     difficulty: 'intermediate',
     trackingMode: 'reps',
     aiTracked: false,
-    videoId: 'h4OCFl8BQNM',
+    videoId: 'tYxEGi7ir4I',
     intro: 'The Pendlay row is a stricter version of the barbell row, named after Olympic weightlifting coach Glenn Pendlay. Each rep starts from a dead stop on the floor — no momentum, no bouncing, no cheating. This makes it brutally honest: you either have the back strength to pull the weight, or you don\'t. It builds back thickness like nothing else.',
     formCues: [
       'Set up like a deadlift — bar over mid-foot, shoulder-width grip',
@@ -471,7 +471,7 @@ export const exercises = [
     difficulty: 'advanced',
     trackingMode: 'reps',
     aiTracked: true,
-    videoId: 'NNBKJPAH6KI',
+    videoId: 'XvhRYWgekT4',
     intro: 'The thruster is a front squat that flows directly into an overhead press. It\'s one of the most metabolically demanding exercises — there\'s a reason CrossFit uses it in benchmark workouts like "Fran." It trains your quads, shoulders, core, and cardiovascular system simultaneously. If you want one exercise that does everything, this is it.',
     formCues: [
       'Clean the bar to a front rack position (bar on front delts)',
@@ -497,7 +497,7 @@ export const exercises = [
     difficulty: 'beginner',
     trackingMode: 'reps',
     aiTracked: true,
-    videoId: 'ArMiFMxFseg',
+    videoId: 'dcHyetTdY_I',
     intro: 'The cable pull-through is the best exercise for learning the hip hinge — the movement pattern behind deadlifts, kettlebell swings, and Romanian deadlifts. The cable provides constant tension and a natural movement path that teaches your body exactly how a hip hinge should feel. If you struggle with "feeling" your glutes in other exercises, start here.',
     formCues: [
       'Set a cable to the lowest position with a rope attachment',
@@ -523,7 +523,7 @@ export const exercises = [
     difficulty: 'intermediate',
     trackingMode: 'reps',
     aiTracked: true,
-    videoId: 'YSxHifyI6s8',
+    videoId: 'aSYap2yhW8s',
     intro: 'The kettlebell swing is a hip hinge, not a squat. That distinction matters because most people do it wrong — they squat the kettlebell up with their arms instead of snapping their hips to drive it. A proper kettlebell swing is one of the best exercises for building explosive hip power, posterior chain strength, and cardiovascular conditioning simultaneously.',
     formCues: [
       'Stand with feet shoulder-width apart, kettlebell a foot in front of you',
@@ -551,7 +551,7 @@ export const exercises = [
     difficulty: 'beginner',
     trackingMode: 'hold',
     aiTracked: true,
-    videoId: 'drFmXEk1t2M',
+    videoId: 'ktgtEWGhFd8',
     intro: 'If you sit for more than 4 hours a day, your hip flexors are tight. This isn\'t just a flexibility issue — tight hip flexors tilt your pelvis forward, compress your lower back, and inhibit your glutes from firing properly. The hip flexor stretch is one of the most important stretches for desk workers, runners, and anyone with lower back discomfort.',
     formCues: [
       'Kneel on one knee (back knee on a pad for comfort)',
@@ -577,7 +577,7 @@ export const exercises = [
     difficulty: 'beginner',
     trackingMode: 'hold',
     aiTracked: true,
-    videoId: 'FBeAosJt4xI',
+    videoId: 'AI5A1PRYX7E',
     intro: 'Pigeon pose is the deepest hip opener in most people\'s flexibility toolkit. It stretches the hip rotators, piriformis, and glutes — muscles that get incredibly tight from sitting and cause that deep ache in your butt and outer hip. It\'s also one of the most commonly modified poses because tight hips make the full version inaccessible for many people.',
     formCues: [
       'Start in a tabletop position on all fours',
@@ -603,7 +603,7 @@ export const exercises = [
     difficulty: 'beginner',
     trackingMode: 'reps',
     aiTracked: false,
-    videoId: 'u4Ih5MayzFk',
+    videoId: '7XheaZERvBQ',
     intro: 'It\'s called the world\'s greatest stretch for a reason. In one flowing sequence, it opens your hip flexors, stretches your hamstrings, mobilizes your thoracic spine, and activates your glutes. It\'s the single best warm-up movement you can do before any workout — and many strength coaches use it as the only warm-up drill their athletes need.',
     formCues: [
       'Step into a deep lunge with your right foot forward',
@@ -631,7 +631,7 @@ export const exercises = [
     difficulty: 'intermediate',
     trackingMode: 'reps',
     aiTracked: true,
-    videoId: 'QXHcfoBmDpM',
+    videoId: 'K3mFeNz4e3w',
     intro: 'Skull crushers (lying tricep extensions) are one of the best exercises for building tricep mass. Unlike pushdowns which emphasize the lateral head, skull crushers hit the long head of the triceps — the biggest head, and the one that gives your arms the most size. The name sounds scary, but with proper form, it\'s a perfectly safe and incredibly effective arm builder.',
     formCues: [
       'Lie on a flat bench holding an EZ bar or straight bar with a narrow grip',
@@ -657,7 +657,7 @@ export const exercises = [
     difficulty: 'beginner',
     trackingMode: 'reps',
     aiTracked: true,
-    videoId: 'OMdve9KRkVQ',
+    videoId: 'TYrurDZTj9I',
     intro: 'The concentration curl is the highest bicep activation exercise according to ACE research. By bracing your elbow against your inner thigh, you eliminate every possible cheat — no swinging, no shoulder involvement, no momentum. It\'s just your bicep doing all the work. Arnold Schwarzenegger credited concentration curls as key to his legendary bicep peak.',
     formCues: [
       'Sit on a bench with legs spread, holding a dumbbell in one hand',
@@ -683,7 +683,7 @@ export const exercises = [
     difficulty: 'intermediate',
     trackingMode: 'reps',
     aiTracked: true,
-    videoId: 'vj2w851ZHRM',
+    videoId: '6K_N9AGhItQ',
     intro: 'The Arnold press — invented by Arnold Schwarzenegger himself — adds a rotation to the standard dumbbell press that hits all three heads of the deltoid in one movement. Regular presses mainly target the front and side delts, but the Arnold press rotation brings in the rear delts and increases time under tension. It\'s a more complete shoulder exercise in every way.',
     formCues: [
       'Sit with dumbbells at shoulder height, palms facing you (like the top of a curl)',
@@ -709,7 +709,7 @@ export const exercises = [
     difficulty: 'intermediate',
     trackingMode: 'reps',
     aiTracked: false,
-    videoId: '_KKLzR9ARhM',
+    videoId: '7cpldMZjLOs',
     intro: 'Good mornings are a barbell hip hinge that strengthens your entire posterior chain — hamstrings, glutes, and spinal erectors. They have an undeserved reputation as dangerous, but with proper form and appropriate weight, they\'re one of the best exercises for building a back that doesn\'t get hurt. Powerlifters use them specifically to strengthen the weak points in their deadlift and squat.',
     formCues: [
       'Place the barbell on your upper back (same position as a back squat)',
@@ -735,7 +735,7 @@ export const exercises = [
     difficulty: 'advanced',
     trackingMode: 'reps',
     aiTracked: false,
-    videoId: '4IGe2J1PPVs',
+    videoId: 'g5dwOlGGfmU',
     intro: 'The Turkish get-up is the most complete single exercise in fitness. Getting from lying on the floor to standing while holding a weight overhead requires strength, stability, mobility, and coordination from every joint in your body. It\'s been used for centuries by wrestlers, martial artists, and strongmen. One rep takes 30-45 seconds. Five reps per side is a serious workout.',
     formCues: [
       'Lie on your back holding a kettlebell in one hand, arm locked out overhead',
@@ -763,7 +763,7 @@ export const exercises = [
     difficulty: 'beginner',
     trackingMode: 'hold',
     aiTracked: true,
-    videoId: 'VQxaPCNxQBY',
+    videoId: 'S_SmgeQ7hiU',
     intro: 'The wall sit is deceptively simple and devastatingly effective. You sit against a wall with your thighs parallel to the floor and... hold. That\'s it. Within 30 seconds, your quads will be on fire. Within 60 seconds, you\'ll question your life choices. It\'s one of the best exercises for building quad endurance, and it requires absolutely nothing except a wall.',
     formCues: [
       'Stand with your back flat against a wall',
@@ -789,7 +789,7 @@ export const exercises = [
     difficulty: 'beginner',
     trackingMode: 'reps',
     aiTracked: true,
-    videoId: 'SsRFKIHmauk',
+    videoId: 'ihvHG1QH654',
     intro: 'The sumo squat uses a wider stance with toes pointed out, shifting emphasis to your inner thighs (adductors) and glutes. It\'s named after the stance sumo wrestlers use, and it\'s one of the best bodyweight exercises for the muscles that regular squats don\'t hit hard enough. If you want balanced leg development, sumo squats fill the gap.',
     formCues: [
       'Stand with feet wide — about 1.5x shoulder-width',
