@@ -19,7 +19,7 @@
         }
       ],
       "memory": 5600,
-      "cpu": 1792,
+      "cpu": 1536,
       "environment": [
         {
           "name": "ENVIRONMENT",
