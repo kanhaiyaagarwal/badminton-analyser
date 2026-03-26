@@ -37,8 +37,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { useHead } from '@unhead/vue'
 import { marked } from 'marked'
 import { posts } from '../content/blog/index.js'
 
@@ -48,6 +49,75 @@ const htmlContent = ref('')
 const loading = ref(true)
 
 const mdModules = import.meta.glob('../content/blog/*.md', { query: '?raw', import: 'default' })
+
+const baseUrl = 'https://pushup.neymo.ai'
+
+useHead({
+  title: computed(() => post.value ? `${post.value.title} | PushUp Pro Blog` : 'Blog | PushUp Pro'),
+  meta: computed(() => {
+    if (!post.value) return []
+    const p = post.value
+    const url = `${baseUrl}/blog/${p.slug}`
+    const image = p.image ? `${baseUrl}${p.image}` : `${baseUrl}/og-pushup-v2.png`
+    return [
+      { name: 'description', content: p.description },
+      { property: 'og:title', content: p.title },
+      { property: 'og:description', content: p.description },
+      { property: 'og:type', content: 'article' },
+      { property: 'og:url', content: url },
+      { property: 'og:image', content: image },
+      { property: 'og:site_name', content: 'PushUp Pro' },
+      { property: 'article:published_time', content: p.date },
+      { property: 'article:author', content: p.author || 'PushUp Pro' },
+      ...(p.tags || []).map(tag => ({ property: 'article:tag', content: tag })),
+      { name: 'twitter:card', content: 'summary_large_image' },
+      { name: 'twitter:title', content: p.title },
+      { name: 'twitter:description', content: p.description },
+      { name: 'twitter:image', content: image },
+    ]
+  }),
+  link: computed(() => {
+    if (!post.value) return []
+    return [{ rel: 'canonical', href: `${baseUrl}/blog/${post.value.slug}` }]
+  }),
+  script: computed(() => {
+    if (!post.value) return []
+    const p = post.value
+    const url = `${baseUrl}/blog/${p.slug}`
+    const image = p.image ? `${baseUrl}${p.image}` : `${baseUrl}/og-pushup-v2.png`
+    return [{
+      type: 'application/ld+json',
+      innerHTML: JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'Article',
+        headline: p.title,
+        description: p.description,
+        image,
+        datePublished: p.date,
+        dateModified: p.date,
+        author: {
+          '@type': 'Organization',
+          name: p.author || 'PushUp Pro',
+          url: baseUrl,
+        },
+        publisher: {
+          '@type': 'Organization',
+          name: 'PushUp Pro',
+          url: baseUrl,
+          logo: {
+            '@type': 'ImageObject',
+            url: `${baseUrl}/apple-touch-icon.png`,
+          },
+        },
+        mainEntityOfPage: {
+          '@type': 'WebPage',
+          '@id': url,
+        },
+        keywords: (p.tags || []).join(', '),
+      }),
+    }]
+  }),
+})
 
 function formatDate(dateStr) {
   const d = new Date(dateStr + 'T00:00:00')
@@ -70,12 +140,6 @@ async function loadPost(slug) {
     htmlContent.value = marked(raw)
   } else {
     htmlContent.value = '<p>Content not available.</p>'
-  }
-
-  document.title = `${post.value.title} | PushUp Pro Blog`
-  const meta = document.querySelector('meta[name="description"]')
-  if (meta) {
-    meta.setAttribute('content', post.value.description)
   }
 
   loading.value = false

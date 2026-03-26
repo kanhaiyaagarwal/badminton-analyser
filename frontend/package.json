@@ -11,6 +11,7 @@
   "dependencies": {
     "@tresjs/cientos": "^5.5.0",
     "@tresjs/core": "^5.6.0",
+    "@unhead/vue": "^2.1.12",
     "@vueuse/motion": "^3.0.3",
     "axios": "^1.6.0",
     "chart.js": "^4.4.0",

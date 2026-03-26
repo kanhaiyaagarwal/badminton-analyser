@@ -1,0 +1,28 @@
+User-agent: *
+Allow: /
+
+# Public pages
+Allow: /blog
+Allow: /blog/*
+Allow: /login
+Allow: /signup
+
+# App pages (behind auth, no value to index)
+Disallow: /hub
+Disallow: /dashboard
+Disallow: /upload
+Disallow: /court-setup
+Disallow: /results
+Disallow: /live
+Disallow: /stream-results
+Disallow: /stream
+Disallow: /challenges
+Disallow: /mimic
+Disallow: /workout
+Disallow: /admin
+Disallow: /tuning
+Disallow: /profile
+Disallow: /explore
+Disallow: /features
+
+Sitemap: https://pushup.neymo.ai/sitemap.xml

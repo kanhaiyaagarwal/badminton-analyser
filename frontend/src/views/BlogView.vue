@@ -33,8 +33,54 @@
 </template>
 
 <script setup>
-import { onMounted } from 'vue'
+import { useHead } from '@unhead/vue'
 import { posts } from '../content/blog/index.js'
+
+useHead({
+  title: 'Blog | PushUp Pro',
+  meta: [
+    { name: 'description', content: 'Tips, guides, and updates from the PushUp Pro team. Exercise form guides, workout tips, and AI fitness coaching insights.' },
+    { property: 'og:title', content: 'Blog | PushUp Pro' },
+    { property: 'og:description', content: 'Tips, guides, and updates from the PushUp Pro team.' },
+    { property: 'og:type', content: 'website' },
+    { property: 'og:url', content: 'https://pushup.neymo.ai/blog' },
+    { name: 'twitter:card', content: 'summary_large_image' },
+    { name: 'twitter:title', content: 'Blog | PushUp Pro' },
+    { name: 'twitter:description', content: 'Tips, guides, and updates from the PushUp Pro team.' },
+  ],
+  link: [
+    { rel: 'canonical', href: 'https://pushup.neymo.ai/blog' },
+  ],
+  script: [
+    {
+      type: 'application/ld+json',
+      innerHTML: JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'Organization',
+        name: 'PushUp Pro',
+        url: 'https://pushup.neymo.ai',
+        logo: 'https://pushup.neymo.ai/apple-touch-icon.png',
+        description: 'AI-powered fitness coaching with real-time camera form tracking. Pushups, squats, planks — tracked live from your phone.',
+        sameAs: [],
+      }),
+    },
+    {
+      type: 'application/ld+json',
+      innerHTML: JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'CollectionPage',
+        name: 'Blog | PushUp Pro',
+        description: 'Tips, guides, and updates from the PushUp Pro team.',
+        url: 'https://pushup.neymo.ai/blog',
+        isPartOf: {
+          '@type': 'WebSite',
+          name: 'PushUp Pro',
+          url: 'https://pushup.neymo.ai',
+        },
+      }),
+    },
+  ],
+})
 
 function formatDate(dateStr) {
   const d = new Date(dateStr + 'T00:00:00')
@@ -44,14 +90,6 @@ function formatDate(dateStr) {
 function onImgError(e) {
   e.target.style.display = 'none'
 }
-
-onMounted(() => {
-  document.title = 'Blog | PushUp Pro'
-  const meta = document.querySelector('meta[name="description"]')
-  if (meta) {
-    meta.setAttribute('content', 'Tips, guides, and updates from the PushUp Pro team.')
-  }
-})
 </script>
 
 <style scoped>
