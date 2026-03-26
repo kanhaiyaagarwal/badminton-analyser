@@ -539,7 +539,10 @@ async def start_tracking_session(
     config_val = config_row.thresholds if config_row else None
     from ...challenges.services.arm_curl_analyzer import ArmRepAnalyzer
     if analyzer_cls is SquatAnalyzer:
-        analyzer = analyzer_cls(challenge_type=challenge_type, config=config_val)
+        # Workout mode: count half squats as valid reps (tracked separately in report)
+        workout_config = dict(config_val) if config_val else {}
+        workout_config["count_half_squats"] = True
+        analyzer = analyzer_cls(challenge_type=challenge_type, config=workout_config)
     elif analyzer_cls is ArmRepAnalyzer:
         analyzer = analyzer_cls(exercise_slug=data.get("exercise_slug", "bicep-curl"), config=config_val)
     else:
