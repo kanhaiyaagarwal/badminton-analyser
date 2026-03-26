@@ -36,6 +36,19 @@ const routes = [
     redirect: '/challenges',
     meta: { requiresAuth: true }
   },
+  // Exercise guides (public, SEO)
+  {
+    path: '/exercises',
+    name: 'ExerciseDirectory',
+    component: () => import('../views/ExerciseDirectoryView.vue'),
+    meta: { appMode: 'fitness' }
+  },
+  {
+    path: '/exercises/:slug',
+    name: 'ExercisePage',
+    component: () => import('../views/ExercisePageView.vue'),
+    meta: { appMode: 'fitness' }
+  },
   // Blog (public, fitness only)
   {
     path: '/blog',

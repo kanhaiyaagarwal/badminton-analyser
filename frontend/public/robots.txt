@@ -4,6 +4,8 @@ Allow: /
 # Public pages
 Allow: /blog
 Allow: /blog/*
+Allow: /exercises
+Allow: /exercises/*
 Allow: /login
 Allow: /signup
 
