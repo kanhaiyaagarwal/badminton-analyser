@@ -6,6 +6,8 @@ Allow: /blog
 Allow: /blog/*
 Allow: /exercises
 Allow: /exercises/*
+Allow: /compare
+Allow: /compare/*
 Allow: /login
 Allow: /signup
 

@@ -36,6 +36,19 @@ const routes = [
     redirect: '/challenges',
     meta: { requiresAuth: true }
   },
+  // Comparison pages (public, SEO)
+  {
+    path: '/compare',
+    name: 'ComparisonDirectory',
+    component: () => import('../views/ComparisonDirectoryView.vue'),
+    meta: { appMode: 'fitness' }
+  },
+  {
+    path: '/compare/:slug',
+    name: 'ComparisonPage',
+    component: () => import('../views/ComparisonPageView.vue'),
+    meta: { appMode: 'fitness' }
+  },
   // Exercise guides (public, SEO)
   {
     path: '/exercises',
