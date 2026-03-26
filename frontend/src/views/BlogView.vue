@@ -44,9 +44,11 @@ useHead({
     { property: 'og:description', content: 'Tips, guides, and updates from the PushUp Pro team.' },
     { property: 'og:type', content: 'website' },
     { property: 'og:url', content: 'https://pushup.neymo.ai/blog' },
+    { property: 'og:image', content: 'https://pushup.neymo.ai/og-pushup-v2.png' },
     { name: 'twitter:card', content: 'summary_large_image' },
     { name: 'twitter:title', content: 'Blog | PushUp Pro' },
     { name: 'twitter:description', content: 'Tips, guides, and updates from the PushUp Pro team.' },
+    { name: 'twitter:image', content: 'https://pushup.neymo.ai/og-pushup-v2.png' },
   ],
   link: [
     { rel: 'canonical', href: 'https://pushup.neymo.ai/blog' },
@@ -61,7 +63,6 @@ useHead({
         url: 'https://pushup.neymo.ai',
         logo: 'https://pushup.neymo.ai/apple-touch-icon.png',
         description: 'AI-powered fitness coaching with real-time camera form tracking. Pushups, squats, planks — tracked live from your phone.',
-        sameAs: [],
       }),
     },
     {

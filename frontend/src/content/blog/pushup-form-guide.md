@@ -134,6 +134,13 @@ The difference between watching a replay and getting real-time feedback is the d
 
 When the AI catches your hips sagging on rep 8, you can fix it on rep 9. When it flags that your depth is getting shallow as you fatigue, you know to either push deeper or stop the set. This is how you build good habits instead of reinforcing bad ones.
 
+**[Try PushUp Pro free](/signup)** — AI form tracking works right from your phone camera, no equipment needed.
+
+## More Form Guides
+
+- [How to Do Squats With Proper Form](/blog/squat-form-guide) — depth tracking, knee cave detection, and the 5 biggest squat mistakes
+- [How to Plank With Perfect Form](/blog/plank-form-guide) — why shorter holds beat longer ones, and how AI tracks your body line
+
 ## Pushup Progressions (Start Where You Are)
 
 ![Pushup progressions from beginner to advanced](/blog-images/pushup-progression.jpg)

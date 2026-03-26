@@ -137,6 +137,13 @@ Squats are the exercise where form degrades most as you fatigue. Your first 5 re
 
 Real-time AI tracking catches the rep where your form starts breaking so you can either correct it or stop before you get hurt.
 
+**[Try PushUp Pro free](/signup)** — AI form tracking works right from your phone camera, no equipment needed.
+
+## More Form Guides
+
+- [How to Do Pushups With Proper Form](/blog/pushup-form-guide) — hand placement, elbow angle, and the 5 most common pushup mistakes
+- [How to Plank With Perfect Form](/blog/plank-form-guide) — why shorter holds beat longer ones, and how AI tracks your body line
+
 ## Squat Progressions (Beginner to Advanced)
 
 ![Squat progressions](/blog-images/squat-progression.jpg)

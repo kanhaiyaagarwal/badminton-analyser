@@ -125,6 +125,13 @@ Planks are a hold, not a rep exercise. That means form degradation is gradual. Y
 
 AI tracking catches the *moment* your form starts to drift, so you can either re-engage or end the set. This means every second of your plank is actually training your core, not just running out a clock.
 
+**[Try PushUp Pro free](/signup)** — AI form tracking works right from your phone camera, no equipment needed.
+
+## More Form Guides
+
+- [How to Do Pushups With Proper Form](/blog/pushup-form-guide) — hand placement, elbow angle, and the 5 most common pushup mistakes
+- [How to Do Squats With Proper Form](/blog/squat-form-guide) — depth tracking, knee cave detection, and the 5 biggest squat mistakes
+
 ## Plank Progressions (Beginner to Advanced)
 
 ![Plank progressions](/blog-images/plank-progression.jpg)
