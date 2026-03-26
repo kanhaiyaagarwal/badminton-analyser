@@ -108,6 +108,10 @@ The plank is uniquely hard to self-assess. You're face-down, staring at the floo
 
 ![PushUp Pro AI tracking a plank in real-time — pose skeleton overlay with hold timer and form feedback](/blog/plank-ai-tracking.jpg)
 
+The AI detects your full body line from a side angle — exactly where you'd need a coach standing to check your alignment.
+
+![Side view of AI plank tracking showing straight body line from head to heels](/blog/plank-ai-tracking-2.jpg)
+
 ### What PushUp Pro Tracks in Real-Time
 
 - **Body alignment** — Continuously monitors the angle of your body from head to heels. Detects sagging and piking the moment it starts.
