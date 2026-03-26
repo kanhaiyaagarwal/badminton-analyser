@@ -67,11 +67,8 @@ class SquatAnalyzer(RepCounterAnalyzer):
         self._first_rep_grace = cfg.get("first_rep_grace", defaults.get("first_rep_grace", 30.0))
         self.lean_threshold = cfg.get("lean_threshold", defaults.get("lean_threshold", 30))
         self.knee_cave_ratio = cfg.get("knee_cave_ratio", defaults.get("knee_cave_ratio", 0.85))
-        # Half squat threshold: midpoint between up_angle and down_angle
-        default_half = (self.up_angle + self.down_angle) // 2
-        self.half_squat_angle = cfg.get("half_squat_angle", defaults.get("half_squat_angle", default_half))
 
-        self._state = "up"  # "up" | "down" | "half"
+        self._state = "up"  # "up" | "down"
         self._ready = False  # require standing position
         self._ready_since = 0.0
 
@@ -82,10 +79,10 @@ class SquatAnalyzer(RepCounterAnalyzer):
 
         # Form quality counters
         self._total_active_frames = 0
-        self._full_squat_count = 0
-        self._half_squat_count = 0
+        self._partial_squat_count = 0
         self._knees_caving_frames = 0
         self._lean_frames = 0
+        self._went_partial = False  # tracking partial descent
         self._prev_valid_angle = 170.0  # last trusted knee angle
 
     def _ankle_above_knee(self, landmarks):
@@ -196,7 +193,7 @@ class SquatAnalyzer(RepCounterAnalyzer):
 
         # --- Form quality tracking ---
         self._total_active_frames += 1
-        if knees_caving and self._state in ("down", "half"):
+        if knees_caving and self._state == "down":
             self._knees_caving_frames += 1
         if leaning:
             self._lean_frames += 1
@@ -210,40 +207,29 @@ class SquatAnalyzer(RepCounterAnalyzer):
         else:
             self._sat_down_since = 0.0
 
-        # --- Rep counting (full + half squats both count) ---
+        # --- Rep counting ---
         if self._state == "up" and angle < self.down_angle:
-            # Reached full depth
             self._state = "down"
             self._down_since = timestamp
+            self._went_partial = False
             self.form_feedback = "Good depth! Now stand up"
-        elif self._state == "up" and angle < self.half_squat_angle:
-            # Reached half depth but not full
-            self._state = "half"
-            self._down_since = timestamp
-            self.form_feedback = "Go lower for a full squat!"
-        elif self._state == "half" and angle < self.down_angle:
-            # Was at half, went deeper to full
-            self._state = "down"
-            self.form_feedback = "Good depth! Now stand up"
+        elif self._state == "up" and angle < self.up_angle - 10:
+            # Going down but haven't reached threshold
+            self._went_partial = True
         elif self._state == "down" and angle > self.up_angle:
-            # Full squat completed
             self._state = "up"
             self._down_since = 0.0
-            self._full_squat_count += 1
             self.reps += 1
-            self.form_feedback = f"Rep {self.reps}! Full squat"
-            logger.info(f"Squat rep {self.reps} FULL (angle={angle:.1f}, t={timestamp:.2f}s)")
-        elif self._state == "half" and angle > self.up_angle:
-            # Half squat completed — still counts as a rep
-            self._state = "up"
-            self._down_since = 0.0
-            self._half_squat_count += 1
-            self.reps += 1
-            self.form_feedback = f"Rep {self.reps}! Half squat"
-            logger.info(f"Squat rep {self.reps} HALF (angle={angle:.1f}, t={timestamp:.2f}s)")
-        elif knees_caving and self._state in ("down", "half"):
+            self.form_feedback = f"Rep {self.reps}!"
+            logger.info(f"Squat rep {self.reps} (angle={angle:.1f}, t={timestamp:.2f}s)")
+        elif self._state == "up" and self._went_partial and angle > self.up_angle:
+            # Came back up without reaching depth
+            self._partial_squat_count += 1
+            self._went_partial = False
+            self.form_feedback = "Go lower! That didn't count"
+        elif knees_caving and self._state == "down":
             self.form_feedback = "Push your knees out!"
-        elif leaning and self._state in ("down", "half"):
+        elif leaning and self._state == "down":
             self.form_feedback = "Keep your chest up — don't lean forward"
         elif self._state == "up":
             self.form_feedback = "Squat down — bend your knees"
@@ -266,8 +252,8 @@ class SquatAnalyzer(RepCounterAnalyzer):
                 self.form_feedback = "Sat down — session over!"
                 logger.info(f"Squat session ended: sat_down (reps={self.reps}, t={timestamp:.1f}s)")
 
-            # Signal 2: Stuck in DOWN/HALF too long
-            elif (self._state in ("down", "half") and self._down_since > 0
+            # Signal 2: Stuck in DOWN too long
+            elif (self._state == "down" and self._down_since > 0
                   and (timestamp - self._down_since) > self.stuck_timeout):
                 self._session_ended = True
                 self._end_reason = "position_break"
@@ -297,22 +283,17 @@ class SquatAnalyzer(RepCounterAnalyzer):
 
     def get_final_report(self) -> Dict:
         report = super().get_final_report()
-        total_reps = self._full_squat_count + self._half_squat_count
+        total_attempts = self.reps + self._partial_squat_count
         knees_caving_pct = round(
             self._knees_caving_frames / max(self._total_active_frames, 1) * 100, 1
         )
-        # Form score: full squats are better quality than half squats
-        full_pct = (self._full_squat_count / max(total_reps, 1)) * 100
+        rep_quality = (self.reps / max(total_attempts, 1)) * 100
         knee_quality = 100 - knees_caving_pct
-        form_score = round(full_pct * 0.9 + knee_quality * 0.1)
+        form_score = round(rep_quality * 0.9 + knee_quality * 0.1)
         report["form_summary"] = {
-            "total_reps": total_reps,
-            "full_squats": self._full_squat_count,
-            "half_squats": self._half_squat_count,
-            # Keep legacy fields for backwards compat
-            "total_attempts": total_reps,
-            "good_reps": self._full_squat_count,
-            "partial_squats": self._half_squat_count,
+            "total_attempts": total_attempts,
+            "good_reps": self.reps,
+            "partial_squats": self._partial_squat_count,
             "knees_caving_pct": knees_caving_pct,
             "form_score": max(0, min(100, form_score)),
         }
