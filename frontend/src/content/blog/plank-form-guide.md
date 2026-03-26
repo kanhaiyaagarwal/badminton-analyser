@@ -106,6 +106,8 @@ The technique: **shallow, controlled breaths through your nose.** Maintain your 
 
 The plank is uniquely hard to self-assess. You're face-down, staring at the floor. You can't see if your hips are sagging or piking. You *think* you're straight, but without feedback, you have no idea.
 
+![PushUp Pro AI tracking a plank in real-time — pose skeleton overlay with hold timer and form feedback](/blog/plank-ai-tracking.jpg)
+
 ### What PushUp Pro Tracks in Real-Time
 
 - **Body alignment** — Continuously monitors the angle of your body from head to heels. Detects sagging and piking the moment it starts.
