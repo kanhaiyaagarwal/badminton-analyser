@@ -85,10 +85,8 @@ useHead({
     const p = post.value
     const url = `${baseUrl}/blog/${p.slug}`
     const image = p.image ? `${baseUrl}${p.image}` : `${baseUrl}/og-pushup-v2.png`
-    const schemas = [{
-      type: 'application/ld+json',
-      innerHTML: JSON.stringify({
-        '@context': 'https://schema.org',
+    const graph = [
+      {
         '@type': 'Article',
         headline: p.title,
         description: p.description,
@@ -114,48 +112,42 @@ useHead({
           '@id': url,
         },
         keywords: (p.tags || []).join(', '),
-      }),
-    }]
+      },
+    ]
     // HowTo schema for step-by-step guides
     if (p.howTo) {
-      schemas.push({
-        type: 'application/ld+json',
-        innerHTML: JSON.stringify({
-          '@context': 'https://schema.org',
-          '@type': 'HowTo',
-          name: p.howTo.name,
-          description: p.description,
-          image,
-          totalTime: p.howTo.totalTime,
-          step: p.howTo.steps.map((s, i) => ({
-            '@type': 'HowToStep',
-            position: i + 1,
-            name: s.name,
-            text: s.text,
-            ...(s.image ? { image: `${baseUrl}${s.image}` } : {}),
-          })),
-        }),
+      graph.push({
+        '@type': 'HowTo',
+        name: p.howTo.name,
+        description: p.description,
+        image,
+        totalTime: p.howTo.totalTime,
+        step: p.howTo.steps.map((s, i) => ({
+          '@type': 'HowToStep',
+          position: i + 1,
+          name: s.name,
+          text: s.text,
+        })),
       })
     }
     // FAQ schema for common questions
     if (p.faq?.length) {
-      schemas.push({
-        type: 'application/ld+json',
-        innerHTML: JSON.stringify({
-          '@context': 'https://schema.org',
-          '@type': 'FAQPage',
-          mainEntity: p.faq.map(f => ({
-            '@type': 'Question',
-            name: f.q,
-            acceptedAnswer: {
-              '@type': 'Answer',
-              text: f.a,
-            },
-          })),
-        }),
+      graph.push({
+        '@type': 'FAQPage',
+        mainEntity: p.faq.map(f => ({
+          '@type': 'Question',
+          name: f.q,
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: f.a,
+          },
+        })),
       })
     }
-    return schemas
+    return [{
+      type: 'application/ld+json',
+      innerHTML: JSON.stringify({ '@context': 'https://schema.org', '@graph': graph }),
+    }]
   }),
 })
 
