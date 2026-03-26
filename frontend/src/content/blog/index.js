@@ -7,6 +7,25 @@ export const posts = [
     author: 'PushUp Pro',
     tags: ['form', 'pushups', 'beginner'],
     image: '/blog-images/pushup-form-hero.jpg',
+    howTo: {
+      name: 'How to Do a Pushup With Proper Form',
+      totalTime: 'PT5M',
+      supply: [],
+      tool: [],
+      steps: [
+        { name: 'Set Your Hands', text: 'Place your hands slightly wider than shoulder-width apart, fingers spread and pointing forward. Distribute weight across your entire palm.' },
+        { name: 'Lock Your Body Position', text: 'Feet together or hip-width apart, core braced, glutes tight, head neutral. Your body should form a straight line from head to heels.' },
+        { name: 'The Descent', text: 'Lower yourself by bending elbows at 45 degrees from your torso. Go down until your chest is a fist-height from the floor.' },
+        { name: 'The Push', text: 'Drive through your entire palm to push back up. Fully extend your arms at the top for a complete rep.' },
+        { name: 'Breathing', text: 'Inhale on the way down, exhale on the way up. Don\'t hold your breath.' },
+      ],
+    },
+    faq: [
+      { q: 'How wide should my hands be for pushups?', a: 'Slightly wider than shoulder-width apart. If your hands are wider than 1.5x your shoulder width, bring them in — too wide turns it into a shoulder exercise.' },
+      { q: 'What angle should my elbows be during a pushup?', a: 'Your elbows should angle back at about 45 degrees from your torso, making an arrow shape with your body. Flaring to 90 degrees puts stress on your rotator cuff.' },
+      { q: 'How low should I go on a pushup?', a: 'Lower until your chest is about a fist-height from the floor. Your upper arms should be at least parallel to the ground. Anything less is a half rep.' },
+      { q: 'How can I check my pushup form without a trainer?', a: 'AI form tracking apps like PushUp Pro use your phone camera to track 33 body points in real-time, detecting issues like hip sag, shallow depth, and elbow flare as they happen.' },
+    ],
   },
   {
     slug: 'squat-form-guide',
@@ -16,6 +35,27 @@ export const posts = [
     author: 'PushUp Pro',
     tags: ['form', 'squats', 'beginner'],
     image: '/blog-images/squat-form-hero.jpg',
+    howTo: {
+      name: 'How to Do a Bodyweight Squat With Proper Form',
+      totalTime: 'PT5M',
+      supply: [],
+      tool: [],
+      steps: [
+        { name: 'Set Your Stance', text: 'Stand with feet shoulder-width apart or slightly wider. Point toes out 15-30 degrees.' },
+        { name: 'Brace Your Core', text: 'Take a deep breath into your belly and tighten your abs. This creates pressure that stabilizes your spine.' },
+        { name: 'Initiate With Your Hips', text: 'Push your hips back first, like sitting into a chair. Then bend your knees to lower yourself down.' },
+        { name: 'The Descent', text: 'Lower until your hip crease drops below your knee (parallel). Keep knees tracking over toes, chest up, heels planted.' },
+        { name: 'The Bottom Position', text: 'Weight in mid-foot and heels, knees pushed out, chest up. Don\'t bounce — hold a controlled pause.' },
+        { name: 'Standing Back Up', text: 'Drive through your heels. Hips and shoulders rise at the same rate. Squeeze glutes at the top.' },
+        { name: 'Breathing', text: 'Inhale and brace before descent. Hold through the bottom. Exhale as you stand up past the sticking point.' },
+      ],
+    },
+    faq: [
+      { q: 'How deep should I squat?', a: 'Your hip crease should drop below your knee — this is called parallel. Full depth squats activate more glute and hamstring muscle than partial squats.' },
+      { q: 'Why do my knees cave inward when I squat?', a: 'Knee cave (valgus collapse) usually means weak glutes. Push your knees out actively over your toes and add glute bridges to your warm-up.' },
+      { q: 'Should my toes point straight forward when squatting?', a: 'No — point your toes out 15-30 degrees. Your hip anatomy requires this for natural knee tracking. Squatting with toes straight forces your knees into an unnatural path.' },
+      { q: 'Why do my heels lift off the ground during squats?', a: 'This is usually an ankle mobility issue. Stretch your calves daily and try elevating your heels on small plates or a folded towel while you work on flexibility.' },
+    ],
   },
   {
     slug: 'plank-form-guide',
@@ -25,5 +65,24 @@ export const posts = [
     author: 'PushUp Pro',
     tags: ['form', 'plank', 'core', 'beginner'],
     image: '/blog-images/plank-form-hero.jpg',
+    howTo: {
+      name: 'How to Do a Forearm Plank With Perfect Form',
+      totalTime: 'PT3M',
+      supply: [],
+      tool: [],
+      steps: [
+        { name: 'Set Your Base', text: 'Place forearms on the ground with elbows directly under your shoulders. Forearms parallel, hands flat or lightly clasped.' },
+        { name: 'Set Your Feet', text: 'Feet hip-width apart. Closer together is harder. Start hip-width and narrow as you get stronger.' },
+        { name: 'Lift and Lock', text: 'Push up onto forearms and toes. Lock knees by flexing quads, squeeze glutes, brace core, press forearms into the floor.' },
+        { name: 'Check Your Line', text: 'Body forms a straight line from head to heels. Head neutral, upper back not sagging, hips not dropping or piking.' },
+        { name: 'Breathe', text: 'Shallow, controlled breaths through your nose. Maintain your brace while breathing. Breathe into your sides and back, not your belly.' },
+      ],
+    },
+    faq: [
+      { q: 'How long should I hold a plank?', a: 'Focus on quality over duration. 3 sets of 15-20 seconds with maximum engagement beats 1 set of 90 seconds with deteriorating form. Build duration only after you own the position.' },
+      { q: 'Why does my lower back hurt during planks?', a: 'Your hips are sagging (the "hammock" position), which means your core is disengaged and your lumbar spine is taking the stress. Squeeze your glutes harder to bring your hips into alignment.' },
+      { q: 'Should I do planks every day?', a: 'You can plank 3-5 times per week. Core muscles recover quickly, but give yourself at least one rest day. Focus on increasing engagement intensity, not just adding more days.' },
+      { q: 'Are planks better than sit-ups for core strength?', a: 'For most people, yes. Planks train anti-extension (resisting spinal movement), which is how your core works in real life. Sit-ups repeatedly flex the spine under load, which can cause disc issues over time.' },
+    ],
   }
 ]
