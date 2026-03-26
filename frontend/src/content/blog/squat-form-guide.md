@@ -121,6 +121,8 @@ For bodyweight squats, you can exhale on the way up from the start. The breath h
 
 You can film yourself squatting, but you can't check your knee path, hip depth, and back angle all at once from a side view. You need multiple angles — or a system that tracks all 33 body points simultaneously.
 
+![PushUp Pro AI tracking a squat in real-time — pose skeleton overlay with depth feedback and rep counting](/blog/squat-ai-tracking.jpg)
+
 ### What PushUp Pro Tracks in Real-Time
 
 - **Depth tracking** — Measures your hip crease relative to your knee on every rep. No more guessing if you hit parallel.
