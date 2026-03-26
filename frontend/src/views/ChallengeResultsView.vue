@@ -71,14 +71,14 @@
           </div>
         </div>
 
-        <!-- Squat rep details (partial & full) -->
+        <!-- Squat rep details (full & half breakdown) -->
         <div v-if="result.challenge_type === 'squat_half' || result.challenge_type === 'squat_full'" class="form-details">
-          <div v-if="result.form_summary.total_attempts > 0" class="form-attempts">
+          <div v-if="squat_total_reps > 0" class="form-attempts">
             <div class="form-detail-line">
-              {{ result.form_summary.total_attempts }} total attempt{{ result.form_summary.total_attempts !== 1 ? 's' : '' }}
+              {{ squat_total_reps }} total rep{{ squat_total_reps !== 1 ? 's' : '' }}
             </div>
-            <div class="form-detail-sub highlight">{{ result.form_summary.good_reps }} good rep{{ result.form_summary.good_reps !== 1 ? 's' : '' }}</div>
-            <div v-if="result.form_summary.partial_squats > 0" class="form-detail-sub bad">{{ result.form_summary.partial_squats }} partial squat{{ result.form_summary.partial_squats !== 1 ? 's' : '' }}</div>
+            <div v-if="squat_full_count > 0" class="form-detail-sub highlight">{{ squat_full_count }} full squat{{ squat_full_count !== 1 ? 's' : '' }}</div>
+            <div v-if="squat_half_count > 0" class="form-detail-sub warn">{{ squat_half_count }} half squat{{ squat_half_count !== 1 ? 's' : '' }}</div>
           </div>
           <div v-else class="form-detail-line muted">No reps completed</div>
           <div v-if="result.form_summary.knees_caving_pct > 5" class="form-issues">
@@ -259,6 +259,19 @@ const typeLabel = computed(() => TYPE_LABELS[result.value?.challenge_type] || 'C
 const scoreUnit = computed(() => HOLD_TYPES.includes(result.value?.challenge_type) ? 's' : 'reps')
 const isNewPB = computed(() => result.value && result.value.score === result.value.personal_best)
 const displayName = computed(() => authStore.user?.username || 'You')
+// Squat full/half breakdown (supports new + legacy field names)
+const squat_full_count = computed(() => {
+  const fs = result.value?.form_summary
+  if (!fs) return 0
+  return fs.full_squats ?? fs.good_reps ?? 0
+})
+const squat_half_count = computed(() => {
+  const fs = result.value?.form_summary
+  if (!fs) return 0
+  return fs.half_squats ?? fs.partial_squats ?? 0
+})
+const squat_total_reps = computed(() => squat_full_count.value + squat_half_count.value)
+
 const formScoreClass = computed(() => {
   const score = result.value?.form_summary?.form_score ?? 0
   if (score >= 80) return 'score-green'
@@ -833,6 +846,14 @@ onMounted(async () => {
 
 .form-detail-sub.bad::before {
   background: #f87171;
+}
+
+.form-detail-sub.warn {
+  color: #f59e0b;
+}
+
+.form-detail-sub.warn::before {
+  background: #f59e0b;
 }
 
 /* Depth distribution */
