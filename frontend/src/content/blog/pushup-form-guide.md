@@ -110,7 +110,15 @@ This is exactly the gap AI form tracking fills.
 
 ### How AI Form Checking Works
 
-PushUp Pro uses your phone's camera and AI pose detection to analyze your pushup form in real-time. Here's what it tracks:
+PushUp Pro uses your phone's camera and AI pose detection to analyze your pushup form in real-time. The AI guides you through every phase of the movement — telling you when to lower your body and when to push up.
+
+![AI guiding a user to lower their body and bend their elbows during a pushup](/blog/pushup-ai-guidance.jpg)
+
+When you hit proper depth, the AI confirms and cues you to push back up.
+
+![AI confirming good pushup depth and cueing the user to push up — 19 reps tracked](/blog/pushup-ai-good.jpg)
+
+Here's what it tracks:
 
 - **Rep counting** — Automatically counts valid reps based on proper depth and full lockout. Half reps don't count.
 - **Body alignment** — Detects when your hips sag or pike up and flags it instantly.
