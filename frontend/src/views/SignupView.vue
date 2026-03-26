@@ -41,7 +41,7 @@
             <div v-if="success" class="msg-success">{{ success }}</div>
 
             <form @submit.prevent="handleSignup">
-              <div class="field-group">
+              <div v-if="isBadminton" class="field-group">
                 <input
                   id="inviteCode"
                   v-model="inviteCode"
@@ -91,7 +91,7 @@
               <router-link :to="{ path: '/login', query: $route.query }">Login</router-link>
             </p>
 
-            <div class="waitlist-divider">
+            <div v-if="isBadminton" class="waitlist-divider">
               <p class="waitlist-text">Don't have an invite code?</p>
               <button type="button" @click="showWaitlist = true" class="btn-outline-sm">
                 Join the Waitlist

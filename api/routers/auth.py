@@ -111,7 +111,10 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
 
     invite_code_record = None
 
-    if not is_whitelisted:
+    # Fitness (PushUp Pro) signups are open — no invite code required
+    is_fitness = user_data.app_context == "fitness"
+
+    if not is_whitelisted and not is_fitness:
         if not user_data.invite_code:
             # Auto-add to waitlist instead of returning 400
             email_lower = user_data.email.lower()
@@ -427,7 +430,10 @@ async def google_auth(request: GoogleAuthRequest, db: Session = Depends(get_db))
 
     invite_code_record = None
 
-    if not is_whitelisted:
+    # Fitness (PushUp Pro) signups are open — no invite code required
+    is_fitness = request.app_context == "fitness"
+
+    if not is_whitelisted and not is_fitness:
         if not request.invite_code:
             # Check if this email has an approved waitlist entry with an unused invite code
             waitlist_entry = db.query(Waitlist).filter(
