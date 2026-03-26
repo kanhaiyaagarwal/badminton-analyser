@@ -1,6 +1,6 @@
 # How to Do Pushups With Proper Form (AI Form Check Guide)
 
-![Proper pushup form](/blog/pushup-form-hero.jpg)
+![Proper pushup form](/blog-images/pushup-form-hero.jpg)
 
 The pushup is the most popular bodyweight exercise in the world — and one of the most commonly done wrong. Bad form doesn't just limit your gains. It puts stress on your shoulders, wrists, and lower back that can sideline you for weeks.
 
@@ -16,7 +16,7 @@ Worse, you're reinforcing bad movement patterns. Every bad rep makes the next on
 
 ## The Perfect Pushup: Step by Step
 
-![Step by step pushup form](/blog/pushup-proper-form.jpg)
+![Step by step pushup form](/blog-images/pushup-proper-form.jpg)
 
 ### 1. Set Your Hands
 
@@ -60,7 +60,7 @@ Don't hold your breath. This spikes your blood pressure and reduces your enduran
 
 ## The 5 Most Common Pushup Mistakes
 
-![Common pushup mistakes to avoid](/blog/pushup-mistakes.jpg)
+![Common pushup mistakes to avoid](/blog-images/pushup-mistakes.jpg)
 
 ### 1. Sagging Hips (The "Banana Back")
 
@@ -112,11 +112,11 @@ This is exactly the gap AI form tracking fills.
 
 PushUp Pro uses your phone's camera and AI pose detection to analyze your pushup form in real-time. The AI guides you through every phase of the movement — telling you when to lower your body and when to push up.
 
-![AI guiding a user to lower their body and bend their elbows during a pushup](/blog/pushup-ai-guidance.jpg)
+![AI guiding a user to lower their body and bend their elbows during a pushup](/blog-images/pushup-ai-guidance.jpg)
 
 When you hit proper depth, the AI confirms and cues you to push back up.
 
-![AI confirming good pushup depth and cueing the user to push up — 19 reps tracked](/blog/pushup-ai-good.jpg)
+![AI confirming good pushup depth and cueing the user to push up — 19 reps tracked](/blog-images/pushup-ai-good.jpg)
 
 Here's what it tracks:
 
@@ -136,7 +136,7 @@ When the AI catches your hips sagging on rep 8, you can fix it on rep 9. When it
 
 ## Pushup Progressions (Start Where You Are)
 
-![Pushup progressions from beginner to advanced](/blog/pushup-progression.jpg)
+![Pushup progressions from beginner to advanced](/blog-images/pushup-progression.jpg)
 
 Not ready for full pushups? Here's the progression from easiest to hardest:
 
@@ -160,7 +160,7 @@ The standard pushup as described in this guide. Master this before moving to adv
 
 ## Your First Form-Checked Workout
 
-![Home workout with phone](/blog/home-workout.jpg)
+![Home workout with phone](/blog-images/home-workout.jpg)
 
 Ready to see how your form actually looks? Here's a simple workout to try with AI form tracking:
 

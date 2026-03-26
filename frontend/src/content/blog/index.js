@@ -6,7 +6,7 @@ export const posts = [
     date: '2026-03-26',
     author: 'PushUp Pro',
     tags: ['form', 'pushups', 'beginner'],
-    image: '/blog/pushup-form-hero.jpg',
+    image: '/blog-images/pushup-form-hero.jpg',
   },
   {
     slug: 'squat-form-guide',
@@ -15,7 +15,7 @@ export const posts = [
     date: '2026-03-26',
     author: 'PushUp Pro',
     tags: ['form', 'squats', 'beginner'],
-    image: '/blog/squat-form-hero.jpg',
+    image: '/blog-images/squat-form-hero.jpg',
   },
   {
     slug: 'plank-form-guide',
@@ -24,6 +24,6 @@ export const posts = [
     date: '2026-03-26',
     author: 'PushUp Pro',
     tags: ['form', 'plank', 'core', 'beginner'],
-    image: '/blog/plank-form-hero.jpg',
+    image: '/blog-images/plank-form-hero.jpg',
   }
 ]

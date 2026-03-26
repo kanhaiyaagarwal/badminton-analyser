@@ -1,6 +1,6 @@
 # How to Do Squats With Proper Form (Complete Beginner Guide)
 
-![Proper squat form](/blog/squat-form-hero.jpg)
+![Proper squat form](/blog-images/squat-form-hero.jpg)
 
 The squat is the single most effective lower body exercise you can do. It works your quads, glutes, hamstrings, and core all at once — and you don't need any equipment to start.
 
@@ -18,7 +18,7 @@ Good form isn't about memorizing a checklist. It's about relearning a movement p
 
 ## The Perfect Bodyweight Squat: Step by Step
 
-![Step by step squat form](/blog/squat-proper-form.jpg)
+![Step by step squat form](/blog-images/squat-proper-form.jpg)
 
 ### 1. Set Your Stance
 
@@ -75,7 +75,7 @@ For bodyweight squats, you can exhale on the way up from the start. The breath h
 
 ## The 5 Most Common Squat Mistakes
 
-![Common squat mistakes](/blog/squat-mistakes.jpg)
+![Common squat mistakes](/blog-images/squat-mistakes.jpg)
 
 ### 1. Knee Cave (Valgus Collapse)
 
@@ -121,7 +121,7 @@ For bodyweight squats, you can exhale on the way up from the start. The breath h
 
 You can film yourself squatting, but you can't check your knee path, hip depth, and back angle all at once from a side view. You need multiple angles — or a system that tracks all 33 body points simultaneously.
 
-![PushUp Pro AI tracking a squat in real-time — pose skeleton overlay with depth feedback and rep counting](/blog/squat-ai-tracking.jpg)
+![PushUp Pro AI tracking a squat in real-time — pose skeleton overlay with depth feedback and rep counting](/blog-images/squat-ai-tracking.jpg)
 
 ### What PushUp Pro Tracks in Real-Time
 
@@ -139,7 +139,7 @@ Real-time AI tracking catches the rep where your form starts breaking so you can
 
 ## Squat Progressions (Beginner to Advanced)
 
-![Squat progressions](/blog/squat-progression.jpg)
+![Squat progressions](/blog-images/squat-progression.jpg)
 
 ### Level 1: Chair Squats
 
@@ -163,7 +163,7 @@ Single-leg squats are the ultimate bodyweight leg exercise. Start with assisted 
 
 ## Your First Form-Checked Squat Workout
 
-![Home squat workout](/blog/home-workout.jpg)
+![Home squat workout](/blog-images/home-workout.jpg)
 
 Ready to test your form? Here's a simple workout with AI tracking:
 

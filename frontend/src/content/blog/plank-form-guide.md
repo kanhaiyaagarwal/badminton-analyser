@@ -1,6 +1,6 @@
 # How to Plank With Perfect Form (Stop Wasting Your Time)
 
-![Proper plank form](/blog/plank-form-hero.jpg)
+![Proper plank form](/blog-images/plank-form-hero.jpg)
 
 The plank looks simple. Get in position, hold it, done. But simplicity is exactly why most people do it wrong — and why most people's planks are a complete waste of time.
 
@@ -18,7 +18,7 @@ Elite trainers like Stuart McGill (the world's leading spine researcher) recomme
 
 ## The Perfect Plank: Step by Step
 
-![Step by step plank form](/blog/plank-proper-form.jpg)
+![Step by step plank form](/blog-images/plank-proper-form.jpg)
 
 ### 1. Set Your Base
 
@@ -60,7 +60,7 @@ The technique: **shallow, controlled breaths through your nose.** Maintain your 
 
 ## The 5 Most Common Plank Mistakes
 
-![Common plank mistakes](/blog/plank-mistakes.jpg)
+![Common plank mistakes](/blog-images/plank-mistakes.jpg)
 
 ### 1. Sagging Hips (The Hammock)
 
@@ -106,11 +106,11 @@ The technique: **shallow, controlled breaths through your nose.** Maintain your 
 
 The plank is uniquely hard to self-assess. You're face-down, staring at the floor. You can't see if your hips are sagging or piking. You *think* you're straight, but without feedback, you have no idea.
 
-![PushUp Pro AI tracking a plank in real-time — pose skeleton overlay with hold timer and form feedback](/blog/plank-ai-tracking.jpg)
+![PushUp Pro AI tracking a plank in real-time — pose skeleton overlay with hold timer and form feedback](/blog-images/plank-ai-tracking.jpg)
 
 The AI detects your full body line from a side angle — exactly where you'd need a coach standing to check your alignment.
 
-![Side view of AI plank tracking showing straight body line from head to heels](/blog/plank-ai-tracking-2.jpg)
+![Side view of AI plank tracking showing straight body line from head to heels](/blog-images/plank-ai-tracking-2.jpg)
 
 ### What PushUp Pro Tracks in Real-Time
 
@@ -127,7 +127,7 @@ AI tracking catches the *moment* your form starts to drift, so you can either re
 
 ## Plank Progressions (Beginner to Advanced)
 
-![Plank progressions](/blog/plank-progression.jpg)
+![Plank progressions](/blog-images/plank-progression.jpg)
 
 ### Level 1: Knee Plank
 
@@ -157,7 +157,7 @@ Once you own the basic hold, add instability:
 
 ## Your First Form-Checked Plank Workout
 
-![Home plank workout](/blog/home-workout.jpg)
+![Home plank workout](/blog-images/home-workout.jpg)
 
 Ready to find out how good your plank actually is? Here's a workout designed for AI form tracking:
 
