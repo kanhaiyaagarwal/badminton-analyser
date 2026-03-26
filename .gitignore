@@ -51,6 +51,9 @@ poc/
 # macOS
 .DS_Store
 
+# Agent context
+.agents/
+
 # Misc
 results.json
 todo.txt
