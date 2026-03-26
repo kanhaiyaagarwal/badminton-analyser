@@ -1,11 +1,10 @@
 """Multi-turn conversational onboarding agent.
 
-Manages in-memory conversation state. Each turn calls the existing
-llm_service (if available) or uses a template sequence to collect
-onboarding fields one-by-one.
+Manages in-memory conversation state. Uses a fixed template sequence
+to collect onboarding fields step-by-step. Fast, zero latency, no LLM cost.
+LLM is reserved for plan generation where it adds real value.
 """
 
-import asyncio
 import logging
 import re
 import time
@@ -22,33 +21,6 @@ _conversations: dict[str, "ConversationState"] = {}
 
 REQUIRED_FIELDS = ["fitness_level", "goals", "preferred_days", "session_duration_minutes", "train_location"]
 OPTIONAL_FIELDS = ["age", "height_cm", "weight_kg", "injuries", "available_equipment"]
-
-SYSTEM_PROMPT = """You are a friendly AI fitness coach named Coach helping a new user set up their workout plan.
-You're having a casual, encouraging conversation to learn about them.
-
-Current collected data: {collected}
-Still needed fields: {still_needed}
-
-Rules:
-- Ask about ONE topic at a time
-- Keep responses short (1-2 sentences), warm, and encouraging
-- When the user responds, extract any structured data you can
-- Suggest 2-4 tappable options when relevant
-- For goals, allow multiple selections
-- For preferred_days, use day abbreviations: mon, tue, wed, thu, fri, sat, sun
-- For train_location, use: gym or home
-- For fitness_level, use: beginner, intermediate, advanced
-- For session_duration_minutes, use: 20, 30, 45, or 60
-
-Respond in this JSON format:
-{{
-  "response": "Your conversational message",
-  "extracted_data": {{}},
-  "suggested_options": [{{"label": "Display Text", "value": "actual_value"}}],
-  "all_collected": false
-}}
-
-Set all_collected to true ONLY when all required fields are collected."""
 
 
 class ConversationState:
@@ -72,7 +44,7 @@ class ConversationState:
         return (time.time() - self.created_at) > _CONVERSATION_TTL
 
 
-# Template fallback sequence (when LLM is unavailable)
+# Template onboarding sequence — 7 steps, ~1 minute to complete
 TEMPLATE_STEPS = [
     {
         "response": "Hey! I'm your AI fitness coach. Let's get you set up — takes about a minute. How would you describe your fitness level?",
@@ -182,41 +154,15 @@ async def process_turn(conversation_id: Optional[str], user_message: str) -> dic
     # from every message, regardless of which step we're on
     _extract_freeform(state, user_message)
 
-    # For multi-select steps (goals, days), skip LLM — templates handle
-    # these with proper multi-select pills that the LLM can't replicate
-    use_template = False
-    if state.step < len(TEMPLATE_STEPS) and TEMPLATE_STEPS[state.step].get("multi"):
-        use_template = True
-
-    if not use_template:
-        # Try LLM first
-        result = await _try_llm_turn(state, user_message)
-        if result:
-            logger.info("Onboarding LLM result: collected=%s, complete=%s", result.get("data_collected"), result.get("onboarding_complete"))
-            # Safety net: if LLM didn't extract the current step's field,
-            # try template extraction so we don't lose the user's input
-            if state.step < len(TEMPLATE_STEPS):
-                current = TEMPLATE_STEPS[state.step]
-                field = current.get("field")
-                if field and field not in state.collected:
-                    _extract_template_data(state, current, user_message)
-                    if field in state.collected:
-                        logger.info("Template extraction rescued field '%s' from LLM miss", field)
-                        result["data_collected"] = state.collected
-            return result
-
-    # Template fallback (or forced for multi-select steps)
+    # Use template-driven flow for all steps — fast, no latency, no LLM cost.
+    # LLM is reserved for plan generation where it adds real value.
     result = _template_turn(state, user_message)
     logger.info("Onboarding template result: collected=%s, complete=%s", result.get("data_collected"), result.get("onboarding_complete"))
     return result
 
 
 async def _opening_turn(state: ConversationState) -> dict:
-    """Generate the opening greeting."""
-    result = await _try_llm_opening(state)
-    if result:
-        return result
-
+    """Generate the opening greeting using template."""
     step = TEMPLATE_STEPS[0]
     state.messages.append({"role": "assistant", "content": step["response"]})
     return {
@@ -228,104 +174,9 @@ async def _opening_turn(state: ConversationState) -> dict:
     }
 
 
-async def _try_llm_opening(state: ConversationState) -> Optional[dict]:
-    """Try LLM for the opening turn."""
-    try:
-        from .llm_service import chat as llm_chat
-        prompt = SYSTEM_PROMPT.format(collected="{}", still_needed=str(REQUIRED_FIELDS))
-        result = await llm_chat(prompt, "Start the conversation with a warm greeting and ask about fitness level.")
-        if not result:
-            return None
-
-        state.messages.append({"role": "assistant", "content": result.get("response", "")})
-        return {
-            "response": result.get("response", TEMPLATE_STEPS[0]["response"]),
-            "suggested_options": result.get("suggested_options", TEMPLATE_STEPS[0]["options"]),
-            "data_collected": state.collected,
-            "onboarding_complete": False,
-            "conversation_id": state.id,
-        }
-    except Exception as e:
-        logger.debug("LLM opening failed: %s", e)
-        return None
-
-
-async def _try_llm_turn(state: ConversationState, user_message: str) -> Optional[dict]:
-    """Try LLM for a conversation turn."""
-    try:
-        from .llm_service import chat as llm_chat
-        prompt = SYSTEM_PROMPT.format(
-            collected=str(state.collected),
-            still_needed=str(state.still_needed),
-        )
-        # Build conversation as single user prompt (since llm_service.chat takes system + user)
-        convo_text = "\n".join(
-            f"{'Coach' if m['role'] == 'assistant' else 'User'}: {m['content']}"
-            for m in state.messages[-6:]  # Last 6 messages for context
-        )
-        result = await llm_chat(prompt, convo_text)
-        if not result:
-            return None
-
-        logger.info("LLM raw response: %s", {k: v for k, v in result.items() if k != 'suggested_options'})
-
-        # Extract data
-        extracted = result.get("extracted_data", {})
-        if extracted:
-            for key, val in extracted.items():
-                if key in REQUIRED_FIELDS or key in OPTIONAL_FIELDS:
-                    state.collected[key] = val
-            logger.info("LLM extracted: %s -> collected: %s", extracted, state.collected)
-
-        response_text = result.get("response", "")
-        state.messages.append({"role": "assistant", "content": response_text})
-
-        # Advance step to match what the LLM collected
-        while state.step < len(TEMPLATE_STEPS):
-            field = TEMPLATE_STEPS[state.step].get("field")
-            if field and field in state.collected:
-                state.step += 1
-            elif not field:
-                # Skip non-field steps (freeform) if LLM already passed them
-                state.step += 1
-            else:
-                break
-
-        all_done = state.all_collected or result.get("all_collected", False)
-        if all_done:
-            # Fill defaults for any still-missing required fields
-            defaults = {
-                "fitness_level": "beginner",
-                "goals": ["stay_active"],
-                "preferred_days": ["mon", "wed", "fri"],
-                "session_duration_minutes": 45,
-                "train_location": "gym",
-            }
-            for key, val in defaults.items():
-                if key not in state.collected:
-                    state.collected[key] = val
-
-        # If the next step is multi-select, override LLM options with template pills
-        suggested = result.get("suggested_options", [])
-        if not all_done and state.step < len(TEMPLATE_STEPS):
-            next_step = TEMPLATE_STEPS[state.step]
-            if next_step.get("multi"):
-                suggested = [{"label": o["label"], "value": o["value"], "multi": True} for o in next_step["options"]]
-
-        return {
-            "response": response_text,
-            "suggested_options": suggested,
-            "data_collected": state.collected,
-            "onboarding_complete": all_done,
-            "conversation_id": state.id,
-        }
-    except Exception as e:
-        logger.warning("LLM turn failed: %s", e)
-        return None
-
 
 def _template_turn(state: ConversationState, user_message: str) -> dict:
-    """Process a turn using template sequence (LLM fallback)."""
+    """Process a turn using template sequence."""
     if state.step < len(TEMPLATE_STEPS):
         current = TEMPLATE_STEPS[state.step]
         _extract_template_data(state, current, user_message)
