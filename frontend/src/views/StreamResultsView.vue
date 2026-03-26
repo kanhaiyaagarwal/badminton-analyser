@@ -35,7 +35,7 @@
       <div class="summary-cards">
         <div class="card">
           <h3>Player Shots</h3>
-          <div class="value">{{ report.summary?.player_shots || report.summary?.total_shots || 0 }}</div>
+          <div class="value">{{ report.summary?.player_shots ?? report.summary?.total_shots ?? 0 }}</div>
         </div>
         <div class="card">
           <h3>Opponent Shots</h3>

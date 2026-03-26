@@ -172,7 +172,8 @@ async def start_analysis(
         "top_right": boundary.top_right,
         "bottom_left": boundary.bottom_left,
         "bottom_right": boundary.bottom_right,
-        "court_color": boundary.court_color
+        "court_color": boundary.court_color,
+        "court_center": boundary.court_center
     }
 
     # Save background frame for heatmaps (use the frame user selected for court setup)

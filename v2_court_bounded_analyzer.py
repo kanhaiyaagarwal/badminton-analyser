@@ -183,7 +183,8 @@ class CourtBoundedAnalyzer:
                  velocity_thresholds: Optional[Dict[str, float]] = None,
                  position_thresholds: Optional[Dict[str, float]] = None,
                  shot_cooldown_seconds: float = 0.4,
-                 shuttle_tracker=None):
+                 shuttle_tracker=None,
+                 court_center=None):
         """
         Initialize analyzer with performance options.
 
@@ -198,6 +199,7 @@ class CourtBoundedAnalyzer:
             position_thresholds: Optional custom position thresholds (uses defaults if None)
             shot_cooldown_seconds: Cooldown period after detecting a shot
             shuttle_tracker: Optional ShuttleTracker instance for shuttle detection
+            court_center: Optional [x, y] pixel coords of court center for recovery analysis
         """
         self.court = court_boundary
         self.process_every_n_frames = process_every_n_frames
@@ -206,6 +208,7 @@ class CourtBoundedAnalyzer:
         self.skip_static_frames = skip_static_frames
         self.effective_fps = effective_fps
         self.shuttle_tracker = shuttle_tracker
+        self.court_center = court_center
 
         # Apply custom thresholds if provided
         if velocity_thresholds:
@@ -1578,6 +1581,7 @@ class CourtBoundedAnalyzer:
                 hit_wrist_window=getattr(self, 'hit_wrist_window', 8),
                 attribution_window=getattr(self, 'attribution_window', 15),
                 window_thresholds=getattr(self, 'window_thresholds', None),
+                court_center=self.court_center,
             )
             classified = classifier.classify_all(raw_frame_data, fps)
         else:
@@ -1927,6 +1931,9 @@ class CourtBoundedAnalyzer:
         if shuttle_tracking:
             report['shuttle_tracking'] = shuttle_tracking
 
+        if classified.get("recovery"):
+            report["recovery"] = classified["recovery"]
+
         return report
 
     def _extract_tuning_data(self, raw_frame_data: List[dict], classified: dict) -> List[dict]:
@@ -2217,7 +2224,7 @@ class CourtBoundedAnalyzer:
             logger.warning("Not enough foot positions recorded for heatmap generation")
             return None
 
-        generator = MovementHeatmapGenerator(self.court)
+        generator = MovementHeatmapGenerator(self.court, court_center=self.court_center)
         heatmap_image = generator.generate_heatmap(self.foot_position_history)
 
         if heatmap_image is None:
@@ -2580,9 +2587,10 @@ class HeatmapConfig:
 class MovementHeatmapGenerator:
     """Generates movement heatmap from foot position data"""
 
-    def __init__(self, court: CourtBoundary, config: HeatmapConfig = None):
+    def __init__(self, court: CourtBoundary, config: HeatmapConfig = None, court_center=None):
         self.court = court
         self.config = config or HeatmapConfig()
+        self.court_center = court_center  # [x, y] pixel coords or None
 
     def _get_perspective_transform(self) -> np.ndarray:
         """Get perspective transform matrix to normalize court to rectangle"""
@@ -2663,6 +2671,10 @@ class MovementHeatmapGenerator:
         # Add court lines overlay
         heatmap_with_court = self._draw_court_lines(heatmap_resized)
 
+        # Draw center recovery zone if court center was provided
+        if self.court_center is not None:
+            self._draw_center_zone(heatmap_with_court, transform)
+
         # Add legend and statistics
         final_image = self._add_legend_and_stats(heatmap_with_court, foot_positions, heatmap)
 
@@ -2696,6 +2708,37 @@ class MovementHeatmapGenerator:
         cv2.line(image, (w // 2, margin), (w // 2, h - margin), (200, 200, 200), 1)
 
         return image
+
+    def _draw_center_zone(self, image: np.ndarray, transform: np.ndarray) -> None:
+        """Draw court center point and recovery zone circle on the heatmap."""
+        h, w = image.shape[:2]
+
+        # Transform the court center pixel coords through the same perspective transform
+        center_pt = np.array([[[float(self.court_center[0]), float(self.court_center[1])]]], dtype=np.float32)
+        transformed = cv2.perspectiveTransform(center_pt, transform)
+        cx_grid, cy_grid = transformed[0][0]
+
+        # Scale from grid coords to output image coords
+        grid_res = self.config.grid_resolution
+        cx_img = int(cx_grid / grid_res * w)
+        cy_img = int(cy_grid / grid_res * h)
+
+        # Recovery zone radius: 5% of court diagonal in grid space, scaled to image
+        zone_radius_grid = 0.05 * math.sqrt(2) * grid_res
+        zone_radius_img = int(zone_radius_grid / grid_res * min(w, h))
+
+        # Draw recovery zone circle (orange, dashed effect via thin circle)
+        color = (0, 165, 255)  # BGR orange
+        cv2.circle(image, (cx_img, cy_img), zone_radius_img, color, 2)
+
+        # Draw center crosshair
+        cross_size = 8
+        cv2.line(image, (cx_img - cross_size, cy_img), (cx_img + cross_size, cy_img), color, 2)
+        cv2.line(image, (cx_img, cy_img - cross_size), (cx_img, cy_img + cross_size), color, 2)
+
+        # Label
+        cv2.putText(image, "Base", (cx_img + cross_size + 4, cy_img - 4),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1, cv2.LINE_AA)
 
     def _add_legend_and_stats(self, image: np.ndarray, positions: List[Tuple[int, int]],
                               histogram: np.ndarray) -> np.ndarray:

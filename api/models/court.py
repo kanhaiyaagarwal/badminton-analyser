@@ -29,6 +29,7 @@ class CourtBoundaryCreate(BaseModel):
     bottom_left: List[int] = Field(..., min_length=2, max_length=2)
     bottom_right: List[int] = Field(..., min_length=2, max_length=2)
     court_color: Optional[str] = "green"
+    court_center: Optional[List[int]] = Field(None, min_length=2, max_length=2)
 
     def to_boundary(self) -> CourtBoundary:
         """Convert to CourtBoundary model."""

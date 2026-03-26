@@ -2,7 +2,10 @@
   <div class="court-selector">
     <div class="instructions">
       <span v-if="points.length < 4">
-        Click to select {{ pointLabels[points.length] }} ({{ points.length + 1 }}/4)
+        Click to select {{ pointLabels[points.length] }} ({{ points.length + 1 }}/5)
+      </span>
+      <span v-else-if="points.length === 4" class="center-prompt">
+        Now click the court center point (5/5)
       </span>
       <span v-else class="complete">
         All points selected! Drag to adjust.
@@ -59,8 +62,8 @@ const mousePos = ref({ x: 0, y: 0 })
 const scale = ref(1)
 const offset = ref({ x: 0, y: 0 })
 
-const pointLabels = ['Top-Left', 'Top-Right', 'Bottom-Right', 'Bottom-Left']
-const colors = ['#2ecc71', '#f1c40f', '#e74c3c', '#3498db']
+const pointLabels = ['Top-Left', 'Top-Right', 'Bottom-Right', 'Bottom-Left', 'Court Center']
+const colors = ['#2ecc71', '#f1c40f', '#e74c3c', '#3498db', '#e67e22']
 
 onMounted(() => {
   loadImage()
@@ -137,7 +140,7 @@ function draw() {
   c.drawImage(image.value, 0, 0, w, h)
 
   // Draw crosshair at mouse position
-  if (points.value.length < 4) {
+  if (points.value.length < 5) {
     c.strokeStyle = 'rgba(255, 255, 255, 0.5)'
     c.lineWidth = 1
     c.setLineDash([5, 5])
@@ -157,18 +160,19 @@ function draw() {
     c.setLineDash([])
   }
 
-  // Draw polygon
-  if (points.value.length >= 2) {
+  // Draw polygon (first 4 corner points only)
+  const cornerCount = Math.min(points.value.length, 4)
+  if (cornerCount >= 2) {
     c.strokeStyle = '#4ecca3'
     c.lineWidth = 2
     c.beginPath()
     c.moveTo(points.value[0].x * scale.value, points.value[0].y * scale.value)
 
-    for (let i = 1; i < points.value.length; i++) {
+    for (let i = 1; i < cornerCount; i++) {
       c.lineTo(points.value[i].x * scale.value, points.value[i].y * scale.value)
     }
 
-    if (points.value.length === 4) {
+    if (cornerCount === 4) {
       c.closePath()
 
       // Fill with semi-transparent color
@@ -179,8 +183,9 @@ function draw() {
     c.stroke()
   }
 
-  // Draw points
-  points.value.forEach((point, index) => {
+  // Draw corner points (first 4)
+  for (let index = 0; index < cornerCount; index++) {
+    const point = points.value[index]
     const x = point.x * scale.value
     const y = point.y * scale.value
 
@@ -200,10 +205,42 @@ function draw() {
     c.fillStyle = colors[index]
     c.font = 'bold 12px sans-serif'
     c.fillText(pointLabels[index], x + 15, y - 5)
-  })
+  }
+
+  // Draw court center point (5th point) as crosshair target
+  if (points.value.length >= 5) {
+    const cp = points.value[4]
+    const cx = cp.x * scale.value
+    const cy = cp.y * scale.value
+    const size = 14
+
+    c.strokeStyle = colors[4]
+    c.lineWidth = 2
+
+    // Crosshair lines
+    c.beginPath()
+    c.moveTo(cx - size, cy)
+    c.lineTo(cx + size, cy)
+    c.stroke()
+
+    c.beginPath()
+    c.moveTo(cx, cy - size)
+    c.lineTo(cx, cy + size)
+    c.stroke()
+
+    // Circle around crosshair
+    c.beginPath()
+    c.arc(cx, cy, 10, 0, Math.PI * 2)
+    c.stroke()
+
+    // Label
+    c.fillStyle = colors[4]
+    c.font = 'bold 12px sans-serif'
+    c.fillText(pointLabels[4], cx + 18, cy - 5)
+  }
 
   // Show coordinates at cursor
-  if (points.value.length < 4) {
+  if (points.value.length < 5) {
     const realX = Math.round(mousePos.value.x / scale.value)
     const realY = Math.round(mousePos.value.y / scale.value)
 
@@ -216,7 +253,7 @@ function draw() {
 }
 
 function handleClick(event) {
-  if (points.value.length >= 4) return
+  if (points.value.length >= 5) return
 
   const rect = canvas.value.getBoundingClientRect()
   const x = event.clientX - rect.left
@@ -229,7 +266,7 @@ function handleClick(event) {
   points.value.push({ x: realX, y: realY })
   draw()
 
-  if (points.value.length === 4) {
+  if (points.value.length === 5) {
     emitBoundary()
   }
 }
@@ -252,7 +289,7 @@ function handleMouseMove(event) {
 }
 
 function handleMouseDown(event) {
-  if (points.value.length < 4) return
+  if (points.value.length < 5) return
 
   const rect = canvas.value.getBoundingClientRect()
   const x = event.clientX - rect.left
@@ -284,14 +321,15 @@ function resetPoints() {
 }
 
 function emitBoundary() {
-  if (points.value.length !== 4) return
+  if (points.value.length < 5) return
 
   const boundary = {
     top_left: [points.value[0].x, points.value[0].y],
     top_right: [points.value[1].x, points.value[1].y],
     bottom_right: [points.value[2].x, points.value[2].y],
     bottom_left: [points.value[3].x, points.value[3].y],
-    court_color: 'green'
+    court_color: 'green',
+    court_center: [points.value[4].x, points.value[4].y]
   }
 
   emit('boundary-selected', boundary)
@@ -317,6 +355,11 @@ function emitBoundary() {
 
 .instructions .complete {
   color: var(--color-primary);
+}
+
+.instructions .center-prompt {
+  color: #e67e22;
+  font-weight: 600;
 }
 
 .btn-reset {

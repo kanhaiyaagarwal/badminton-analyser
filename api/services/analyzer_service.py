@@ -195,7 +195,7 @@ class AnalyzerService:
         """Scale court boundary coordinates when video is downscaled."""
         scaled = {}
         for key, value in boundary.items():
-            if key in ["top_left", "top_right", "bottom_left", "bottom_right"]:
+            if key in ["top_left", "top_right", "bottom_left", "bottom_right", "court_center"] and value is not None:
                 # Scale x and y coordinates
                 scaled[key] = [int(value[0] * scale_factor), int(value[1] * scale_factor)]
             else:
@@ -469,6 +469,9 @@ class AnalyzerService:
         else:
             logger.info("Shuttle tracking not available (missing torch or weights)")
 
+        # Extract court center (pixel coords) before creating CourtBoundary dataclass
+        court_center = scaled_boundary.get("court_center")
+
         # Prepare analyzer kwargs with optional thresholds
         analyzer_kwargs = {
             "court_boundary": court,
@@ -478,6 +481,7 @@ class AnalyzerService:
             "skip_static_frames": False,  # No frame skipping
             "effective_fps": effective_fps,
             "shuttle_tracker": shuttle_tracker,
+            "court_center": court_center,
         }
 
         # Add custom thresholds if provided

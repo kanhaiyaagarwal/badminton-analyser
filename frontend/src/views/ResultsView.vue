@@ -14,7 +14,7 @@
       <div class="summary-cards">
         <div class="card">
           <h3>Player Shots</h3>
-          <div class="value">{{ report.summary?.player_shots || report.summary?.total_shots || 0 }}</div>
+          <div class="value">{{ report.summary?.player_shots ?? report.summary?.total_shots ?? 0 }}</div>
         </div>
         <div class="card">
           <h3>Opponent Shots</h3>
@@ -57,6 +57,48 @@
         <HeatmapGallery :job-id="jobId" />
       </div>
 
+      <!-- Center Recovery -->
+      <div v-if="report.recovery?.summary" class="section">
+        <h2>Center Recovery</h2>
+        <div class="summary-cards">
+          <div class="card">
+            <h3>Recovery Rate</h3>
+            <div class="value">{{ formatPercent(report.recovery.summary.recovery_rate) }}</div>
+            <div class="sub-value">{{ report.recovery.summary.total_windows }} windows</div>
+          </div>
+          <div class="card">
+            <h3>Avg Recovery Time</h3>
+            <div class="value">{{ report.recovery.summary.avg_recovery_time?.toFixed(1) ?? '-' }}s</div>
+          </div>
+          <div class="card">
+            <h3>Fastest Recovery</h3>
+            <div class="value">{{ report.recovery.summary.fastest_recovery_time?.toFixed(1) ?? '-' }}s</div>
+          </div>
+          <div class="card">
+            <h3>Avg Completeness</h3>
+            <div class="value">{{ formatPercent(report.recovery.summary.avg_recovery_completeness) }}</div>
+          </div>
+          <div class="card" v-if="report.recovery.summary.p50_recovery_time != null">
+            <h3>P50 Recovery</h3>
+            <div class="value">{{ report.recovery.summary.p50_recovery_time?.toFixed(1) }}s</div>
+            <div class="sub-value">median</div>
+          </div>
+          <div class="card" v-if="report.recovery.summary.p95_recovery_time != null">
+            <h3>P95 Recovery</h3>
+            <div class="value">{{ report.recovery.summary.p95_recovery_time?.toFixed(1) }}s</div>
+          </div>
+          <div class="card" v-if="report.recovery.summary.p99_recovery_time != null">
+            <h3>P99 Recovery</h3>
+            <div class="value">{{ report.recovery.summary.p99_recovery_time?.toFixed(1) }}s</div>
+          </div>
+        </div>
+
+        <!-- Recovery Timeline Scatter Chart -->
+        <div v-if="recoveryChartData" class="chart-container recovery-chart">
+          <Scatter :data="recoveryChartData" :options="recoveryChartOptions" />
+        </div>
+      </div>
+
       <!-- Shot Timeline with Shuttle Speed -->
       <div v-if="report.shot_timeline?.length" class="section">
         <h2>Shot Timeline</h2>
@@ -93,13 +135,14 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { Bar } from 'vue-chartjs'
+import { Bar, Scatter } from 'vue-chartjs'
 import {
   Chart as ChartJS,
   Title,
   Tooltip,
   Legend,
   BarElement,
+  PointElement,
   CategoryScale,
   LinearScale
 } from 'chart.js'
@@ -107,7 +150,7 @@ import api from '../api/client'
 import HeatmapGallery from '../components/HeatmapGallery.vue'
 import RallyTimeline from '../components/RallyTimeline.vue'
 
-ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale)
+ChartJS.register(Title, Tooltip, Legend, BarElement, PointElement, CategoryScale, LinearScale)
 
 const route = useRoute()
 const jobId = parseInt(route.params.jobId)
@@ -170,6 +213,72 @@ const chartOptions = {
       grid: {
         display: false
       }
+    }
+  }
+}
+
+// Recovery timeline scatter chart
+const recoveryChartData = computed(() => {
+  const windows = report.value?.recovery?.windows
+  if (!windows?.length) return null
+
+  const recovered = windows.filter(w => w.recovered)
+  const notRecovered = windows.filter(w => !w.recovered)
+
+  return {
+    datasets: [
+      {
+        label: 'Recovered',
+        data: recovered.map(w => ({
+          x: w.from_shot_time,
+          y: w.recovery_time_sec ?? w.window_duration
+        })),
+        backgroundColor: '#2ecc71',
+        pointRadius: 6,
+        pointHoverRadius: 8,
+      },
+      {
+        label: 'Not recovered',
+        data: notRecovered.map(w => ({
+          x: w.from_shot_time,
+          y: w.window_duration
+        })),
+        backgroundColor: '#e74c3c',
+        pointRadius: 6,
+        pointHoverRadius: 8,
+      }
+    ]
+  }
+})
+
+const recoveryChartOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: {
+      labels: { color: '#888' }
+    },
+    tooltip: {
+      callbacks: {
+        label: (ctx) => {
+          const w = ctx.dataset.label
+          return `${w}: ${ctx.parsed.y?.toFixed(1)}s at ${ctx.parsed.x?.toFixed(1)}s`
+        }
+      }
+    }
+  },
+  scales: {
+    x: {
+      type: 'linear',
+      title: { display: true, text: 'Match time (s)', color: '#888' },
+      ticks: { color: '#888' },
+      grid: { color: '#2a2a4a' }
+    },
+    y: {
+      title: { display: true, text: 'Recovery time (s)', color: '#888' },
+      ticks: { color: '#888' },
+      grid: { color: '#2a2a4a' },
+      beginAtZero: true
     }
   }
 }
@@ -396,6 +505,11 @@ h1 {
 .btn-download:disabled {
   background: var(--text-muted);
   cursor: not-allowed;
+}
+
+/* Center Recovery */
+.recovery-chart {
+  margin-top: 1rem;
 }
 
 </style>

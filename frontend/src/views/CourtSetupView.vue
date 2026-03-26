@@ -2,7 +2,7 @@
   <div class="court-setup">
     <div class="header">
       <h1>Setup Court Boundary</h1>
-      <p class="subtitle" v-if="!useEntireFrame">Click to select the 4 corners of the court</p>
+      <p class="subtitle" v-if="!useEntireFrame">Click to select the 4 corners of the court, then the center point</p>
       <p class="subtitle" v-else>Entire video frame will be analyzed</p>
     </div>
 
@@ -92,6 +92,7 @@
             <p>Top-Right: ({{ boundary.top_right.join(', ') }})</p>
             <p>Bottom-Left: ({{ boundary.bottom_left.join(', ') }})</p>
             <p>Bottom-Right: ({{ boundary.bottom_right.join(', ') }})</p>
+            <p v-if="boundary.court_center">Center: ({{ boundary.court_center.join(', ') }})</p>
           </div>
         </div>
 
@@ -208,7 +209,8 @@ function getFullFrameBoundary() {
     top_right: [width, 0],
     bottom_left: [0, height],
     bottom_right: [width, height],
-    court_color: 'green'
+    court_color: 'green',
+    court_center: [Math.round(width / 2), Math.round(height / 2)]
   }
 }
 

@@ -18,7 +18,7 @@
           "protocol": "tcp"
         }
       ],
-      "memory": 6144,
+      "memory": 5600,
       "cpu": 1792,
       "environment": [
         {

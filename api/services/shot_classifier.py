@@ -469,10 +469,12 @@ class ShotClassifier:
         shuttle_hit_direction_pct: float = 80.0,
         shuttle_hit_cooldown: int = 15,
         shuttle_hit_min_speed: float = 80.0,
+        court_center: Optional[List[int]] = None,
     ):
         self.T = {**self.DEFAULT_VELOCITY_THRESHOLDS, **(velocity_thresholds or {})}
         self.P = {**self.DEFAULT_POSITION_THRESHOLDS, **(position_thresholds or {})}
         self.W = {**self.DEFAULT_WINDOW_THRESHOLDS, **(window_thresholds or {})}
+        self.court_center = court_center
         self.shot_cooldown_seconds = shot_cooldown_seconds
         self.effective_fps = effective_fps
         self.rally_gap_seconds = rally_gap_seconds
@@ -690,7 +692,12 @@ class ShotClassifier:
             "shuttle_hits_detected": len(shuttle_hits),
         }
 
-        return {
+        # Compute center recovery metrics if court center was provided
+        recovery = {}
+        if self.court_center is not None:
+            recovery = self._compute_recovery(raw_frame_data, enriched_shots, fps)
+
+        result = {
             "shots": enriched_shots,
             "rallies": rallies,
             "gap_zones": gap_zones,
@@ -699,6 +706,9 @@ class ShotClassifier:
             "shot_distribution": session_stats,
             "summary": summary,
         }
+        if recovery:
+            result["recovery"] = recovery
+        return result
 
     # ------------------------------------------------------------------
     # Velocity computation
@@ -1451,3 +1461,161 @@ class ShotClassifier:
                         rally_id += 1
 
         return {"rallies": rallies, "gap_zones": gap_zones}
+
+    # ------------------------------------------------------------------
+    # Center recovery analysis
+    # ------------------------------------------------------------------
+
+    def _compute_recovery(
+        self, raw_frame_data: List[dict], enriched_shots: List[dict], fps: float
+    ) -> dict:
+        """Compute center recovery metrics between consecutive player shots.
+
+        Measures how well the player returns to the court center (base position)
+        between shots, tracking recovery rate, time, speed, and fatigue trends.
+        """
+        if not self.court_center or not enriched_shots:
+            return {}
+
+        # Find a frame with court_transform to convert pixel center to normalized coords
+        ct = None
+        for f in raw_frame_data:
+            ct = f.get("court_transform")
+            if ct and ct.get("court_w") and ct.get("court_h"):
+                break
+        if not ct:
+            return {}
+
+        # Convert court center from pixel coords to normalized (0-1) court coords
+        norm_cx = (self.court_center[0] - ct["x1"]) / ct["court_w"]
+        norm_cy = (self.court_center[1] - ct["y1"]) / ct["court_h"]
+
+        # Recovery zone: 5% of court diagonal in normalized space
+        # Normalized court is ~1.0 x 1.0, diagonal = sqrt(2) ≈ 1.414
+        recovery_radius = 0.05 * math.sqrt(2)
+
+        # Filter to player shots only, sorted by frame
+        player_shots = sorted(
+            [s for s in enriched_shots if s.get("hit_by") == "player"],
+            key=lambda s: s["frame"],
+        )
+
+        if len(player_shots) < 2:
+            return {}
+
+        # Build frame index for fast lookup
+        frame_map = {}
+        for f in raw_frame_data:
+            frame_map[f.get("frame_number", 0)] = f
+
+        # Analyze recovery windows between consecutive player shots
+        windows = []
+        min_window_sec = 0.3  # Skip windows shorter than 0.3s
+
+        for i in range(len(player_shots) - 1):
+            shot_a = player_shots[i]
+            shot_b = player_shots[i + 1]
+            window_duration = shot_b["timestamp"] - shot_a["timestamp"]
+
+            if window_duration < min_window_sec:
+                continue
+
+            # Collect foot positions in the recovery window
+            start_frame = shot_a["frame"]
+            end_frame = shot_b["frame"]
+
+            positions = []  # (timestamp, distance_to_center)
+            for fn in range(start_frame, end_frame + 1):
+                fd = frame_map.get(fn)
+                if not fd or not fd.get("foot_position"):
+                    continue
+                fp = fd["foot_position"]
+                dist = math.sqrt((fp[0] - norm_cx) ** 2 + (fp[1] - norm_cy) ** 2)
+                positions.append((fd.get("timestamp", 0), dist))
+
+            if not positions:
+                continue
+
+            start_dist = positions[0][1]
+            min_dist = min(p[1] for p in positions)
+            recovered = min_dist <= recovery_radius
+
+            # Time to first entry into recovery zone
+            recovery_time = None
+            for ts, dist in positions:
+                if dist <= recovery_radius:
+                    recovery_time = ts - positions[0][0]
+                    break
+
+            # Recovery completeness: how much of the distance was covered
+            completeness = 0.0
+            if start_dist > 0.001:
+                completeness = max(0.0, min(1.0, (start_dist - min_dist) / start_dist))
+
+            # Recovery speed: distance covered toward center / time
+            time_to_min = 0.0
+            for ts, dist in positions:
+                if dist == min_dist:
+                    time_to_min = ts - positions[0][0]
+                    break
+            recovery_speed = (start_dist - min_dist) / time_to_min if time_to_min > 0.01 else 0.0
+
+            windows.append({
+                "from_shot_frame": start_frame,
+                "to_shot_frame": end_frame,
+                "from_shot_time": round(shot_a["timestamp"], 2),
+                "to_shot_time": round(shot_b["timestamp"], 2),
+                "window_duration": round(window_duration, 2),
+                "recovered": recovered,
+                "recovery_time_sec": round(recovery_time, 2) if recovery_time is not None else None,
+                "min_distance": round(min_dist, 4),
+                "recovery_completeness": round(completeness, 3),
+                "recovery_speed": round(recovery_speed, 3),
+            })
+
+        if not windows:
+            return {}
+
+        # Aggregate summary
+        total = len(windows)
+        recovered_count = sum(1 for w in windows if w["recovered"])
+        recovery_times = [w["recovery_time_sec"] for w in windows if w["recovery_time_sec"] is not None]
+        speeds = [w["recovery_speed"] for w in windows if w["recovery_speed"] > 0]
+
+        # Percentile helper (linear interpolation)
+        def _percentile(sorted_vals, pct):
+            if not sorted_vals:
+                return None
+            k = (len(sorted_vals) - 1) * (pct / 100.0)
+            f = int(k)
+            c = min(f + 1, len(sorted_vals) - 1)
+            d = k - f
+            return round(sorted_vals[f] + d * (sorted_vals[c] - sorted_vals[f]), 2)
+
+        sorted_times = sorted(recovery_times)
+
+        summary = {
+            "total_windows": total,
+            "recovery_rate": round(recovered_count / total, 3) if total > 0 else 0,
+            "avg_recovery_time": round(sum(recovery_times) / len(recovery_times), 2) if recovery_times else None,
+            "fastest_recovery_time": round(min(recovery_times), 2) if recovery_times else None,
+            "slowest_recovery_time": round(max(recovery_times), 2) if recovery_times else None,
+            "p50_recovery_time": _percentile(sorted_times, 50),
+            "p95_recovery_time": _percentile(sorted_times, 95),
+            "p99_recovery_time": _percentile(sorted_times, 99),
+            "avg_recovery_completeness": round(
+                sum(w["recovery_completeness"] for w in windows) / total, 3
+            ) if total > 0 else 0,
+            "avg_min_distance": round(
+                sum(w["min_distance"] for w in windows) / total, 4
+            ) if total > 0 else 0,
+            "fastest_sprint_speed": round(max(speeds), 3) if speeds else None,
+            "avg_recovery_speed": round(sum(speeds) / len(speeds), 3) if speeds else None,
+        }
+
+        return {
+            "court_center_normalized": [round(norm_cx, 4), round(norm_cy, 4)],
+            "recovery_zone_radius": round(recovery_radius, 4),
+            "windows": windows,
+            "summary": summary,
+        }
