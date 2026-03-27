@@ -38,7 +38,7 @@ export const comparisons = [
       { feature: 'Equipment-aware', competitor: true, pushupPro: true, note: 'Both adapt to what you have' },
       { feature: 'Form quality score', competitor: false, pushupPro: true, note: 'Scores each set 0-100 for technique' },
       { feature: 'No download needed', competitor: false, pushupPro: true, note: 'Works in your phone browser' },
-      { feature: 'Price', competitor: '$12.99/mo', pushupPro: 'Free tier + $5/mo Pro', note: '' },
+      { feature: 'Price', competitor: '$12.99/mo', pushupPro: 'Free', note: '' },
     ],
     verdict: 'Fitbod is the better planner. PushUp Pro is the better coach. Fitbod tells you what to do. PushUp Pro watches you do it and tells you when you\'re doing it wrong. If you already know your form is solid and want smart programming, Fitbod is excellent. If you\'re not sure your form is right — or you want an AI that actually holds you accountable — PushUp Pro is the one watching.',
     bestFor: {
@@ -77,7 +77,7 @@ export const comparisons = [
       { feature: 'App-only option', competitor: true, pushupPro: true, note: 'Both work without hardware' },
       { feature: 'AI-personalized plans', competitor: false, pushupPro: true, note: 'Adapts to your performance data' },
       { feature: 'Form score', competitor: false, pushupPro: true, note: 'Technique quality tracked per set' },
-      { feature: 'Price', competitor: '$13.99-44/mo', pushupPro: 'Free tier + $5/mo Pro', note: '' },
+      { feature: 'Price', competitor: '$13.99-44/mo', pushupPro: 'Free', note: '' },
     ],
     verdict: 'Peloton is a gym class you can take at home. PushUp Pro is a coach who watches only you. If you need someone to hype you up and push you through a session, Peloton delivers. If you need someone to tell you your knees are caving or your depth is getting shallow on rep 12, that\'s PushUp Pro. Different tools for different problems.',
     bestFor: {
@@ -116,7 +116,7 @@ export const comparisons = [
       { feature: 'Workout variety', competitor: true, pushupPro: false, note: 'Boxing, yoga, running — NTC covers more' },
       { feature: 'Real-time voice coaching', competitor: false, pushupPro: true, note: 'Responds to what it sees, not a script' },
       { feature: 'Progress tracking', competitor: true, pushupPro: true, note: 'PushUp Pro tracks form quality + volume' },
-      { feature: 'Price', competitor: 'Free', pushupPro: 'Free tier + $5/mo Pro', note: '' },
+      { feature: 'Price', competitor: 'Free', pushupPro: 'Free', note: '' },
     ],
     verdict: 'NTC gives you the workout. PushUp Pro makes sure you\'re doing the workout correctly. If you\'re experienced, have solid form, and just want free guided sessions — NTC is hard to beat. If you\'re a beginner wondering whether your squat depth is right or your plank is sagging, PushUp Pro is the one that will actually tell you.',
     bestFor: {
@@ -128,9 +128,9 @@ export const comparisons = [
     slug: 'pushup-pro-vs-personal-trainer',
     competitor: 'Personal Trainer',
     title: 'AI Form Tracking vs Personal Trainer: Is an App Enough?',
-    description: 'A personal trainer costs $400-1,800/month. PushUp Pro costs $5. Here\'s an honest comparison of what you get, what you lose, and when each makes sense.',
+    description: 'A personal trainer costs $400-1,800/month. PushUp Pro is free. Here\'s an honest comparison of what you get, what you lose, and when each makes sense.',
     heroQuestion: 'What if your trainer was available for every workout — not just the ones you can afford?',
-    intro: 'A great personal trainer is hard to beat. They see things AI misses, physically adjust your position, and read your body language. This page won\'t pretend otherwise. But here\'s the math: a trainer 3x/week at $75/session is $900/month. Most people can\'t sustain that. They get a trainer for a month, learn the basics, and then they\'re on their own again — with nobody watching their form. PushUp Pro is $5/month and is there for every single workout.',
+    intro: 'A great personal trainer is hard to beat. They see things AI misses, physically adjust your position, and read your body language. This page won\'t pretend otherwise. But here\'s the math: a trainer 3x/week at $75/session is $900/month. Most people can\'t sustain that. They get a trainer for a month, learn the basics, and then they\'re on their own again — with nobody watching their form. PushUp Pro is free and is there for every single workout.',
     competitorStrengths: [
       'Catches subtle form issues — slight forward lean, wrist angle, breathing pattern',
       'Physically moves your body into the right position',
@@ -140,7 +140,7 @@ export const comparisons = [
     ],
     pushupProStrengths: [
       'There for every workout — 5am, midnight, holidays, no cancellation fees',
-      '$5/month vs $900/month — 180x cheaper',
+      'Free — no subscription, no hidden fees, no credit card',
       'Tracks 33 body points at once — catches things human eyes miss at speed',
       'Objective scoring — same standard every time, no "good enough" from a tired trainer',
       'No awkwardness — work out in your underwear if you want, nobody\'s judging',
@@ -148,7 +148,7 @@ export const comparisons = [
     comparison: [
       { feature: 'Form feedback', competitor: true, pushupPro: true, note: 'Human catches subtlety; AI catches consistency' },
       { feature: 'Available when you are', competitor: false, pushupPro: true, note: 'AI doesn\'t have a schedule or a commute' },
-      { feature: 'Monthly cost', competitor: '$400-1,800', pushupPro: '$5', note: '' },
+      { feature: 'Monthly cost', competitor: '$400-1,800', pushupPro: 'Free', note: '' },
       { feature: 'Physical adjustments', competitor: true, pushupPro: false, note: 'Only a human can move your elbow 2 inches' },
       { feature: 'Objective measurement', competitor: false, pushupPro: true, note: 'Same scoring standard for every rep, every day' },
       { feature: 'Motivation', competitor: true, pushupPro: true, note: 'Human reads emotions; AI tracks streaks and PRs' },
