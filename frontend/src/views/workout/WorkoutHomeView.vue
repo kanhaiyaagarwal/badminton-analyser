@@ -624,8 +624,8 @@ onMounted(async () => {
 }
 
 .week-nav-btn {
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
   border: none;
   border-radius: 50%;
   background: transparent;
