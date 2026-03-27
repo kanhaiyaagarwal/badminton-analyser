@@ -222,7 +222,9 @@ useHead({
   color: var(--text-secondary);
   text-decoration: none;
   font-size: 0.9rem;
-  margin-bottom: 1.5rem;
+  padding: 0.5rem 0;
+  min-height: 44px;
+  margin-bottom: 1rem;
   transition: color 0.15s ease;
 }
 .back-link:hover { color: var(--color-primary); }

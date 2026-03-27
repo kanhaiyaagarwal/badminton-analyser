@@ -178,7 +178,7 @@ useHead({
 
 .compare-container { width: 100%; }
 
-.back-link { display: inline-block; color: var(--text-secondary); text-decoration: none; font-size: 0.9rem; margin-bottom: 1.5rem; }
+.back-link { display: inline-block; color: var(--text-secondary); text-decoration: none; font-size: 0.9rem; padding: 0.5rem 0; min-height: 44px; margin-bottom: 1rem; }
 .back-link:hover { color: var(--color-primary); }
 
 .not-found { text-align: center; padding: 4rem 1rem; color: var(--text-secondary); }
