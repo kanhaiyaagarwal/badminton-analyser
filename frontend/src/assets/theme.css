@@ -89,4 +89,4 @@
 .glow-secondary { box-shadow: var(--glow-secondary); }
 
 /* ---- Display font utility ---- */
-.font-display { font-family: var(--font-display); }
+.font-display { font-family: var(--font-display); font-weight: 700; }
