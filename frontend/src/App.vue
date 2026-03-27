@@ -100,7 +100,7 @@ const route = useRoute()
 const { isBadminton, appName } = useAppMode()
 
 const isAdmin = computed(() => authStore.user?.is_admin)
-const canTune = computed(() => !authStore.user?.is_admin && authStore.hasFeature('tuning'))
+const canTune = computed(() => !authStore.user?.is_admin && isBadminton.value && authStore.hasFeature('tuning'))
 const isLandingPage = computed(() => route.name === 'Landing' || route.name === 'LandingFull')
 const isAuthPage = computed(() => ['Login', 'Signup', 'ForgotPassword'].includes(route.name))
 const isAdminPage = computed(() => ['Admin', 'Tuning', 'StreamTuning'].includes(route.name))
@@ -178,6 +178,7 @@ const isFullscreenPage = computed(() => ['ChallengeSession', 'WorkoutSession', '
   align-items: center;
   gap: 0.5rem;
   text-decoration: none;
+  min-height: 44px;
 }
 
 .header-logo {
@@ -202,7 +203,10 @@ const isFullscreenPage = computed(() => ['ChallengeSession', 'WorkoutSession', '
 .tuning-badge {
   font-size: 0.7rem;
   font-weight: 600;
-  padding: 0.2rem 0.6rem;
+  padding: 0.4rem 0.75rem;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
   border-radius: 9999px;
   text-decoration: none;
 }
