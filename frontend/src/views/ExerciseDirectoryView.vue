@@ -52,7 +52,7 @@ import { ref, computed } from 'vue'
 import { useHead } from '@unhead/vue'
 import { exercises } from '../content/exercises/index.js'
 
-const activeFilter = ref(null)
+const activeFilter = ref('all')
 
 const muscleGroups = computed(() => {
   const groups = new Set(exercises.map(e => e.primaryMuscle))
