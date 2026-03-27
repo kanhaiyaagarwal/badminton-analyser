@@ -2,9 +2,11 @@
 
 ![Proper pushup form](/blog-images/pushup-form-hero.jpg)
 
-The pushup is the most popular bodyweight exercise in the world — and one of the most commonly done wrong. Bad form doesn't just limit your gains. It puts stress on your shoulders, wrists, and lower back that can sideline you for weeks.
+Most people think they know how to do a pushup. Most people are wrong.
 
-This guide breaks down proper pushup form step by step, covers the most common mistakes, and shows how AI-powered form tracking can catch problems your mirror can't.
+Bad pushup form doesn't just limit your gains. It shifts stress from your chest and triceps to your shoulders, wrists, and lower back. Do enough bad reps and you'll feel it — not in the muscles you're trying to build, but in the joints you're trying to protect.
+
+This guide covers proper pushup form step by step, the 5 mistakes that cause the most injuries, and how AI camera tracking catches problems your mirror can't.
 
 ## Why Form Matters More Than Reps
 

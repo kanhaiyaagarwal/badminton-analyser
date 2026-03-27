@@ -2,23 +2,19 @@
 
 ![Proper squat form](/blog-images/squat-form-hero.jpg)
 
-The squat is the single most effective lower body exercise you can do. It works your quads, glutes, hamstrings, and core all at once — and you don't need any equipment to start.
+Bad squat form doesn't just waste your time. It hurts you.
 
-But most people squat wrong. Knees caving in, heels lifting off the floor, back rounding at the bottom. These mistakes don't just kill your results — they set you up for knee and back injuries that can take months to recover from.
+Your knees and lower back are under load at the bottom of every rep. If your mechanics are off — knees caving in, heels lifting, back rounding — that load goes straight to your joints instead of your muscles. Do it enough and you're looking at knee pain, back injuries, and months of recovery.
 
-This guide covers everything you need to know about proper squat form, the most common mistakes, and how AI tracking can help you fix problems you can't see on your own.
+This guide covers proper squat technique step by step, the 5 mistakes that cause the most damage, and how AI camera tracking catches problems you can't feel until it's too late.
 
 ## Why Squat Form Is Non-Negotiable
 
-Unlike pushups, where bad form mostly wastes your effort, **bad squat form actively hurts you.** Your knees and lower back are under heavy load at the bottom of every rep. If your mechanics are off, that load goes to your joints instead of your muscles.
-
-Here's the thing most people miss: squats aren't naturally dangerous. Your body was designed to squat. Watch any toddler pick something up off the floor — perfect squat form, every time. The problem is that years of sitting in chairs has made most adults forget how to do it properly.
+Squats aren't naturally dangerous. Your body was designed to squat. Watch any toddler pick something up off the floor — perfect squat form, every time. The problem is that years of sitting in chairs has made most adults forget how to do it properly.
 
 Good form isn't about memorizing a checklist. It's about relearning a movement pattern your body already knows.
 
 ## The Perfect Bodyweight Squat: Step by Step
-
-![Step by step squat form](/blog-images/squat-proper-form.jpg)
 
 ### 1. Set Your Stance
 
@@ -74,8 +70,6 @@ Squeeze your glutes at the top to fully extend your hips. This completes the rep
 For bodyweight squats, you can exhale on the way up from the start. The breath hold matters more when you add weight.
 
 ## The 5 Most Common Squat Mistakes
-
-![Common squat mistakes](/blog-images/squat-mistakes.jpg)
 
 ### 1. Knee Cave (Valgus Collapse)
 
@@ -145,8 +139,6 @@ Real-time AI tracking catches the rep where your form starts breaking so you can
 - [How to Plank With Perfect Form](/blog/plank-form-guide) — why shorter holds beat longer ones, and how AI tracks your body line
 
 ## Squat Progressions (Beginner to Advanced)
-
-![Squat progressions](/blog-images/squat-progression.jpg)
 
 ### Level 1: Chair Squats
 

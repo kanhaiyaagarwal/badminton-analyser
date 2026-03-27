@@ -4,7 +4,7 @@
 
 The plank looks simple. Get in position, hold it, done. But simplicity is exactly why most people do it wrong — and why most people's planks are a complete waste of time.
 
-A properly executed plank is one of the most effective core exercises that exist. An improperly executed plank is just... lying there, waiting for time to pass, while your lower back takes all the stress your abs should be handling.
+A proper plank with real engagement is brutally effective. An improper plank is just lying there, waiting for time to pass, while your lower back takes all the stress your abs should be handling.
 
 This guide shows you how to plank correctly, the mistakes that make planks useless (or harmful), and how real-time AI tracking can tell you the exact second your form breaks down.
 
@@ -17,8 +17,6 @@ A perfect plank with maximum muscle engagement is brutally hard. Most people who
 Elite trainers like Stuart McGill (the world's leading spine researcher) recommend **10-second holds with maximum tension**, repeated multiple times. Quality over duration. Every time.
 
 ## The Perfect Plank: Step by Step
-
-![Step by step plank form](/blog-images/plank-proper-form.jpg)
 
 ### 1. Set Your Base
 
@@ -59,8 +57,6 @@ Breathe. Most people either hold their breath (dangerous — spikes blood pressu
 The technique: **shallow, controlled breaths through your nose.** Maintain your brace while breathing. Think about breathing into your sides and back, not your belly. Your abs should stay tight throughout.
 
 ## The 5 Most Common Plank Mistakes
-
-![Common plank mistakes](/blog-images/plank-mistakes.jpg)
 
 ### 1. Sagging Hips (The Hammock)
 
@@ -133,8 +129,6 @@ AI tracking catches the *moment* your form starts to drift, so you can either re
 - [How to Do Squats With Proper Form](/blog/squat-form-guide) — depth tracking, knee cave detection, and the 5 biggest squat mistakes
 
 ## Plank Progressions (Beginner to Advanced)
-
-![Plank progressions](/blog-images/plank-progression.jpg)
 
 ### Level 1: Knee Plank
 
