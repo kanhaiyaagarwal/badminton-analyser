@@ -282,6 +282,7 @@ watch(() => route.params.slug, (slug) => {
 .post-content :deep(h2),
 .post-content :deep(h3) {
   color: var(--text-primary);
+  font-weight: 700;
   margin-top: 2rem;
   margin-bottom: 0.75rem;
   line-height: 1.3;
