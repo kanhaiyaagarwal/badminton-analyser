@@ -5,8 +5,7 @@ import logging
 import re
 import shutil
 import tempfile
-from concurrent.futures import ProcessPoolExecutor
-from concurrent.futures.process import BrokenProcessPool
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional, Any, Callable
@@ -58,14 +57,14 @@ class JobManager:
     """Manages background analysis jobs."""
 
     _instance = None
-    _executor: Optional[ProcessPoolExecutor] = None
+    _executor: Optional[ThreadPoolExecutor] = None
     _active_jobs: Dict[int, asyncio.Task] = {}
     _progress_callbacks: Dict[int, Callable[[int, float, str], None]] = {}
 
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            cls._executor = ProcessPoolExecutor(max_workers=settings.max_concurrent_jobs)
+            cls._executor = ThreadPoolExecutor(max_workers=settings.max_concurrent_jobs)
         return cls._instance
 
     @classmethod
@@ -76,15 +75,10 @@ class JobManager:
         return cls._instance
 
     @classmethod
-    def _get_executor(cls) -> ProcessPoolExecutor:
-        """Get a healthy executor, recreating if the pool is broken."""
-        if cls._executor is None or cls._executor._broken:
-            logger.warning("Process pool is broken or missing — recreating")
-            try:
-                cls._executor.shutdown(wait=False)
-            except Exception:
-                pass
-            cls._executor = ProcessPoolExecutor(max_workers=settings.max_concurrent_jobs)
+    def _get_executor(cls) -> ThreadPoolExecutor:
+        """Get the thread pool executor."""
+        if cls._executor is None:
+            cls._executor = ThreadPoolExecutor(max_workers=settings.max_concurrent_jobs)
         return cls._executor
 
     def register_progress_callback(self, job_id: int, callback: Callable[[int, float, str], None]):
