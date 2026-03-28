@@ -32,6 +32,10 @@ RUN pip install --no-cache-dir -r requirements-web.txt
 RUN pip install --no-cache-dir gunicorn numpy ddtrace && \
     pip install --no-cache-dir mediapipe==0.10.9 opencv-python-headless==4.8.1.78
 
+# Install PyTorch CPU-only for shuttle tracking (TrackNetV2)
+# CPU-only build is ~200MB vs ~2GB with CUDA
+RUN pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu
+
 # Download Vosk speech model for offline voice commands (~40MB)
 COPY scripts/download_vosk_model.sh ./scripts/
 RUN apt-get update && apt-get install -y --no-install-recommends curl unzip \
@@ -41,8 +45,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl unzip \
 
 # Copy application code
 COPY api/ ./api/
+COPY shuttle_tracking/ ./shuttle_tracking/
 COPY v2_court_bounded_analyzer.py .
 COPY heatmap_visualizer.py .
+
+# Copy TrackNetV2 model weights for shuttle tracking (~43MB)
+COPY weights/track.pt ./weights/track.pt
 
 # Create necessary directories
 RUN mkdir -p /app/uploads /app/analysis_output /app/logs && \
