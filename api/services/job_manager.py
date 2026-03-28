@@ -2,10 +2,12 @@
 
 import asyncio
 import logging
+import os
 import re
 import shutil
 import tempfile
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures.process import BrokenProcessPool
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional, Any, Callable
@@ -42,7 +44,14 @@ def _run_analysis_process(
     background_frame_path: str = None,
     save_frame_data: bool = True
 ) -> Dict[str, Any]:
-    """Run analysis in a separate process."""
+    """Run analysis in a separate process.
+
+    Environment variables are inherited from the parent process.
+    MEDIAPIPE_DISABLE_GPU=1 must be set to prevent EGL crash in headless containers.
+    """
+    # Ensure GPU is disabled for MediaPipe in subprocess (prevents malloc crash)
+    os.environ["MEDIAPIPE_DISABLE_GPU"] = "1"
+    os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
     return AnalyzerService.run_analysis(
         video_path=video_path,
         court_boundary=court_boundary,
@@ -57,14 +66,20 @@ class JobManager:
     """Manages background analysis jobs."""
 
     _instance = None
-    _executor: Optional[ThreadPoolExecutor] = None
+    _executor: Optional[ProcessPoolExecutor] = None
     _active_jobs: Dict[int, asyncio.Task] = {}
     _progress_callbacks: Dict[int, Callable[[int, float, str], None]] = {}
 
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            cls._executor = ThreadPoolExecutor(max_workers=settings.max_concurrent_jobs)
+            # Use 'forkserver' to avoid inheriting broken GL state from parent
+            import multiprocessing
+            ctx = multiprocessing.get_context('forkserver')
+            cls._executor = ProcessPoolExecutor(
+                max_workers=settings.max_concurrent_jobs,
+                mp_context=ctx,
+            )
         return cls._instance
 
     @classmethod
@@ -75,10 +90,21 @@ class JobManager:
         return cls._instance
 
     @classmethod
-    def _get_executor(cls) -> ThreadPoolExecutor:
-        """Get the thread pool executor."""
-        if cls._executor is None:
-            cls._executor = ThreadPoolExecutor(max_workers=settings.max_concurrent_jobs)
+    def _get_executor(cls) -> ProcessPoolExecutor:
+        """Get a healthy executor, recreating if the pool is broken."""
+        if cls._executor is None or cls._executor._broken:
+            logger.warning("Process pool is broken or missing — recreating")
+            try:
+                if cls._executor:
+                    cls._executor.shutdown(wait=False)
+            except Exception:
+                pass
+            import multiprocessing
+            ctx = multiprocessing.get_context('forkserver')
+            cls._executor = ProcessPoolExecutor(
+                max_workers=settings.max_concurrent_jobs,
+                mp_context=ctx,
+            )
         return cls._executor
 
     def register_progress_callback(self, job_id: int, callback: Callable[[int, float, str], None]):
